@@ -1,0 +1,23 @@
+OASISFormat: 0.4
+Name: episql
+Version: 0.1
+Synopsis: Tool to derive code from SQL schemas
+Authors: Petter A. Urkedal
+License: LGPL-3
+AlphaFeatures: pure_interface
+Plugins: DevFiles (0.4), META (0.4)
+BuildTools: ocamlbuild
+
+Library "episql"
+  Path: lib
+  InternalModules: Episql_lexer, Episql_parser
+  Modules: Episql_types
+
+Document api
+  Title: Episql API Reference
+  Type: ocamlbuild (0.4)
+  InstallDir: $htmldir/html
+  BuildTools+: ocamldoc
+  XOCamlbuildPath: lib
+  XOCamlbuildLibraries: episql
+  DataFiles: COPYING ($docdir), COPYING.LESSER ($docdir)
