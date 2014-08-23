@@ -22,13 +22,16 @@
 %token COMMA DOT EOF SEMICOLON LPAREN RPAREN
 
 /* Keywords */
-%token AS CREATE DEFAULT ENUM KEY NOT NULL
+%token AS CREATE DEFAULT ENUM KEY NOT NULL WITH
 %token PRIMARY REFERENCES UNIQUE SCHEMA TABLE TYPE
 
 /* Types */
-%token CHAR VARCHAR TEXT
+%token BOOLEAN
+%token CHAR VARCHAR TEXT BYTEA
 %token SMALLINT INTEGER BIGINT SMALLSERIAL SERIAL BIGSERIAL
+%token REAL DOUBLE PRECISION
 %token NUMERIC DECIMAL
+%token TIME DATE TIMESTAMP TIMEZONE INTERVAL
 
 /* Literals */
 %token<string> IDENTIFIER
@@ -95,9 +98,13 @@ qname:
   | IDENTIFIER DOT IDENTIFIER { (Some $1, $3) }
   ;
 datatype:
-    VARCHAR LPAREN INT RPAREN { `Varchar $3 }
+    BOOLEAN { `Boolean }
+  | REAL { `Real }
+  | DOUBLE PRECISION { `Double_precision }
+  | VARCHAR LPAREN INT RPAREN { `Varchar $3 }
   | CHAR LPAREN INT RPAREN { `Char $3 }
   | TEXT { `Text }
+  | BYTEA { `Bytea }
   | SMALLINT { `Smallint }
   | INTEGER { `Integer }
   | BIGINT { `Bigint }
@@ -106,6 +113,11 @@ datatype:
   | BIGSERIAL { `Bigserial }
   | NUMERIC LPAREN INT COMMA INT RPAREN { `Numeric ($3, $5) }
   | DECIMAL LPAREN INT COMMA INT RPAREN { `Decimal ($3, $5) }
+  | TIME { `Time }
+  | DATE { `Date }
+  | TIMESTAMP { `Timestamp }
+  | TIMESTAMP WITH TIMEZONE { `Timestamp_with_timezone }
+  | INTERVAL { `Interval }
   | qname { `Custom $1 }
   ;
 literal:

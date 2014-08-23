@@ -17,17 +17,26 @@
 type qname = string option * string
 
 type datatype =
-  [ `Smallint
+  [ `Boolean
+  | `Real
+  | `Double_precision
+  | `Smallint
   | `Integer
   | `Bigint
   | `Smallserial
   | `Serial
   | `Bigserial
   | `Text
+  | `Bytea
   | `Char of int
   | `Varchar of int
   | `Numeric of int * int
   | `Decimal of int * int
+  | `Time
+  | `Date
+  | `Timestamp
+  | `Timestamp_with_timezone
+  | `Interval
   | `Custom of qname ]
 
 type serialtype = [ `Smallserial | `Serial | `Bigserial ]

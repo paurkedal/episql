@@ -23,11 +23,19 @@ let string_of_qname = function
   | (Some ns, name) -> ns ^ "." ^ name
 
 let string_of_datatype = function
+  | `Boolean -> "boolean"
   | `Smallint | `Smallserial -> "smallint"
   | `Integer | `Serial -> "integer"
   | `Bigint | `Bigserial -> "bigint"
+  | `Real | `Double_precision -> "double"
   | `Text | `Char _ | `Varchar _ -> "text"
+  | `Bytea -> "bytea"
   | `Numeric _ | `Decimal _ -> "double" (* FIXME *)
+  | `Time -> "time"
+  | `Date -> "date"
+  | `Timestamp -> "timestamp"
+  | `Timestamp_with_timezone -> "timestamptz"
+  | `Interval -> "interval"
   | `Custom _ -> "text" (* FIXME *)
 
 let string_of_serialtype = function
