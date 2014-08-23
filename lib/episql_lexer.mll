@@ -73,7 +73,8 @@ rule lex_main = parse
   | ';' { SEMICOLON }
   | '.' { DOT }
   | wordfst wordcnt+ as word
-    { try Hashtbl.find keywords word with Not_found -> IDENTIFIER word }
+    { try Hashtbl.find keywords (String.uppercase word)
+      with Not_found -> IDENTIFIER word }
   | "'" { lex_string (Buffer.create 64) lexbuf }
   | digit+ as i { INT (int_of_string i) }
   | eof { EOF }
