@@ -30,6 +30,8 @@ type datatype =
   | `Decimal of int * int
   | `Custom of qname ]
 
+type serialtype = [ `Smallserial | `Serial | `Bigserial ]
+
 type literal =
   | Lit_integer of int
   | Lit_text of string

@@ -30,23 +30,40 @@ let string_of_datatype = function
   | `Numeric _ | `Decimal _ -> "double" (* FIXME *)
   | `Custom _ -> "text" (* FIXME *)
 
+let string_of_serialtype = function
+  | `Smallserial -> "smallserial"
+  | `Serial -> "serial"
+  | `Bigserial -> "bigserial"
+
 let gen_macaque stmts oc =
   let emit_type dt = output_string oc (string_of_datatype dt) in
   let emit_column_constraint = function
     | `Not_null | `Primary_key -> output_string oc " NOT NULL"
     | `Null | `Unique | `References _ -> ()
     | `Default lit -> () (* FIXME *) in
-  let emit_colspec i = function
+  let emit_serial_seq tqn = function
+    | Column (cn, (#serialtype as dt), _) ->
+      fprintf oc "let %s_%s_seq = <:sequence< %s \"%s_%s_seq\" >>\n"
+		 (snd tqn) cn
+		 (string_of_serialtype dt)
+		 (string_of_qname tqn) cn
+    | _ -> () in
+  let emit_colspec tqn i = function
     | Column (cn, dt, ccs) ->
       if i > 0 then output_string oc ", ";
       output_string oc cn; output_char oc ' ';
       emit_type dt;
-      List.iter emit_column_constraint ccs
+      List.iter emit_column_constraint ccs;
+      begin match dt with
+      | #serialtype -> fprintf oc " DEFAULT(nextval $%s_%s_seq$)" (snd tqn) cn
+      | _ -> ()
+      end
     | Constraint _ -> () in
   let emit_top = function
-    | Create_table (qn, items) ->
-      fprintf oc "let %s = <:table< %s (" (snd qn) (string_of_qname qn);
-      List.iteri emit_colspec items;
+    | Create_table (tqn, items) ->
+      List.iter (emit_serial_seq tqn) items;
+      fprintf oc "let %s = <:table< %s (" (snd tqn) (string_of_qname tqn);
+      List.iteri (emit_colspec tqn) items;
       output_string oc ") >>\n"
     | _ -> () in
   List.iter emit_top stmts
