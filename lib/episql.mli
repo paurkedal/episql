@@ -17,3 +17,9 @@
 open Episql_types
 
 val parse_file : string -> statement list
+
+val string_of_qname : qname -> string
+
+type generator = statement list -> out_channel -> unit
+val generate : string -> generator
+val register_generator : string -> generator -> unit

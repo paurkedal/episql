@@ -15,74 +15,15 @@
  *)
 
 open Episql_types
-open Printf
 open Unprime_list
-
-let string_of_qname = function
-  | (None, name) -> name
-  | (Some ns, name) -> ns ^ "." ^ name
-
-let string_of_datatype = function
-  | `Boolean -> "boolean"
-  | `Smallint | `Smallserial -> "smallint"
-  | `Integer | `Serial -> "integer"
-  | `Bigint | `Bigserial -> "bigint"
-  | `Real | `Double_precision -> "double"
-  | `Text | `Char _ | `Varchar _ -> "text"
-  | `Bytea -> "bytea"
-  | `Numeric _ | `Decimal _ -> "double" (* FIXME *)
-  | `Time -> "time"
-  | `Date -> "date"
-  | `Timestamp -> "timestamp"
-  | `Timestamp_with_timezone -> "timestamptz"
-  | `Interval -> "interval"
-  | `Custom _ -> "text" (* FIXME *)
-
-let string_of_serialtype = function
-  | `Smallserial -> "smallserial"
-  | `Serial -> "serial"
-  | `Bigserial -> "bigserial"
-
-let gen_macaque stmts oc =
-  let emit_type dt = output_string oc (string_of_datatype dt) in
-  let emit_column_constraint = function
-    | `Not_null | `Primary_key -> output_string oc " NOT NULL"
-    | `Null | `Unique | `References _ -> ()
-    | `Default lit -> () (* FIXME *) in
-  let emit_serial_seq tqn = function
-    | Column (cn, (#serialtype as dt), _) ->
-      fprintf oc "let %s_%s_seq =\n  <:sequence< %s \"%s_%s_seq\" >>\n"
-		 (snd tqn) cn
-		 (string_of_serialtype dt)
-		 (string_of_qname tqn) cn
-    | _ -> () in
-  let emit_colspec tqn i = function
-    | Column (cn, dt, ccs) ->
-      output_string oc (if i > 0 then ",\n\t" else "\n\t");
-      output_string oc cn; output_char oc ' ';
-      emit_type dt;
-      List.iter emit_column_constraint ccs;
-      begin match dt with
-      | #serialtype -> fprintf oc " DEFAULT(nextval $%s_%s_seq$)" (snd tqn) cn
-      | _ -> ()
-      end
-    | Constraint _ -> () in
-  let emit_top = function
-    | Create_table (tqn, items) ->
-      List.iter (emit_serial_seq tqn) items;
-      fprintf oc "let %s =\n  <:table< %s (" (snd tqn) (string_of_qname tqn);
-      List.iteri (emit_colspec tqn) items;
-      output_string oc " ) >>\n"
-    | _ -> () in
-  List.iter emit_top stmts
 
 let () =
   let arg_inputs = ref [] in
   let arg_output = ref "-" in
-  let arg_generator = ref gen_macaque in
-  let set_generator = function
-    | "macaque" -> arg_generator := gen_macaque
-    | _ -> raise (Arg.Bad "Invalid generator name.") in
+  let arg_generator = ref Episql_to_macaque.generate in
+  let set_generator gn =
+    try arg_generator := Episql.generate gn
+    with Not_found -> raise (Arg.Bad "Invalid generator name.") in
   let arg_specs =
     [ "-g", Arg.String set_generator,
 	"GENERATOR Select generator. Currently the only option is macaque.";

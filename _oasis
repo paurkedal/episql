@@ -11,7 +11,7 @@ BuildTools: ocamlbuild
 Library "episql"
   Path: lib
   InternalModules: Episql_lexer, Episql_parser
-  Modules: Episql_types
+  Modules: Episql, Episql_to_macaque, Episql_types
 
 Executable "episql"
   Path: bin

@@ -14,4 +14,15 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
+open Episql_types
+
 let parse_file = Episql_lexer.parse_file
+
+let string_of_qname = function
+  | (None, name) -> name
+  | (Some ns, name) -> ns ^ "." ^ name
+
+type generator = statement list -> out_channel -> unit
+let generators : (string, generator) Hashtbl.t = Hashtbl.create 11
+let generate gn = Hashtbl.find generators gn
+let register_generator gn g = Hashtbl.add generators gn g
