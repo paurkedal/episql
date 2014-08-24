@@ -15,7 +15,16 @@
  *)
 
 open Episql_types
+open Printf
 open Unprime_list
+open Unprime
+
+let disable_keyword kw =
+  let kw = String.uppercase kw in
+  if not (Hashtbl.mem Episql_lexer.keywords kw)
+  then eprintf "warning: %s is not a keyword.\n" kw
+  else Hashtbl.remove Episql_lexer.keywords kw
+let disable_keywords = List.iter disable_keyword *< Prime_string.chop_affix ","
 
 let () =
   let arg_inputs = ref [] in
@@ -28,8 +37,13 @@ let () =
     [ "-g", Arg.String set_generator,
 	"GENERATOR Select generator. Currently the only option is macaque.";
       "-o", Arg.Set_string arg_output,
-	"PATH Output path."; ] in
+	"PATH Output path.";
+      "-disable-keywords", Arg.String disable_keywords,
+	"KW,...,KW Disable the given keywords, in case they clash with \
+		   column, table, or other names in your schema."
+	] in
   Arg.parse arg_specs (fun fp -> arg_inputs := fp :: !arg_inputs) Sys.argv.(0);
+  flush stderr;
   let stmts =
     List.fold (fun fp acc -> Episql.parse_file fp @ acc) !arg_inputs [] in
   match !arg_output with
