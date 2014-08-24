@@ -38,6 +38,8 @@ let generate stmts oc =
       output_char oc '\n'
     | Constraint _ -> () in
   let emit_top = function
+    | Create_sequence (sqn, false, _) ->
+      fprintf oc "create_sequence %s\n\n" (string_of_qname sqn)
     | Create_table (tqn, items) ->
       fprintf oc "enter_create_table %s\n" (string_of_qname tqn);
       List.iter (emit_colspec tqn) items;

@@ -60,7 +60,13 @@ type table_item =
   | Column of string * datatype * column_constraint list
   | Constraint of table_constraint
 
+type sequence_attr =
+  [ `Temporary | `Increment of int
+  | `Minvalue of int | `Maxvalue of int | `Start of int (* FIXME: int64 *)
+  | `Cache of int | `Cycle | `No_cycle | `Owner of qname ]
+
 type statement =
   | Create_schema of string
+  | Create_sequence of qname * bool * sequence_attr list
   | Create_table of qname * table_item list
   | Create_enum of qname * string list

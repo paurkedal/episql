@@ -23,16 +23,27 @@
   let () =
     List.iter (fun (kw, token) -> Hashtbl.add keywords kw token)
       [ "AS", AS;
+	"BY", BY;
+	"CACHE", CACHE;
 	"CREATE", CREATE;
+	"CYCLE", CYCLE;
 	"ENUM", ENUM;
+	"INCREMENT", INCREMENT;
 	"KEY", KEY;
+	"MINVALUE", MINVALUE;
+	"MAXVALUE", MAXVALUE;
+	"NO", NO;
 	"NOT", NOT;
 	"NULL", NULL;
 	"PRIMARY", PRIMARY;
 	"REFERENCES", REFERENCES;
 	"UNIQUE", UNIQUE;
 	"SCHEMA", SCHEMA;
+	"SEQUENCE", SEQUENCE;
+	"START", START;
 	"TABLE", TABLE;
+	"TEMP", TEMPORARY;
+	"TEMPORARY", TEMPORARY;
 	"TYPE", TYPE;
 	"WITH", WITH;
 

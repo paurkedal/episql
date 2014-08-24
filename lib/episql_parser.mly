@@ -22,8 +22,9 @@
 %token COMMA DOT EOF SEMICOLON LPAREN RPAREN
 
 /* Keywords */
-%token AS CREATE DEFAULT ENUM KEY NOT NULL WITH
-%token PRIMARY REFERENCES UNIQUE SCHEMA TABLE TYPE
+%token AS BY CACHE CREATE CYCLE DEFAULT ENUM INCREMENT KEY
+%token MINVALUE MAXVALUE NO NOT NULL WITH
+%token PRIMARY REFERENCES UNIQUE SCHEMA SEQUENCE START TABLE TEMPORARY TYPE
 
 /* Types */
 %token BOOLEAN
@@ -51,11 +52,29 @@ statements:
 
 statement:
     CREATE SCHEMA IDENTIFIER { Create_schema $3 }
+  | CREATE temporary SEQUENCE qname seq_attrs
+    { Create_sequence ($4, $2, List.rev $5) }
   | CREATE TABLE qname LPAREN table_items RPAREN
     { Create_table ($3, List.rev $5) }
   | CREATE TYPE qname AS ENUM LPAREN enum_cases RPAREN
     { Create_enum ($3, $7) }
   ;
+
+seq_attrs: /* empty */ { [] } | seq_attrs seq_attr { $2 :: $1 };
+seq_attr:
+    TEMPORARY { `Temporary }
+  | INCREMENT by_opt INT { `Increment $3 }
+  | MINVALUE INT { `Minvalue $2 }
+  | MAXVALUE INT { `Maxvalue $2 }
+  | START with_opt INT { `Start $3 }
+  | CACHE INT { `Cache $2 }
+  | CYCLE { `Cycle }
+  | NO CYCLE { `No_cycle }
+  ;
+
+temporary: /* empty */ { false } | TEMPORARY { true };
+by_opt: /* empty */ {()} | BY {()};
+with_opt: /* empty */ {()} | WITH {()};
 
 table_items: /* empty */ { [] } | nonempty_table_items { $1 };
 nonempty_table_items:

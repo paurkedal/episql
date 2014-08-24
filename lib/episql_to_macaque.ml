@@ -64,6 +64,11 @@ let generate stmts oc =
       end
     | Constraint _ -> () in
   let emit_top = function
+    | Create_schema _ | Create_sequence (_, true, _) -> ()
+    | Create_sequence (sqn, false, attrs) ->
+      (* CHECKME: Better to use bigserial? *)
+      fprintf oc "let %s =\n  <:sequence< serial \"%s\" >>\n"
+		 (snd sqn) (string_of_qname sqn);
     | Create_table (tqn, items) ->
       List.iter (emit_serial_seq tqn) items;
       fprintf oc "let %s =\n  <:table< %s (" (snd tqn) (string_of_qname tqn);
