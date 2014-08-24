@@ -19,6 +19,13 @@ open Printf
 
 let parse_file = Episql_lexer.parse_file
 
+let with_buffer f = let buf = Buffer.create 128 in f buf; Buffer.contents buf
+
+let bprint_qname buf = function
+  | (None, name) -> Buffer.add_string buf name
+  | (Some ns, name) -> Buffer.add_string buf ns; Buffer.add_char buf '.';
+		       Buffer.add_string buf name
+
 let string_of_qname = function
   | (None, name) -> name
   | (Some ns, name) -> ns ^ "." ^ name
@@ -60,12 +67,25 @@ let string_of_literal = function
   | Lit_integer i -> string_of_int i
   | Lit_text s -> sql_quote s
 
+let rec bprint_expression buf = function
+  | Expr_qname qn -> Buffer.add_string buf (string_of_qname qn)
+  | Expr_literal lit -> Buffer.add_string buf (string_of_literal lit)
+  | Expr_app (f, []) -> bprint_qname buf f; Buffer.add_string buf "()"
+  | Expr_app (f, e :: es) ->
+    bprint_qname buf f;
+    Buffer.add_char buf '(';
+    bprint_expression buf e;
+    List.iter (fun e -> Buffer.add_string buf ", "; bprint_expression buf e) es;
+    Buffer.add_char buf ')'
+
+let string_of_expression e = with_buffer (fun buf -> bprint_expression buf e)
+
 let string_of_column_constraint = function
   | `Not_null -> "NOT NULL"
   | `Null -> "NULL"
   | `Unique -> "UNIQUE"
   | `Primary_key -> "PRIMARY KEY"
-  | `Default lit -> "DEFAULT(" ^ string_of_literal lit ^ ")"
+  | `Default e -> "DEFAULT(" ^ string_of_expression e ^ ")"
   | `References (tqn, None) -> "REFERENCES " ^ string_of_qname tqn
   | `References (tqn, Some cn) -> "REFERENCES ("^(string_of_qname tqn)^")"^cn
 

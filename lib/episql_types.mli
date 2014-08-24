@@ -45,12 +45,17 @@ type literal =
   | Lit_integer of int
   | Lit_text of string
 
+type expression =
+  | Expr_qname of qname
+  | Expr_literal of literal
+  | Expr_app of qname * expression list
+
 type column_constraint =
   [ `Not_null
   | `Null
   | `Unique
   | `Primary_key
-  | `Default of literal
+  | `Default of expression
   | `References of qname * string option ]
 
 type table_constraint =

@@ -94,7 +94,7 @@ column_constraint:
   | NULL { `Null }
   | UNIQUE { `Unique }
   | PRIMARY KEY { `Primary_key }
-  | DEFAULT literal { `Default $2 }
+  | DEFAULT expr { `Default $2 }
   | REFERENCES qname { `References ($2, None) }
   | REFERENCES qname LPAREN IDENTIFIER RPAREN { `References ($2, Some $4) }
   ;
@@ -139,6 +139,19 @@ datatype:
   | INTERVAL { `Interval }
   | qname { `Custom $1 }
   ;
+
+expr:
+    literal { Expr_literal $1 }
+  | qname { Expr_qname $1 }
+  | qname LPAREN expr_params RPAREN { Expr_app ($1, $3) }
+  | LPAREN expr RPAREN { $2 }
+  ;
+expr_params: /* empty */ {[]} | expr_nonempty_params {List.rev $1};
+expr_nonempty_params:
+    expr { [$1] }
+  | expr_nonempty_params COMMA expr { $3 :: $1 }
+  ;
+
 literal:
     INT { Lit_integer $1 }
   | STRING { Lit_text $1 }

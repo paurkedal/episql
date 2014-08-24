@@ -33,7 +33,7 @@ let () =
   let set_generator gn =
     try arg_generator := Episql.generate gn
     with Not_found -> raise (Arg.Bad (gn ^ " is not a supported generator")) in
-  let arg_specs =
+  let arg_specs = Arg.align
     [ "-g", Arg.String set_generator,
 	"GENERATOR Select generator. Currently the only option is macaque.";
       "-o", Arg.Set_string arg_output,

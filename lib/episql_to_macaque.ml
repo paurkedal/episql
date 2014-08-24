@@ -41,10 +41,12 @@ let string_of_serialtype = function
 
 let generate stmts oc =
   let emit_type dt = output_string oc (string_of_datatype dt) in
+  let emit_expr e = output_string oc (string_of_expression e) in
   let emit_column_constraint = function
     | `Not_null | `Primary_key -> output_string oc " NOT NULL"
     | `Null | `Unique | `References _ -> ()
-    | `Default lit -> () (* FIXME *) in
+    | `Default e ->
+      output_string oc " DEFAULT("; emit_expr e; output_char oc ')' in
   let emit_serial_seq tqn = function
     | Column (cn, (#serialtype as dt), _) ->
       fprintf oc "let %s_%s_seq =\n  <:sequence< %s \"%s_%s_seq\" >>\n"
@@ -63,6 +65,16 @@ let generate stmts oc =
       | _ -> ()
       end
     | Constraint _ -> () in
+  let emit_table_post tqn = function
+    | Column (cn, dt, ccs) ->
+      let emit_default_nul_workaround = function
+	| `Default e ->
+	  fprintf oc "let () = ignore <:value< nullable $%s$?%s >>\n"
+		     (snd tqn) cn
+	| _ -> () in
+      if List.mem `Not_null ccs then
+	List.iter emit_default_nul_workaround ccs
+    | Constraint _ -> () in
   let emit_top = function
     | Create_schema _ | Create_sequence (_, true, _) -> ()
     | Create_sequence (sqn, false, attrs) ->
@@ -73,7 +85,8 @@ let generate stmts oc =
       List.iter (emit_serial_seq tqn) items;
       fprintf oc "let %s =\n  <:table< %s (" (snd tqn) (string_of_qname tqn);
       List.iteri (emit_colspec tqn) items;
-      output_string oc " ) >>\n"
+      output_string oc " ) >>\n";
+      List.iter (emit_table_post tqn) items
     | _ -> () in
   List.iter emit_top stmts
 

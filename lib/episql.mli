@@ -22,6 +22,8 @@ val string_of_datatype : datatype -> string
 
 val string_of_qname : qname -> string
 
+val string_of_expression : expression -> string
+
 val string_of_column_constraint : column_constraint -> string
 
 type generator = statement list -> out_channel -> unit
