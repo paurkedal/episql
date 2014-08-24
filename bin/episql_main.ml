@@ -51,14 +51,14 @@ let gen_macaque stmts oc =
     | `Default lit -> () (* FIXME *) in
   let emit_serial_seq tqn = function
     | Column (cn, (#serialtype as dt), _) ->
-      fprintf oc "let %s_%s_seq = <:sequence< %s \"%s_%s_seq\" >>\n"
+      fprintf oc "let %s_%s_seq =\n  <:sequence< %s \"%s_%s_seq\" >>\n"
 		 (snd tqn) cn
 		 (string_of_serialtype dt)
 		 (string_of_qname tqn) cn
     | _ -> () in
   let emit_colspec tqn i = function
     | Column (cn, dt, ccs) ->
-      if i > 0 then output_string oc ", ";
+      output_string oc (if i > 0 then ",\n\t" else "\n\t");
       output_string oc cn; output_char oc ' ';
       emit_type dt;
       List.iter emit_column_constraint ccs;
@@ -70,9 +70,9 @@ let gen_macaque stmts oc =
   let emit_top = function
     | Create_table (tqn, items) ->
       List.iter (emit_serial_seq tqn) items;
-      fprintf oc "let %s = <:table< %s (" (snd tqn) (string_of_qname tqn);
+      fprintf oc "let %s =\n  <:table< %s (" (snd tqn) (string_of_qname tqn);
       List.iteri (emit_colspec tqn) items;
-      output_string oc ") >>\n"
+      output_string oc " ) >>\n"
     | _ -> () in
   List.iter emit_top stmts
 
