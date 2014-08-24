@@ -18,7 +18,11 @@ open Episql_types
 
 val parse_file : string -> statement list
 
+val string_of_datatype : datatype -> string
+
 val string_of_qname : qname -> string
+
+val string_of_column_constraint : column_constraint -> string
 
 type generator = statement list -> out_channel -> unit
 val generate : string -> generator

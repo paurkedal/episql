@@ -23,7 +23,7 @@ let () =
   let arg_generator = ref Episql_to_macaque.generate in
   let set_generator gn =
     try arg_generator := Episql.generate gn
-    with Not_found -> raise (Arg.Bad "Invalid generator name.") in
+    with Not_found -> raise (Arg.Bad (gn ^ " is not a supported generator")) in
   let arg_specs =
     [ "-g", Arg.String set_generator,
 	"GENERATOR Select generator. Currently the only option is macaque.";

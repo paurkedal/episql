@@ -15,12 +15,59 @@
  *)
 
 open Episql_types
+open Printf
 
 let parse_file = Episql_lexer.parse_file
 
 let string_of_qname = function
   | (None, name) -> name
   | (Some ns, name) -> ns ^ "." ^ name
+
+let sql_quote s =
+  let buf = Buffer.create (String.length s * 4 / 3) in
+  Buffer.add_char buf '\'';
+  String.iter
+    (function (* CHECKME *)
+      | '\'' -> Buffer.add_string buf "''"
+      | ch -> Buffer.add_char buf ch) s;
+  Buffer.add_char buf '\'';
+  Buffer.contents buf
+
+let string_of_datatype : datatype -> string = function
+  | `Boolean -> "boolean"
+  | `Real -> "real"
+  | `Double_precision -> "double precision"
+  | `Smallint -> "smallint"
+  | `Integer -> "integer"
+  | `Bigint -> "bigint"
+  | `Smallserial -> "smallserial"
+  | `Serial -> "serial"
+  | `Bigserial -> "bigserial"
+  | `Text -> "text"
+  | `Bytea -> "bytea"
+  | `Char n -> sprintf "char(%d)" n
+  | `Varchar n -> sprintf "varchar(%d)" n
+  | `Numeric (p, d) -> sprintf "numeric(%d, %d)" p d
+  | `Decimal (p, d) -> sprintf "decimal(%d, %d)" p d
+  | `Time -> "time"
+  | `Date -> "date"
+  | `Timestamp -> "timestamp"
+  | `Timestamp_with_timezone -> "timestamp with timezone"
+  | `Interval -> "interval"
+  | `Custom qn -> string_of_qname qn
+
+let string_of_literal = function
+  | Lit_integer i -> string_of_int i
+  | Lit_text s -> sql_quote s
+
+let string_of_column_constraint = function
+  | `Not_null -> "NOT NULL"
+  | `Null -> "NULL"
+  | `Unique -> "UNIQUE"
+  | `Primary_key -> "PRIMARY KEY"
+  | `Default lit -> "DEFAULT(" ^ string_of_literal lit ^ ")"
+  | `References (tqn, None) -> "REFERENCES " ^ string_of_qname tqn
+  | `References (tqn, Some cn) -> "REFERENCES ("^(string_of_qname tqn)^")"^cn
 
 type generator = statement list -> out_channel -> unit
 let generators : (string, generator) Hashtbl.t = Hashtbl.create 11
