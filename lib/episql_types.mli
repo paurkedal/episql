@@ -51,7 +51,7 @@ type column_constraint =
   | `Unique
   | `Primary_key
   | `Default of literal
-  | `References of qname * qname option ]
+  | `References of qname * string option ]
 
 type table_constraint =
   [ `Unique of string list ]

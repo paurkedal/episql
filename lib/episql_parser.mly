@@ -77,7 +77,7 @@ column_constraint:
   | PRIMARY KEY { `Primary_key }
   | DEFAULT literal { `Default $2 }
   | REFERENCES qname { `References ($2, None) }
-  | REFERENCES qname LPAREN qname RPAREN { `References ($2, Some $4) }
+  | REFERENCES qname LPAREN IDENTIFIER RPAREN { `References ($2, Some $4) }
   ;
 table_constraint:
     UNIQUE LPAREN nonempty_column_names RPAREN { `Unique (List.rev $3) }
