@@ -22,7 +22,7 @@
 %token COMMA DOT EOF SEMICOLON LPAREN RPAREN
 
 /* Keywords */
-%token AS BY CACHE CREATE CYCLE DEFAULT ENUM INCREMENT KEY
+%token AS BY CACHE CHECK CREATE CYCLE DEFAULT ENUM FOREIGN INCREMENT INHERIT KEY
 %token MINVALUE MAXVALUE NO NOT NULL WITH
 %token PRIMARY REFERENCES UNIQUE SCHEMA SEQUENCE START TABLE TEMPORARY TYPE
 
@@ -99,8 +99,20 @@ column_constraint:
   | REFERENCES qname LPAREN IDENTIFIER RPAREN { `References ($2, Some $4) }
   ;
 table_constraint:
-    UNIQUE LPAREN nonempty_column_names RPAREN { `Unique (List.rev $3) }
+    CHECK LPAREN expr RPAREN check_attr { `Check ($3, $5) }
+  | UNIQUE LPAREN nonempty_column_names RPAREN
+    { `Unique (List.rev $3) }
+  | PRIMARY KEY LPAREN nonempty_column_names RPAREN
+    { `Primary_key (List.rev $4) }
+  | FOREIGN KEY LPAREN nonempty_column_names RPAREN
+    REFERENCES qname paren_column_names_opt
+    { `Foreign_key (List.rev $4, $7, $8) }
   ;
+paren_column_names_opt:
+    /* empty */ { [] }
+  | LPAREN nonempty_column_names RPAREN { List.rev $2 }
+  ;
+check_attr: /* empty */ { [] } | NO INHERIT { [`No_inherit] };
 
 nonempty_column_names:
     IDENTIFIER { [$1] }

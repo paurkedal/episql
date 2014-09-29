@@ -59,7 +59,10 @@ type column_constraint =
   | `References of qname * string option ]
 
 type table_constraint =
-  [ `Unique of string list ]
+  [ `Check of expression * [`No_inherit] list
+  | `Unique of string list
+  | `Primary_key of string list
+  | `Foreign_key of string list * qname * string list ]
 
 type table_item =
   | Column of string * datatype * column_constraint list
