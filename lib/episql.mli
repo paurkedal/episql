@@ -27,5 +27,9 @@ val string_of_expression : expression -> string
 val string_of_column_constraint : column_constraint -> string
 
 type generator = statement list -> out_channel -> unit
+
 val generate : string -> generator
+
 val register_generator : string -> generator -> unit
+
+val generator_names : unit -> string list

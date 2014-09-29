@@ -33,9 +33,10 @@ let () =
   let set_generator gn =
     try arg_generator := Episql.generate gn
     with Not_found -> raise (Arg.Bad (gn ^ " is not a supported generator")) in
+  let gens = String.concat ", " (Episql.generator_names ()) in
   let arg_specs = Arg.align
     [ "-g", Arg.String set_generator,
-	"GENERATOR Select generator. Currently the only option is macaque.";
+	"GENERATOR Select generator among: " ^ gens;
       "-o", Arg.Set_string arg_output,
 	"PATH Output path.";
       "-disable-keywords", Arg.String disable_keywords,

@@ -93,3 +93,4 @@ type generator = statement list -> out_channel -> unit
 let generators : (string, generator) Hashtbl.t = Hashtbl.create 11
 let generate gn = Hashtbl.find generators gn
 let register_generator gn g = Hashtbl.add generators gn g
+let generator_names () = Hashtbl.fold (fun s _ acc -> s :: acc) generators []
