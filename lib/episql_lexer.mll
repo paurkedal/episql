@@ -22,55 +22,55 @@
   let keywords = Hashtbl.create 31
   let () =
     List.iter (fun (kw, token) -> Hashtbl.add keywords kw token)
-      [ "AS", AS;
-	"BY", BY;
-	"CACHE", CACHE;
-	"CREATE", CREATE;
-	"CYCLE", CYCLE;
-	"DEFAULT", DEFAULT;
-	"ENUM", ENUM;
-	"INCREMENT", INCREMENT;
-	"INHERIT", INHERIT;
-	"KEY", KEY;
-	"MINVALUE", MINVALUE;
-	"MAXVALUE", MAXVALUE;
-	"NO", NO;
-	"NOT", NOT;
-	"NULL", NULL;
-	"PRIMARY", PRIMARY;
-	"REFERENCES", REFERENCES;
-	"UNIQUE", UNIQUE;
-	"SCHEMA", SCHEMA;
-	"SEQUENCE", SEQUENCE;
-	"START", START;
-	"TABLE", TABLE;
-	"TEMP", TEMPORARY;
-	"TEMPORARY", TEMPORARY;
-	"TYPE", TYPE;
-	"WITH", WITH;
+      [ "AS", (fun idr -> AS idr);
+	"BY", (fun idr -> BY idr);
+	"CACHE", (fun idr -> CACHE idr);
+	"CREATE", (fun idr -> CREATE idr);
+	"CYCLE", (fun idr -> CYCLE idr);
+	"DEFAULT", (fun idr -> DEFAULT idr);
+	"ENUM", (fun idr -> ENUM idr);
+	"INCREMENT", (fun idr -> INCREMENT idr);
+	"INHERIT", (fun idr -> INHERIT idr);
+	"KEY", (fun idr -> KEY idr);
+	"MINVALUE", (fun idr -> MINVALUE idr);
+	"MAXVALUE", (fun idr -> MAXVALUE idr);
+	"NO", (fun idr -> NO idr);
+	"NOT", (fun idr -> NOT idr);
+	"NULL", (fun idr -> NULL idr);
+	"PRIMARY", (fun idr -> PRIMARY idr);
+	"REFERENCES", (fun idr -> REFERENCES idr);
+	"UNIQUE", (fun idr -> UNIQUE idr);
+	"SCHEMA", (fun idr -> SCHEMA idr);
+	"SEQUENCE", (fun idr -> SEQUENCE idr);
+	"START", (fun idr -> START idr);
+	"TABLE", (fun idr -> TABLE idr);
+	"TEMP", (fun idr -> TEMPORARY idr);
+	"TEMPORARY", (fun idr -> TEMPORARY idr);
+	"TYPE", (fun idr -> TYPE idr);
+	"WITH", (fun idr -> WITH idr);
 
 	(* Type-forming keywords *)
-	"BOOLEAN", BOOLEAN;
-	"REAL", REAL;
-	"DOUBLE", DOUBLE;
-	"PRECISION", PRECISION;
-	"CHAR", CHAR;
-	"VARCHAR", VARCHAR;
-	"TEXT", TEXT;
-	"BYTEA", BYTEA;
-	"SMALLINT", SMALLINT;
-	"INTEGER", INTEGER;
-	"BIGINT", BIGINT;
-	"SMALLSERIAL", SMALLSERIAL;
-	"SERIAL", SERIAL;
-	"BIGSERIAL", BIGSERIAL;
-	"NUMERIC", NUMERIC;
-	"DECIMAL", DECIMAL;
-	"TIME", TIME;
-	"DATE", DATE;
-	"TIMESTAMP", TIMESTAMP;
-	"TIMEZONE", TIMEZONE;
-	"INTERVAL", INTERVAL; ]
+	"BOOLEAN", (fun idr -> BOOLEAN idr);
+	"REAL", (fun idr -> REAL idr);
+	"DOUBLE", (fun idr -> DOUBLE idr);
+	"PRECISION", (fun idr -> PRECISION idr);
+	"CHAR", (fun idr -> CHAR idr);
+	"VARCHAR", (fun idr -> VARCHAR idr);
+	"TEXT", (fun idr -> TEXT idr);
+	"BYTEA", (fun idr -> BYTEA idr);
+	"SMALLINT", (fun idr -> SMALLINT idr);
+	"INTEGER", (fun idr -> INTEGER idr);
+	"BIGINT", (fun idr -> BIGINT idr);
+	"SMALLSERIAL", (fun idr -> SMALLSERIAL idr);
+	"SERIAL", (fun idr -> SERIAL idr);
+	"BIGSERIAL", (fun idr -> BIGSERIAL idr);
+	"NUMERIC", (fun idr -> NUMERIC idr);
+	"DECIMAL", (fun idr -> DECIMAL idr);
+	"TIME", (fun idr -> TIME idr);
+	"DATE", (fun idr -> DATE idr);
+	"TIMESTAMP", (fun idr -> TIMESTAMP idr);
+	"TIMEZONE", (fun idr -> TIMEZONE idr);
+	"INTERVAL", (fun idr -> INTERVAL idr); ]
 }
 
 let digit = ['0'-'9']
@@ -86,7 +86,7 @@ rule lex_main = parse
   | ';' { SEMICOLON }
   | '.' { DOT }
   | wordfst wordcnt* as word
-    { try Hashtbl.find keywords (String.uppercase word)
+    { try Hashtbl.find keywords (String.uppercase word) word
       with Not_found -> IDENTIFIER word }
   | "'" { lex_string (Buffer.create 64) lexbuf }
   | digit+ as i { INT (int_of_string i) }

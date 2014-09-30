@@ -22,17 +22,19 @@
 %token COMMA DOT EOF SEMICOLON LPAREN RPAREN
 
 /* Keywords */
-%token AS BY CACHE CHECK CREATE CYCLE DEFAULT ENUM FOREIGN INCREMENT INHERIT KEY
-%token MINVALUE MAXVALUE NO NOT NULL WITH
-%token PRIMARY REFERENCES UNIQUE SCHEMA SEQUENCE START TABLE TEMPORARY TYPE
+%token<string> AS BY CACHE CHECK CREATE CYCLE DEFAULT ENUM FOREIGN
+%token<string> INCREMENT INHERIT KEY
+%token<string> MINVALUE MAXVALUE NO NOT NULL WITH
+%token<string> PRIMARY REFERENCES UNIQUE SCHEMA SEQUENCE START
+%token<string> TABLE TEMPORARY TYPE
 
-/* Types */
-%token BOOLEAN
-%token CHAR VARCHAR TEXT BYTEA
-%token SMALLINT INTEGER BIGINT SMALLSERIAL SERIAL BIGSERIAL
-%token REAL DOUBLE PRECISION
-%token NUMERIC DECIMAL
-%token TIME DATE TIMESTAMP TIMEZONE INTERVAL
+/* Type-Forming Words */
+%token<string> BOOLEAN
+%token<string> CHAR VARCHAR TEXT BYTEA
+%token<string> SMALLINT INTEGER BIGINT SMALLSERIAL SERIAL BIGSERIAL
+%token<string> REAL DOUBLE PRECISION
+%token<string> NUMERIC DECIMAL
+%token<string> TIME DATE TIMESTAMP TIMEZONE INTERVAL
 
 /* Literals */
 %token<string> IDENTIFIER
@@ -51,12 +53,12 @@ statements:
   ;
 
 statement:
-    CREATE SCHEMA IDENTIFIER { Create_schema $3 }
-  | CREATE temporary SEQUENCE qname seq_attrs
+    CREATE SCHEMA identifier_tf { Create_schema $3 }
+  | CREATE temporary SEQUENCE qname_tf seq_attrs
     { Create_sequence ($4, $2, List.rev $5) }
-  | CREATE TABLE qname LPAREN table_items RPAREN
+  | CREATE TABLE qname_tf LPAREN table_items RPAREN
     { Create_table ($3, List.rev $5) }
-  | CREATE TYPE qname AS ENUM LPAREN enum_cases RPAREN
+  | CREATE TYPE qname_tf AS ENUM LPAREN enum_cases RPAREN
     { Create_enum ($3, $7) }
   ;
 
@@ -82,7 +84,7 @@ nonempty_table_items:
   | table_items COMMA table_item { $3 :: $1 }
   ;
 table_item:
-    IDENTIFIER datatype column_constraints { Column ($1, $2, List.rev $3) }
+    identifier_tf datatype column_constraints { Column ($1, $2, List.rev $3) }
   | table_constraint { Constraint $1 }
   ;
 column_constraints:
@@ -95,8 +97,8 @@ column_constraint:
   | UNIQUE { `Unique }
   | PRIMARY KEY { `Primary_key }
   | DEFAULT expr { `Default $2 }
-  | REFERENCES qname { `References ($2, None) }
-  | REFERENCES qname LPAREN IDENTIFIER RPAREN { `References ($2, Some $4) }
+  | REFERENCES qname_tf { `References ($2, None) }
+  | REFERENCES qname_tf LPAREN identifier_tf RPAREN {`References ($2, Some $4)}
   ;
 table_constraint:
     CHECK LPAREN expr RPAREN check_attr { `Check ($3, $5) }
@@ -105,7 +107,7 @@ table_constraint:
   | PRIMARY KEY LPAREN nonempty_column_names RPAREN
     { `Primary_key (List.rev $4) }
   | FOREIGN KEY LPAREN nonempty_column_names RPAREN
-    REFERENCES qname paren_column_names_opt
+    REFERENCES qname_tf paren_column_names_opt
     { `Foreign_key (List.rev $4, $7, $8) }
   ;
 paren_column_names_opt:
@@ -115,8 +117,8 @@ paren_column_names_opt:
 check_attr: /* empty */ { [] } | NO INHERIT { [`No_inherit] };
 
 nonempty_column_names:
-    IDENTIFIER { [$1] }
-  | nonempty_column_names COMMA IDENTIFIER { $3 :: $1 }
+    identifier_tf { [$1] }
+  | nonempty_column_names COMMA identifier_tf { $3 :: $1 }
   ;
 
 enum_cases:
@@ -125,8 +127,12 @@ enum_cases:
   ;
 
 qname:
-    IDENTIFIER { (None, $1) }
-  | IDENTIFIER DOT IDENTIFIER { (Some $1, $3) }
+    identifier { (None, $1) }
+  | identifier DOT identifier { (Some $1, $3) }
+  ;
+qname_tf:
+    identifier_tf { (None, $1) }
+  | identifier_tf DOT identifier_tf { (Some $1, $3) }
   ;
 datatype:
     BOOLEAN { `Boolean }
@@ -167,4 +173,28 @@ expr_nonempty_params:
 literal:
     INT { Lit_integer $1 }
   | STRING { Lit_text $1 }
+  ;
+identifier:
+    IDENTIFIER { $1 }
+  | CACHE { $1 }
+  | ENUM { $1 }
+  | INCREMENT { $1 }
+  | INHERIT { $1 }
+  | KEY { $1 }
+  | MINVALUE { $1 }
+  | MAXVALUE { $1 }
+  | SCHEMA { $1 }
+  | SEQUENCE { $1 }
+  | TEMPORARY { $1 }
+  | TYPE { $1 }
+  ;
+
+identifier_tf:
+    identifier { $1 }
+  | BOOLEAN { $1 }
+  | REAL { $1 }
+  | DOUBLE { $1 }
+  | PRECISION { $1 }
+  | CHAR { $1 }
+  | VARCHAR { $1 }
   ;
