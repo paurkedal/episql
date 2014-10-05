@@ -22,11 +22,11 @@
 %token COMMA DOT EOF SEMICOLON LPAREN RPAREN
 
 /* Keywords */
-%token<string> AS BY CACHE CHECK CREATE CYCLE DEFAULT ENUM FOREIGN
+%token<string> AS AT BY CACHE CHECK CREATE CYCLE DEFAULT ENUM FOREIGN
 %token<string> INCREMENT INHERIT KEY
 %token<string> MINVALUE MAXVALUE NO NOT NULL WITH
 %token<string> PRIMARY REFERENCES UNIQUE SCHEMA SEQUENCE START
-%token<string> TABLE TEMPORARY TYPE
+%token<string> TABLE TEMPORARY TYPE ZONE
 
 /* Type-Forming Words */
 %token<string> BOOLEAN
@@ -162,6 +162,8 @@ expr:
     literal { Expr_literal $1 }
   | qname { Expr_qname $1 }
   | qname LPAREN expr_params RPAREN { Expr_app ($1, $3) }
+  | expr AT TIME ZONE STRING
+    { Expr_app ((None, "__at_time_zone"), [$1; Expr_literal (Lit_text $5)]) }
   | LPAREN expr RPAREN { $2 }
   ;
 expr_params: /* empty */ {[]} | expr_nonempty_params {List.rev $1};
@@ -187,6 +189,7 @@ identifier:
   | SEQUENCE { $1 }
   | TEMPORARY { $1 }
   | TYPE { $1 }
+  | ZONE { $1 }
   ;
 
 identifier_tf:
@@ -196,5 +199,6 @@ identifier_tf:
   | DOUBLE { $1 }
   | PRECISION { $1 }
   | CHAR { $1 }
+  | TIME { $1 }
   | VARCHAR { $1 }
   ;

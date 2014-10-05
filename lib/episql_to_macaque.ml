@@ -18,6 +18,8 @@ open Episql_types
 open Episql
 open Printf
 
+exception Unsupported
+
 let string_of_datatype = function
   | `Boolean -> "boolean"
   | `Smallint | `Smallserial -> "smallint"
@@ -43,22 +45,35 @@ let identifier_info =
   let ht = Hashtbl.create 13 in
   Array.iter (fun (idr, info) -> Hashtbl.add ht idr info)
     [|"current_timestamp", `Convert_to_function;
-      "localtimestamp", `Convert_to_function|];
+      "localtimestamp", `Convert_to_function;
+      "__at_time_zone", `Unsupported|];
   fun idr -> try Hashtbl.find ht idr with Not_found -> `Noop
 
 let translate = autorec @@ function
-  | Expr_qname (None, fn) when identifier_info fn = `Convert_to_function ->
-    Expr_app ((None, fn), [])
+  | Expr_qname (None, idr) as e ->
+    begin match identifier_info idr with
+    | `Convert_to_function -> Expr_app ((None, idr), [])
+    | `Unsupported -> raise Unsupported
+    | _ -> e
+    end
+  | Expr_app ((None, idr), _) as e ->
+    begin match identifier_info idr with
+    | `Unsupported -> raise Unsupported
+    | _ -> e
+    end
   | e -> e
 
 let generate stmts oc =
   let emit_type dt = output_string oc (string_of_datatype dt) in
-  let emit_expr e = output_string oc (string_of_expression (translate e)) in
+  let emit_expr e = output_string oc (string_of_expression e) in
   let emit_column_constraint = function
     | `Not_null | `Primary_key -> output_string oc " NOT NULL"
     | `Null | `Unique | `References _ -> ()
     | `Default e ->
-      output_string oc " DEFAULT("; emit_expr e; output_char oc ')' in
+      try
+	let e = translate e in
+	output_string oc " DEFAULT("; emit_expr e; output_char oc ')'
+      with Unsupported -> () in
   let emit_serial_seq tqn = function
     | Column (cn, (#serialtype as dt), _) ->
       fprintf oc "let %s_%s_seq =\n  <:sequence< %s \"%s_%s_seq\" >>\n"
@@ -81,8 +96,11 @@ let generate stmts oc =
     | Column (cn, dt, ccs) ->
       let emit_default_nul_workaround = function
 	| `Default e ->
-	  fprintf oc "let () = ignore <:value< nullable $%s$?%s >>\n"
-		     (snd tqn) cn
+	  (try
+	    ignore (translate e);
+	    fprintf oc "let () = ignore <:value< nullable $%s$?%s >>\n"
+		       (snd tqn) cn
+	   with Unsupported -> ())
 	| _ -> () in
       if List.mem `Not_null ccs then
 	List.iter emit_default_nul_workaround ccs

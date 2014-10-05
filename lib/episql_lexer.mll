@@ -23,6 +23,7 @@
   let () =
     List.iter (fun (kw, token) -> Hashtbl.add keywords kw token)
       [ "AS", (fun idr -> AS idr);
+	"AT", (fun idr -> AT idr);
 	"BY", (fun idr -> BY idr);
 	"CACHE", (fun idr -> CACHE idr);
 	"CREATE", (fun idr -> CREATE idr);
@@ -46,8 +47,10 @@
 	"TABLE", (fun idr -> TABLE idr);
 	"TEMP", (fun idr -> TEMPORARY idr);
 	"TEMPORARY", (fun idr -> TEMPORARY idr);
+	"TIME", (fun idr -> TIME idr);
 	"TYPE", (fun idr -> TYPE idr);
 	"WITH", (fun idr -> WITH idr);
+	"ZONE", (fun idr -> ZONE idr);
 
 	(* Type-forming keywords *)
 	"BOOLEAN", (fun idr -> BOOLEAN idr);
