@@ -105,12 +105,14 @@ let rec findent oc n =
 	    else (output_char oc ' ';  findent oc (n - 1))
 
 type genopts = {
+  go_event : bool;
   go_patch : bool;
   go_insert : bool;
   go_update : bool;
   go_delete : bool;
 }
 let go = {
+  go_event = true;
   go_patch = true;
   go_insert = true;
   go_update = true;
@@ -170,9 +172,8 @@ let emit_intf oc ti =
     fprintl oc "    val delete : t -> unit Lwt.t";
   if go.go_patch then
     fprintl oc "    val patch : patch -> t -> unit Lwt.t";
-(*
-  fprintl oc "    val patches : patch React.E.t";
-*)
+  if go.go_event then
+    fprintl oc "    val patches : patch React.E.t";
   fprintl oc "  end\n"
 
 let emit_query oc name emit =
@@ -274,6 +275,9 @@ let emit_impl oc ti =
   fprintl oc "    let get_nonpk = \
 		    function {nonpk = Present x} -> Some x | _ -> None";
 
+  if go.go_event then
+    fprintl oc "    let patches, notify = React.E.create ()";
+
   if go.go_insert || go.go_patch then begin
     fprint  oc "    let insert";
     List.iter
@@ -295,6 +299,8 @@ let emit_impl oc ti =
     fprintl oc "} in";
     fprintl oc "\t  o.nonpk <- Present nonpk;";
     fprintl oc "\t  Lwt_condition.broadcast c nonpk;";
+    if go.go_event then
+      fprintl oc "\t  notify (`Insert nonpk);";
     fprintl oc "\t  Lwt.return_unit";
     fprintl oc "\t| Inserting c -> Lwt_condition.wait c >|= fun _ -> ()";
     fprintl oc "\t| Present x -> Lwt.return_unit";
@@ -316,6 +322,8 @@ let emit_impl oc ti =
     fprintlf oc "\tBuffer.add_string qb \"UPDATE %s SET\";"
 		(Episql.string_of_qname ti.ti_tqn);
     fprintl oc "\tlet params = ref [] in";
+    if go.go_event then
+      fprintl oc "\tlet changes = ref [] in";
     List.iter
       (fun (cn, ct) ->
 	fprintlf oc "\tbegin match %s with" cn;
@@ -323,6 +331,8 @@ let emit_impl oc ti =
 	fprintl  oc "\t  if !pn > 1 then Buffer.add_string qb \", \";";
 	fprintlf oc "\t  bprintf qb \"%s = $%%d\" !pn; incr pn;" cn;
 	fprintlf oc "\t  params := %s x :: !params;" (convname_of_coltype ct);
+	if go.go_event then
+	  fprintlf oc "\t  changes := `Set_%s x :: !changes;" cn;
 	fprintl  oc "\t| _ -> ()";
 	fprintl  oc "\tend;")
       ti.ti_nonpk_cts;
@@ -347,6 +357,8 @@ let emit_impl oc ti =
 	fprintf oc "\t  (match %s with None -> () | Some v -> nonpk.%s <- v)"
 		cn cn)
       ti.ti_nonpk_cts;
+    if go.go_event then
+      fprint oc ";\n\t  notify (`Update (List.rev !changes))";
     fprintl oc "\n\tend"
   end;
 
@@ -362,7 +374,7 @@ let emit_impl oc ti =
     fprintl oc "\t  o.nonpk <- Deleting c;";
     fprint  oc "\t  C.exec Q.delete ";
     emit_param oc "pk." ti.ti_pk_cts; fprintl oc " >|=";
-    fprintl oc "\t  fun () -> o.nonpk <- Absent";
+    fprintl oc "\t  fun () -> o.nonpk <- Absent; notify `Delete";
     fprintl oc "\t| Deleting c -> Lwt_condition.wait c in";
     fprintl oc "      retry ()"
   end;
