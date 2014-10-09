@@ -126,9 +126,8 @@ let emit_difftypes oc ti =
 	       (if i = 0 then '[' else '|') cn (string_of_coltype ct)
 	       (if i = len_nonpk - 1 then " ]" else ""))
     ti.ti_nonpk_cts;
-  fprintl oc "    type patch = [ `Insert of nonpk \
-			       | `Update of change list \
-			       | `Delete ]"
+  fprintl oc "    type patch = [`Insert of nonpk | `Update of change list \
+			       | `Delete]"
 
 let emit_intf oc ti =
   fprintf oc "  module %s : sig\n" (String.capitalize (snd ti.ti_tqn));
@@ -149,10 +148,6 @@ let emit_intf oc ti =
   fprintl oc "    val make : pk -> t Lwt.t";
   fprintl oc "    val get_pk : t -> pk";
   fprintl oc "    val get_nonpk : t -> nonpk option";
-(*
-  fprintl oc "    val patch : patch -> unit Lwt.t";
-  fprintl oc "    val patches : patch React.E.t";
-*)
   if go.go_insert then begin
     fprint  oc "    val insert :";
     List.iter
@@ -173,6 +168,11 @@ let emit_intf oc ti =
   end;
   if go.go_delete then
     fprintl oc "    val delete : t -> unit Lwt.t";
+  if go.go_patch then
+    fprintl oc "    val patch : patch -> t -> unit Lwt.t";
+(*
+  fprintl oc "    val patches : patch React.E.t";
+*)
   fprintl oc "  end\n"
 
 let emit_query oc name emit =
@@ -230,18 +230,22 @@ let emit_impl oc ti =
     fprintf oc "DELETE FROM %s WHERE " (Episql.string_of_qname ti.ti_tqn);
     emit_pk_cond next_param in
 
+(*
   let emit_set cn next_param =
     fprintf oc "UPDATE %s SET %s = %s WHERE "
       (Episql.string_of_qname ti.ti_tqn) cn (next_param ());
     emit_pk_cond next_param in
+*)
 
   fprintf oc "  module %s = struct\n" (String.capitalize (snd ti.ti_tqn));
   fprintl oc "    module Q = struct";
   emit_query oc "fetch" emit_fetch;
   emit_query oc "insert" emit_insert;
   emit_query oc "delete" emit_delete;
+(*
   List.iter (fun (cn, _) -> emit_query oc ("set_" ^ cn) (emit_set cn))
 	    ti.ti_nonpk_cts;
+*)
   fprintl oc "    end";
   fprintl oc "    type pk = {";
   List.iter
@@ -270,7 +274,7 @@ let emit_impl oc ti =
   fprintl oc "    let get_nonpk = \
 		    function {nonpk = Present x} -> Some x | _ -> None";
 
-  if go.go_insert then begin
+  if go.go_insert || go.go_patch then begin
     fprint  oc "    let insert";
     List.iter
       (fun (cn, ct) ->
@@ -298,7 +302,7 @@ let emit_impl oc ti =
     fprintl oc " in\n      retry ()"
   end;
 
-  if go.go_update then begin
+  if go.go_update || go.go_patch then begin
     fprint  oc "    let update ";
     List.iter (fun (cn, ct) -> fprintf oc "?%s " cn) ti.ti_nonpk_cts;
     fprintl oc "o =";
@@ -346,7 +350,7 @@ let emit_impl oc ti =
     fprintl oc "\n\tend"
   end;
 
-  if go.go_delete then begin
+  if go.go_delete || go.go_patch then begin
     fprintl oc "    let delete ({pk} as o) =";
     emit_use_C oc 6;
     fprintl oc "      let rec retry () =";
@@ -361,6 +365,35 @@ let emit_impl oc ti =
     fprintl oc "\t  fun () -> o.nonpk <- Absent";
     fprintl oc "\t| Deleting c -> Lwt_condition.wait c in";
     fprintl oc "      retry ()"
+  end;
+
+  if go.go_patch then begin
+    fprintl oc "    let patch p o =";
+    fprintl oc "      match p with";
+    fprintl oc "      | `Insert nonpk ->";
+    fprint  oc "\tinsert";
+    List.iter
+      (fun (cn, ct) ->
+	fprintf oc " %c%s:nonpk.%s" (if ct.ct_nullable then '?' else '~')
+		   cn cn)
+      ti.ti_nonpk_cts;
+    fprintl oc " o;";
+    fprintl oc "      | `Update changes ->";
+    List.iter
+      (fun (cn, _) -> fprintlf oc "\tlet %s = ref None in" cn)
+      ti.ti_nonpk_cts;
+    fprintl oc "\tList.iter";
+    fprint  oc "\t  (function";
+    List.iter
+      (fun (cn, _) ->
+	fprintf oc "\n\t    | `Set_%s v -> %s := Some v" cn cn)
+      ti.ti_nonpk_cts;
+    fprintl oc ")";
+    fprintl oc "\t  changes;";
+    fprint  oc "\tupdate";
+    List.iter (fun (cn, _) -> fprintf oc " ?%s:!%s" cn cn) ti.ti_nonpk_cts;
+    fprintl oc " o";
+    fprintl oc "      | `Delete -> delete o"
   end;
 
   fprintl oc "  end"
