@@ -23,8 +23,10 @@ Library "episql-caqti-persist"
   Path: lib
   FindlibParent: episql
   FindlibName: caqti-persist
-  BuildDepends: extunix, lwt, prime, prime.unstable
+  BuildDepends: caqti.lwt, extunix, lwt, prime, prime.unstable
   Modules: Epicaqti_persist
+  ByteOpt: -thread
+  NativeOpt: -thread
 
 Executable "episql"
   Path: bin

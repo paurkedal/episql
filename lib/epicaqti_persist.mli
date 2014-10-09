@@ -43,3 +43,13 @@ end
 module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) :
 	PK_CACHED with type pk := P.pk and type nonpk := P.nonpk
 		   and type beacon := Beacon.t
+
+module Query_buffer (C : Caqti_lwt.CONNECTION) : sig
+  type t
+  val create : Caqti_metadata.backend_info -> t
+  val add_string : t -> string -> unit
+  val add_param : t -> C.param -> unit
+  val supress_comma : t -> unit
+  val add_comma : t -> unit
+  val contents : t -> Caqti_query.query * C.param array
+end

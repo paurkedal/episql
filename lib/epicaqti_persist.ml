@@ -75,3 +75,36 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
     let nonpk = match nonpk with None -> Absent | Some x -> Present x in
     W.merge cache (Beacon.embed fetch_grade (fun beacon -> {pk; nonpk; beacon}))
 end
+
+module Query_buffer (C : Caqti_lwt.CONNECTION) = struct
+  open Caqti_metadata
+  open Caqti_query
+
+  type t = {
+    backend_info : backend_info;
+    buf : Buffer.t;
+    mutable param_no : int;
+    mutable params : C.param list;
+    mutable comma_supressed : bool;
+  }
+  let create backend_info =
+    { backend_info;
+      buf = Buffer.create 256;
+      param_no = 1; params = [];
+      comma_supressed = false }
+  let add_string {buf} s = Buffer.add_string buf s
+  let add_param b p =
+    b.params <- p :: b.params;
+    match b.backend_info.bi_parameter_style with
+    | `Linear s -> Buffer.add_string b.buf s
+    | `Indexed sf -> Buffer.add_string b.buf (sf b.param_no);
+		     b.param_no <- b.param_no + 1
+    | _ -> raise Missing_query_string
+  let supress_comma b = b.comma_supressed <- true
+  let add_comma b =
+    if b.comma_supressed = true
+    then b.comma_supressed <- false
+    else Buffer.add_string b.buf ", "
+  let contents b =
+    Oneshot (fun _ -> Buffer.contents b.buf), Array.of_list (List.rev b.params)
+end

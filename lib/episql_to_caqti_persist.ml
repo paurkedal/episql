@@ -108,6 +108,7 @@ type genopts = {
   go_event : bool;
   go_patch : bool;
   go_insert : bool;
+  go_create : bool;
   go_update : bool;
   go_delete : bool;
 }
@@ -115,6 +116,7 @@ let go = {
   go_event = true;
   go_patch = true;
   go_insert = true;
+  go_create = true;
   go_update = true;
   go_delete = true;
 }
@@ -150,6 +152,16 @@ let emit_intf oc ti =
   fprintl oc "    val make : pk -> t Lwt.t";
   fprintl oc "    val get_pk : t -> pk";
   fprintl oc "    val get_nonpk : t -> nonpk option";
+  if go.go_create then begin
+    fprint oc "    val create :";
+    List.iter
+      (fun (cn, ct) ->
+	fprintf oc "\n      %s%s: %s ->"
+		(if ct.ct_nullable || ct.ct_defaultable then "?" else "")
+		cn (string_of_datatype ct.ct_type))
+      ti.ti_cts;
+    fprintl oc "\n      unit -> t Lwt.t"
+  end;
   if go.go_insert then begin
     fprint  oc "    val insert :";
     List.iter
@@ -277,6 +289,96 @@ let emit_impl oc ti =
 
   if go.go_event then
     fprintl oc "    let patches, notify = React.E.create ()";
+
+  if go.go_create then begin
+    fprint  oc "    let create";
+    List.iter
+      (fun (cn, ct) ->
+	fprintf oc " %c%s"
+	  (if ct.ct_nullable || ct.ct_defaultable then '?' else '~') cn)
+      ti.ti_cts;
+    fprintl oc " () =";
+    emit_use_C oc 6;
+    fprintl  oc "\tlet module Qb = Query_buffer (C) in";
+    fprintl  oc "\tlet qb = Qb.create C.backend_info in";
+    fprintlf oc "\tQb.add_string qb \"INSERT INTO %s (\";"
+	     (Episql.string_of_qname ti.ti_tqn);
+    List.iteri
+      (fun i (cn, ct) ->
+	if ct.ct_nullable || ct.ct_defaultable then begin
+	  fprintf oc "\tif %s != None then Qb.add_string qb \"%s\""
+		  cn cn;
+	  if i = 0 then fprintl  oc "else Qb.supress_comma qb";
+	  fprintl oc ";"
+	end else begin
+	  if i > 0 then fprintl oc "\tQb.add_comma qb;";
+	  fprintlf oc "\tQb.add_string qb \"%s\";" cn
+	end)
+      ti.ti_cts;
+    fprintl  oc "\tQb.add_string qb \") VALUES (\";";
+    List.iteri
+      (fun i (cn, ct) ->
+	if ct.ct_nullable || ct.ct_defaultable then begin
+	  fprintlf oc "\t(match %s with" cn;
+	  if i = 0 then fprintl oc "\t  | None -> Qb.supress_comma qb"
+		   else fprintl oc "\t  | None -> ()";
+	  fprint oc "\t  | Some x -> ";
+	  if i > 0 then fprint oc "Qb.add_comma qb; ";
+	  fprintlf oc "Qb.add_param qb C.Param.(%s x));"
+		   (convname_of_datatype ct.ct_type)
+	end else begin
+	  if i > 0 then fprintl  oc "\tQb.add_comma qb;";
+	  fprintlf oc "\tQb.add_param qb C.Param.(%s %s);"
+		  (convname_of_datatype ct.ct_type) cn
+	end)
+      ti.ti_cts;
+    fprintl  oc "\tQb.add_string qb \")\";";
+    let have_default =
+      List.exists (fun (_, ct) -> ct.ct_defaultable) ti.ti_cts in
+    if have_default then begin
+      fprint  oc "\tlet have_default = true";
+      List.iter
+	(fun (cn, ct) ->
+	  if ct.ct_defaultable then
+	    fprintf oc " || %s = None" cn)
+	ti.ti_cts;
+      fprintl oc " in";
+      fprintl oc "\tif have_default then begin";
+      fprintl oc "\t  Qb.add_string qb \" RETURNING (\";";
+      fprintl oc "\t  Qb.supress_comma qb;";
+      List.iter
+	(fun (cn, ct) ->
+	  if ct.ct_defaultable then
+	    fprintlf oc "\t  if %s = None then \
+			 (Qb.add_comma qb; Qb.add_string qb \"%s\");" cn cn)
+	ti.ti_cts;
+      fprintl oc "\t  Qb.add_string qb \")\"";
+      fprintl oc "\tend;";
+    end;
+    fprintl  oc "\tlet q, p = Qb.contents qb in";
+    let emit_field (cn, ct) =
+      if ct.ct_defaultable then
+	fprintlf oc "\t    %s = getp %s C.Tuple.%s"
+		 cn cn (convname_of_datatype ct.ct_type)
+      else
+	fprintlf oc "\t    %s;" cn in
+    fprintl  oc "\tlet decode t =";
+    if have_default then begin
+      fprintl  oc "\t  let _i = ref (-1) in";
+      fprintl  oc "\t  let getp o c =";
+      fprintl  oc "\t    match o with Some x -> x \
+				    | None -> incr _i; c !_i t in";
+    end;
+    fprintl  oc "\t  let pk = {";
+    List.iter emit_field ti.ti_pk_cts;
+    fprintl  oc "\t  } in";
+    fprintl  oc "\t  let nonpk = {";
+    List.iter emit_field ti.ti_nonpk_cts;
+    fprintl  oc "\t  } in";
+    fprintl  oc "\t  merge pk (Some nonpk) in";
+    fprintl  oc "\tC.find q decode p >|= \
+		   function None -> assert false | Some r -> r";
+  end;
 
   if go.go_insert || go.go_patch then begin
     fprint  oc "    let insert";
