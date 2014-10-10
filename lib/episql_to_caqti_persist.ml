@@ -123,15 +123,22 @@ let go = {
 
 let emit_difftypes oc ti =
   let len_nonpk = List.length ti.ti_nonpk_cts in
-  fprintl oc "    type change =";
-  List.iteri
-    (fun i (cn, ct) ->
-      fprintlf oc "      %c `Set_%s of %s%s"
-	       (if i = 0 then '[' else '|') cn (string_of_coltype ct)
-	       (if i = len_nonpk - 1 then " ]" else ""))
-    ti.ti_nonpk_cts;
-  fprintl oc "    type patch = [`Insert of nonpk | `Update of change list \
-			       | `Delete]"
+  if ti.ti_nonpk_cts = [] then
+    fprintl oc "    type change = unit"
+  else begin
+    fprintl oc "    type change =";
+    List.iteri
+      (fun i (cn, ct) ->
+	fprintlf oc "      %c `Set_%s of %s%s"
+		 (if i = 0 then '[' else '|') cn (string_of_coltype ct)
+		 (if i = len_nonpk - 1 then " ]" else ""))
+      ti.ti_nonpk_cts
+  end;
+  if ti.ti_nonpk_cts = [] then
+    fprintl oc "    type patch = [`Insert | `Delete]"
+  else
+    fprintl oc "    type patch = [`Insert of nonpk | `Update of change list \
+				 | `Delete]"
 
 let emit_intf oc ti =
   fprintf oc "  module %s : sig\n" (String.capitalize (snd ti.ti_tqn));
@@ -141,12 +148,16 @@ let emit_intf oc ti =
       fprintlf oc "      %s : %s;" cn (string_of_coltype ct))
     ti.ti_pk_cts;
   fprintl oc "    }";
-  fprintl oc "    type nonpk = private {";
-  List.iter
-    (fun (cn, ct) ->
-      fprintlf oc "      mutable %s : %s;" cn (string_of_coltype ct))
-    ti.ti_nonpk_cts;
-  fprintl oc "    }";
+  if ti.ti_nonpk_cts = [] then
+    fprintl oc "    type nonpk = unit"
+  else begin
+    fprintl oc "    type nonpk = private {";
+    List.iter
+      (fun (cn, ct) ->
+	fprintlf oc "      mutable %s : %s;" cn (string_of_coltype ct))
+      ti.ti_nonpk_cts;
+    fprintl oc "    }"
+  end;
   emit_difftypes oc ti;
   fprintl oc "    type t";
   fprintl oc "    val make : pk -> t Lwt.t";
@@ -171,7 +182,7 @@ let emit_intf oc ti =
       ti.ti_nonpk_cts;
     fprintl oc "\n      t -> unit Lwt.t"
   end;
-  if go.go_update then begin
+  if go.go_update && ti.ti_nonpk_cts <> [] then begin
     fprint  oc "    val update :";
     List.iter
       (fun (cn, {ct_type = dt; ct_nullable = dn}) ->
@@ -210,13 +221,17 @@ let emit_param oc pfx cts =
   fprint oc "|])"
 
 let emit_detuple oc cts =
-  fprint oc "C.Tuple.(fun t -> {";
-  List.iteri
-    (fun i (cn, ct) ->
-      if i > 0 then fprint oc "; ";
-      fprintf oc "%s = %s %d t" cn (convname_of_coltype ct) i)
-    cts;
-  fprint oc "})"
+  if cts = [] then
+    fprint oc "C.Tuple.(fun t -> ())"
+  else begin
+    fprint oc "C.Tuple.(fun t -> {";
+    List.iteri
+      (fun i (cn, ct) ->
+	if i > 0 then fprint oc "; ";
+	fprintf oc "%s = %s %d t" cn (convname_of_coltype ct) i)
+      cts;
+    fprint oc "})"
+  end
 
 let emit_impl oc ti =
 
@@ -266,12 +281,16 @@ let emit_impl oc ti =
       fprintlf oc "      %s : %s;" cn (string_of_datatype ct.ct_type))
     ti.ti_pk_cts;
   fprintl oc "    }";
-  fprintl oc "    type nonpk = {";
-  List.iter
-    (fun (cn, ct) ->
-      fprintlf oc "      mutable %s : %s;" cn (string_of_coltype ct))
-    ti.ti_nonpk_cts;
-  fprintl oc "    }";
+  if ti.ti_nonpk_cts = [] then
+    fprintl oc "    type nonpk = unit"
+  else begin
+    fprintl oc "    type nonpk = {";
+    List.iter
+      (fun (cn, ct) ->
+	fprintlf oc "      mutable %s : %s;" cn (string_of_coltype ct))
+      ti.ti_nonpk_cts;
+    fprintl oc "    }"
+  end;
   emit_difftypes oc ti;
   fprintl oc "    include Cache (struct";
   fprintl oc "      type tmp0 = pk    type pk = tmp0";
@@ -308,7 +327,7 @@ let emit_impl oc ti =
 	if ct.ct_nullable || ct.ct_defaultable then begin
 	  fprintf oc "\tif %s != None then Qb.add_string qb \"%s\""
 		  cn cn;
-	  if i = 0 then fprintl  oc "else Qb.supress_comma qb";
+	  if i = 0 then fprint oc " else Qb.supress_comma qb";
 	  fprintl oc ";"
 	end else begin
 	  if i > 0 then fprintl oc "\tQb.add_comma qb;";
@@ -372,10 +391,14 @@ let emit_impl oc ti =
     fprintl  oc "\t  let pk = {";
     List.iter emit_field ti.ti_pk_cts;
     fprintl  oc "\t  } in";
-    fprintl  oc "\t  let nonpk = {";
-    List.iter emit_field ti.ti_nonpk_cts;
-    fprintl  oc "\t  } in";
-    fprintl  oc "\t  merge pk (Some nonpk) in";
+    if ti.ti_nonpk_cts = [] then
+      fprintl oc "\t  merge pk (Some ()) in"
+    else begin
+      fprintl oc "\t  let nonpk = {";
+      List.iter emit_field ti.ti_nonpk_cts;
+      fprintl oc "\t  } in";
+      fprintl oc "\t  merge pk (Some nonpk) in"
+    end;
     fprintl  oc "\tC.find q decode p >|= \
 		   function None -> assert false | Some r -> r";
   end;
@@ -395,22 +418,29 @@ let emit_impl oc ti =
     emit_use_C oc 10;
     fprint  oc "\t  C.exec Q.insert ";
     emit_param oc "" ti.ti_nonpk_cts; fprintl oc " >>= fun () ->";
-    fprint  oc "\t  let nonpk = {";
-    List.iteri (fun i (cn, _) -> if i > 0 then fprint oc "; "; fprint oc cn)
-	       ti.ti_nonpk_cts;
-    fprintl oc "} in";
-    fprintl oc "\t  o.nonpk <- Present nonpk;";
-    fprintl oc "\t  Lwt_condition.broadcast c nonpk;";
-    if go.go_event then
-      fprintl oc "\t  notify (`Insert nonpk);";
+    if ti.ti_nonpk_cts = [] then begin
+      fprintl oc "\t  o.nonpk <- Present ();";
+      fprintl oc "\t  Lwt_condition.broadcast c ();";
+      if go.go_event then
+	fprintl oc "\t  notify `Insert;"
+    end else begin
+      fprint  oc "\t  let nonpk = {";
+      List.iteri (fun i (cn, _) -> if i > 0 then fprint oc "; "; fprint oc cn)
+		 ti.ti_nonpk_cts;
+      fprintl oc "} in";
+      fprintl oc "\t  o.nonpk <- Present nonpk;";
+      fprintl oc "\t  Lwt_condition.broadcast c nonpk;";
+      if go.go_event then
+	fprintl oc "\t  notify (`Insert nonpk);"
+    end;
     fprintl oc "\t  Lwt.return_unit";
     fprintl oc "\t| Inserting c -> Lwt_condition.wait c >|= fun _ -> ()";
     fprintl oc "\t| Present x -> Lwt.return_unit";
-    fprint  oc "\t| Deleting c -> Lwt_condition.wait c >> retry ()";
+    fprint  oc "\t| Deleting c -> Lwt_condition.wait c >>= retry";
     fprintl oc " in\n      retry ()"
   end;
 
-  if go.go_update || go.go_patch then begin
+  if (go.go_update || go.go_patch) && ti.ti_nonpk_cts <> [] then begin
     fprint  oc "    let update ";
     List.iter (fun (cn, ct) -> fprintf oc "?%s " cn) ti.ti_nonpk_cts;
     fprintl oc "o =";
@@ -470,7 +500,7 @@ let emit_impl oc ti =
     fprintl oc "      let rec retry () =";
     fprintl oc "\tmatch o.nonpk with";
     fprintl oc "\t| Absent -> Lwt.return_unit";
-    fprintl oc "\t| Inserting c -> Lwt_condition.wait c >> retry ()";
+    fprintl oc "\t| Inserting c -> Lwt_condition.wait c >>= fun _ -> retry ()";
     fprintl oc "\t| Present _ ->";
     fprintl oc "\t  let c = Lwt_condition.create () in";
     fprintl oc "\t  o.nonpk <- Deleting c;";
@@ -484,29 +514,33 @@ let emit_impl oc ti =
   if go.go_patch then begin
     fprintl oc "    let patch p o =";
     fprintl oc "      match p with";
-    fprintl oc "      | `Insert nonpk ->";
-    fprint  oc "\tinsert";
-    List.iter
-      (fun (cn, ct) ->
-	fprintf oc " %c%s:nonpk.%s" (if ct.ct_nullable then '?' else '~')
-		   cn cn)
-      ti.ti_nonpk_cts;
-    fprintl oc " o;";
-    fprintl oc "      | `Update changes ->";
-    List.iter
-      (fun (cn, _) -> fprintlf oc "\tlet %s = ref None in" cn)
-      ti.ti_nonpk_cts;
-    fprintl oc "\tList.iter";
-    fprint  oc "\t  (function";
-    List.iter
-      (fun (cn, _) ->
-	fprintf oc "\n\t    | `Set_%s v -> %s := Some v" cn cn)
-      ti.ti_nonpk_cts;
-    fprintl oc ")";
-    fprintl oc "\t  changes;";
-    fprint  oc "\tupdate";
-    List.iter (fun (cn, _) -> fprintf oc " ?%s:!%s" cn cn) ti.ti_nonpk_cts;
-    fprintl oc " o";
+    if ti.ti_nonpk_cts = [] then
+      fprintl oc "      | `Insert -> insert o"
+    else begin
+      fprintl oc "      | `Insert nonpk ->";
+      fprint  oc "\tinsert";
+      List.iter
+	(fun (cn, ct) ->
+	  fprintf oc " %c%s:nonpk.%s" (if ct.ct_nullable then '?' else '~')
+		     cn cn)
+	ti.ti_nonpk_cts;
+      fprintl oc " o;";
+      fprintl oc "      | `Update changes ->";
+      List.iter
+	(fun (cn, _) -> fprintlf oc "\tlet %s = ref None in" cn)
+	ti.ti_nonpk_cts;
+      fprintl oc "\tList.iter";
+      fprint  oc "\t  (function";
+      List.iter
+	(fun (cn, _) ->
+	  fprintf oc "\n\t    | `Set_%s v -> %s := Some v" cn cn)
+	ti.ti_nonpk_cts;
+      fprintl oc ")";
+      fprintl oc "\t  changes;";
+      fprint  oc "\tupdate";
+      List.iter (fun (cn, _) -> fprintf oc " ?%s:!%s" cn cn) ti.ti_nonpk_cts;
+      fprintl oc " o";
+    end;
     fprintl oc "      | `Delete -> delete o"
   end;
 
