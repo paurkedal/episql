@@ -108,3 +108,66 @@ module Query_buffer (C : Caqti_lwt.CONNECTION) = struct
   let contents b =
     Oneshot (fun _ -> Buffer.contents b.buf), Array.of_list (List.rev b.params)
 end
+
+module Insert_buffer (C : Caqti_lwt.CONNECTION) = struct
+  open Caqti_metadata
+  open Caqti_query
+
+  type t = {
+    backend_info : backend_info;
+    buf : Buffer.t;
+    mutable param_count : int;
+    mutable params : C.param list;
+    mutable returning : string list;
+  }
+
+  let create backend_info table_name =
+    let buf = Buffer.create 256 in
+    Buffer.add_string buf "INSERT INTO ";
+    Buffer.add_string buf table_name;
+    {backend_info; buf; param_count = 0; params = []; returning = []}
+
+  let set ib pn pv =
+    Buffer.add_string ib.buf (if ib.param_count = 0 then " (" else ", ");
+    Buffer.add_string ib.buf pn;
+    ib.params <- pv :: ib.params;
+    ib.param_count <- ib.param_count + 1
+
+  let ret ib r = ib.returning <- r :: ib.returning
+
+  let have_ret ib = ib.returning <> []
+
+  let contents ib =
+    if ib.param_count = 0 then
+      Buffer.add_string ib.buf " DEFAULT VALUES"
+    else begin
+      Buffer.add_string ib.buf ") VALUES (";
+      begin match ib.backend_info.bi_parameter_style with
+      | `Linear s ->
+	Buffer.add_string ib.buf s;
+	for i = 1 to ib.param_count - 1 do
+	  Buffer.add_string ib.buf ", ";
+	  Buffer.add_string ib.buf s
+	done
+      | `Indexed sf ->
+	Buffer.add_string ib.buf (sf 0);
+	for i = 1 to ib.param_count - 1 do
+	  Buffer.add_string ib.buf ", ";
+	  Buffer.add_string ib.buf (sf i)
+	done
+      | _ -> raise Missing_query_string
+      end;
+      Buffer.add_char ib.buf ')'
+    end;
+    begin match List.rev ib.returning with
+    | [] -> ()
+    | r :: rs ->
+      Buffer.add_string ib.buf " RETURNING (";
+      Buffer.add_string ib.buf r;
+      List.iter (fun r -> Buffer.add_string ib.buf ", ";
+			  Buffer.add_string ib.buf r) rs;
+      Buffer.add_char ib.buf ')'
+    end;
+    (Oneshot (fun _ -> Buffer.contents ib.buf),
+     Array.of_list (List.rev ib.params))
+end

@@ -53,3 +53,12 @@ module Query_buffer (C : Caqti_lwt.CONNECTION) : sig
   val add_comma : t -> unit
   val contents : t -> Caqti_query.query * C.param array
 end
+
+module Insert_buffer (C : Caqti_lwt.CONNECTION) : sig
+  type t
+  val create : Caqti_metadata.backend_info -> string -> t
+  val set : t -> string -> C.param -> unit
+  val ret : t -> string -> unit
+  val have_ret : t -> bool
+  val contents : t -> Caqti_query.query * C.param array
+end

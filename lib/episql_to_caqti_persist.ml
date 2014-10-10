@@ -310,6 +310,8 @@ let emit_impl oc ti =
     fprintl oc "    let patches, notify = React.E.create ()";
 
   if go.go_create then begin
+    let have_default =
+      List.exists (fun (_, ct) -> ct.ct_defaultable) ti.ti_cts in
     fprint  oc "    let create";
     List.iter
       (fun (cn, ct) ->
@@ -318,63 +320,26 @@ let emit_impl oc ti =
       ti.ti_cts;
     fprintl oc " () =";
     emit_use_C oc 6;
-    fprintl  oc "\tlet module Qb = Query_buffer (C) in";
-    fprintl  oc "\tlet qb = Qb.create C.backend_info in";
-    fprintlf oc "\tQb.add_string qb \"INSERT INTO %s (\";"
+    fprintl  oc "\tlet module Ib = Insert_buffer (C) in";
+    fprintlf oc "\tlet ib = Ib.create C.backend_info \"%s\" in"
 	     (Episql.string_of_qname ti.ti_tqn);
-    List.iteri
-      (fun i (cn, ct) ->
-	if ct.ct_nullable || ct.ct_defaultable then begin
-	  fprintf oc "\tif %s != None then Qb.add_string qb \"%s\""
-		  cn cn;
-	  if i = 0 then fprint oc " else Qb.supress_comma qb";
-	  fprintl oc ";"
-	end else begin
-	  if i > 0 then fprintl oc "\tQb.add_comma qb;";
-	  fprintlf oc "\tQb.add_string qb \"%s\";" cn
-	end)
+    List.iter
+      (fun (cn, ct) ->
+	if ct.ct_nullable then
+	  fprintlf oc "\t(match %s with None -> () \
+			   | Some x -> Ib.set ib \"%s\" C.Param.(%s x));"
+		   cn cn (convname_of_datatype ct.ct_type)
+	else if ct.ct_defaultable then
+	  fprintlf oc "\t(match %s with None -> Ib.ret ib \"%s\" \
+			   | Some x -> Ib.set ib \"%s\" C.Param.(%s x));"
+		   cn cn cn (convname_of_datatype ct.ct_type)
+	else
+	  fprintlf oc "\tIb.set ib \"%s\" C.Param.(%s %s);"
+		   cn (convname_of_datatype ct.ct_type) cn)
       ti.ti_cts;
-    fprintl  oc "\tQb.add_string qb \") VALUES (\";";
-    List.iteri
-      (fun i (cn, ct) ->
-	if ct.ct_nullable || ct.ct_defaultable then begin
-	  fprintlf oc "\t(match %s with" cn;
-	  if i = 0 then fprintl oc "\t  | None -> Qb.supress_comma qb"
-		   else fprintl oc "\t  | None -> ()";
-	  fprint oc "\t  | Some x -> ";
-	  if i > 0 then fprint oc "Qb.add_comma qb; ";
-	  fprintlf oc "Qb.add_param qb C.Param.(%s x));"
-		   (convname_of_datatype ct.ct_type)
-	end else begin
-	  if i > 0 then fprintl  oc "\tQb.add_comma qb;";
-	  fprintlf oc "\tQb.add_param qb C.Param.(%s %s);"
-		  (convname_of_datatype ct.ct_type) cn
-	end)
-      ti.ti_cts;
-    fprintl  oc "\tQb.add_string qb \")\";";
-    let have_default =
-      List.exists (fun (_, ct) -> ct.ct_defaultable) ti.ti_cts in
-    if have_default then begin
-      fprint  oc "\tlet have_default = true";
-      List.iter
-	(fun (cn, ct) ->
-	  if ct.ct_defaultable then
-	    fprintf oc " || %s = None" cn)
-	ti.ti_cts;
-      fprintl oc " in";
-      fprintl oc "\tif have_default then begin";
-      fprintl oc "\t  Qb.add_string qb \" RETURNING (\";";
-      fprintl oc "\t  Qb.supress_comma qb;";
-      List.iter
-	(fun (cn, ct) ->
-	  if ct.ct_defaultable then
-	    fprintlf oc "\t  if %s = None then \
-			 (Qb.add_comma qb; Qb.add_string qb \"%s\");" cn cn)
-	ti.ti_cts;
-      fprintl oc "\t  Qb.add_string qb \")\"";
-      fprintl oc "\tend;";
-    end;
-    fprintl  oc "\tlet q, p = Qb.contents qb in";
+    if have_default then
+      fprintl oc "\tif not (Ib.have_ret ib) then Ib.ret ib \"0\";";
+    fprintl  oc "\tlet q, p = Ib.contents ib in";
     let emit_field (cn, ct) =
       if ct.ct_defaultable then
 	fprintlf oc "\t    %s = getp %s C.Tuple.%s"
@@ -399,8 +364,11 @@ let emit_impl oc ti =
       fprintl oc "\t  } in";
       fprintl oc "\t  merge pk (Some nonpk) in"
     end;
-    fprintl  oc "\tC.find q decode p >|= \
-		   function None -> assert false | Some r -> r";
+    if have_default then begin
+      fprintl oc "\tC.find q decode p >|= \
+		    function None -> assert false | Some r -> r"
+    end else
+      fprintl oc "\tC.exec q p >|= fun () -> decode ()";
   end;
 
   if go.go_insert || go.go_patch then begin
