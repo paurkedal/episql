@@ -123,22 +123,20 @@ let go = {
 
 let emit_difftypes oc ti =
   let len_nonpk = List.length ti.ti_nonpk_cts in
-  if ti.ti_nonpk_cts = [] then
-    fprintl oc "    type change = unit"
-  else begin
+  if ti.ti_nonpk_cts = [] then begin
+    fprintl oc "    type change = unit";
+    fprintl oc "    type patch = [`Insert | `Delete]"
+  end else begin
     fprintl oc "    type change =";
     List.iteri
       (fun i (cn, ct) ->
 	fprintlf oc "      %c `Set_%s of %s%s"
 		 (if i = 0 then '[' else '|') cn (string_of_coltype ct)
 		 (if i = len_nonpk - 1 then " ]" else ""))
-      ti.ti_nonpk_cts
-  end;
-  if ti.ti_nonpk_cts = [] then
-    fprintl oc "    type patch = [`Insert | `Delete]"
-  else
+      ti.ti_nonpk_cts;
     fprintl oc "    type patch = [`Insert of nonpk | `Update of change list \
 				 | `Delete]"
+  end
 
 let emit_intf oc ti =
   fprintf oc "  module %s : sig\n" (String.capitalize (snd ti.ti_tqn));
@@ -194,7 +192,7 @@ let emit_intf oc ti =
   if go.go_delete then
     fprintl oc "    val delete : t -> unit Lwt.t";
   if go.go_patch then
-    fprintl oc "    val patch : patch -> t -> unit Lwt.t";
+    fprintl oc "    val patch : t -> patch -> unit Lwt.t";
   if go.go_event then
     fprintl oc "    val patches : patch React.E.t";
   fprintl oc "  end\n"
@@ -342,8 +340,12 @@ let emit_impl oc ti =
     fprintl  oc "\tlet q, p = Ib.contents ib in";
     let emit_field (cn, ct) =
       if ct.ct_defaultable then
-	fprintlf oc "\t    %s = getp %s C.Tuple.%s"
-		 cn cn (convname_of_datatype ct.ct_type)
+	if ct.ct_nullable then
+	  fprintlf oc "\t    %s = Some (getp %s C.Tuple.%s);"
+		   cn cn (convname_of_datatype ct.ct_type)
+	else
+	  fprintlf oc "\t    %s = getp %s C.Tuple.%s;"
+		   cn cn (convname_of_datatype ct.ct_type)
       else
 	fprintlf oc "\t    %s;" cn in
     fprintl  oc "\tlet decode t =";
@@ -480,7 +482,7 @@ let emit_impl oc ti =
   end;
 
   if go.go_patch then begin
-    fprintl oc "    let patch p o =";
+    fprintl oc "    let patch o p =";
     fprintl oc "      match p with";
     if ti.ti_nonpk_cts = [] then
       fprintl oc "      | `Insert -> insert o"
