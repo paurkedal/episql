@@ -32,7 +32,7 @@
 %token<string> BOOLEAN
 %token<string> CHAR VARCHAR TEXT BYTEA
 %token<string> SMALLINT INTEGER BIGINT SMALLSERIAL SERIAL BIGSERIAL
-%token<string> REAL DOUBLE PRECISION
+%token<string> REAL FLOAT DOUBLE PRECISION
 %token<string> NUMERIC DECIMAL
 %token<string> TIME DATE TIMESTAMP TIMEZONE INTERVAL
 
@@ -137,6 +137,8 @@ qname_tf:
 datatype:
     BOOLEAN { `Boolean }
   | REAL { `Real }
+  | FLOAT { `Double_precision }
+  | FLOAT LPAREN INT RPAREN { if $3 <= 24 then `Real else `Double_precision }
   | DOUBLE PRECISION { `Double_precision }
   | VARCHAR LPAREN INT RPAREN { `Varchar $3 }
   | CHAR LPAREN INT RPAREN { `Char $3 }
@@ -196,6 +198,7 @@ identifier_tf:
     identifier { $1 }
   | BOOLEAN { $1 }
   | REAL { $1 }
+  | FLOAT { $1 }
   | DOUBLE { $1 }
   | PRECISION { $1 }
   | CHAR { $1 }

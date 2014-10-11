@@ -55,6 +55,7 @@
 	(* Type-forming keywords *)
 	"BOOLEAN", (fun idr -> BOOLEAN idr);
 	"REAL", (fun idr -> REAL idr);
+	"FLOAT", (fun idr -> FLOAT idr);
 	"DOUBLE", (fun idr -> DOUBLE idr);
 	"PRECISION", (fun idr -> PRECISION idr);
 	"CHAR", (fun idr -> CHAR idr);
