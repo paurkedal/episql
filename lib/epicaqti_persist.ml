@@ -120,7 +120,8 @@ module Query_buffer (C : Caqti_lwt.CONNECTION) = struct
     then b.comma_supressed <- false
     else Buffer.add_string b.buf ", "
   let contents b =
-    Oneshot (fun _ -> Buffer.contents b.buf), Array.of_list (List.rev b.params)
+    let qs = Buffer.contents b.buf in
+    Oneshot (fun _ -> qs), Array.of_list (List.rev b.params)
 end
 
 module Insert_buffer (C : Caqti_lwt.CONNECTION) = struct
@@ -182,6 +183,63 @@ module Insert_buffer (C : Caqti_lwt.CONNECTION) = struct
 			  Buffer.add_string ib.buf r) rs;
       Buffer.add_char ib.buf ')'
     end;
-    (Oneshot (fun _ -> Buffer.contents ib.buf),
-     Array.of_list (List.rev ib.params))
+    let qs = Buffer.contents ib.buf in
+    (Oneshot (fun _ -> qs), Array.of_list (List.rev ib.params))
+end
+
+module Update_buffer (C : Caqti_lwt.CONNECTION) = struct
+  open Caqti_metadata
+  open Caqti_query
+
+  type state = Init | Set | Where | Noop
+
+  type t = {
+    make_param : int -> string;
+    buf : Buffer.t;
+    mutable param_count : int;
+    mutable params : C.param list;
+    mutable state : state;
+  }
+
+  let create backend_info table_name =
+    let buf = Buffer.create 256 in
+    Buffer.add_string buf "UPDATE ";
+    Buffer.add_string buf table_name;
+    Buffer.add_string buf " SET ";
+    let make_param =
+      match backend_info.bi_parameter_style with
+      | `Linear s -> fun _ -> s
+      | `Indexed sf -> sf
+      | _ -> raise Missing_query_string in
+    {make_param; buf; param_count = 0; params = []; state = Init}
+
+  let assign ub pn pv =
+    Buffer.add_string ub.buf pn;
+    Buffer.add_string ub.buf " = ";
+    Buffer.add_string ub.buf (ub.make_param ub.param_count);
+    ub.params <- pv :: ub.params;
+    ub.param_count <- ub.param_count + 1
+
+  let set ub pn pv =
+    begin match ub.state with
+    | Init -> ub.state <- Set
+    | Set -> Buffer.add_string ub.buf ", "
+    | _ -> assert false
+    end;
+    assign ub pn pv
+
+  let where ub pn pv =
+    begin match ub.state with
+    | Init | Noop -> ub.state <- Noop
+    | Set -> Buffer.add_string ub.buf " WHERE "; ub.state <- Where
+    | Where -> Buffer.add_string ub.buf " AND "
+    end;
+    assign ub pn pv
+
+  let contents ub =
+    let qs = Buffer.contents ub.buf in
+    match ub.state with
+    | Init | Noop -> None
+    | Set -> assert false (* Precaution, we don't need unconditional update. *)
+    | Where -> Some (Oneshot (fun _ -> qs), Array.of_list (List.rev ub.params))
 end

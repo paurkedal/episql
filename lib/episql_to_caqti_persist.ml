@@ -476,41 +476,31 @@ let emit_impl oc ti =
     fprintl oc "      | None -> Lwt.fail (Failure \"Update of absent row.\")";
     fprint  oc "      | Some nonpk -> ";
     emit_use_C oc 0;
-    fprintl oc "\tlet open C.Param in";
-    fprintl oc "\tlet pn = ref 1 in";
-    fprintl oc "\tlet qb = Buffer.create 512 in";
-    fprintlf oc "\tBuffer.add_string qb \"UPDATE %s SET\";"
-		(Episql.string_of_qname ti.ti_tqn);
-    fprintl oc "\tlet params = ref [] in";
+    fprintl  oc "\tlet module Ub = Update_buffer (C) in";
+    fprintlf oc "\tlet ub = Ub.create C.backend_info \"%s\" in"
+	     (Episql.string_of_qname ti.ti_tqn);
     if go.go_event then
       fprintl oc "\tlet changes = ref [] in";
     List.iter
       (fun (cn, ct) ->
 	fprintlf oc "\tbegin match %s with" cn;
 	fprintlf oc "\t| Some x when x <> nonpk.%s ->" cn;
-	fprintl  oc "\t  if !pn > 1 then Buffer.add_string qb \", \";";
-	fprintlf oc "\t  bprintf qb \"%s = $%%d\" !pn; incr pn;" cn;
-	fprintlf oc "\t  params := %s x :: !params;" (convname_of_coltype ct);
+	fprintlf oc "\t  Ub.set ub \"%s\" C.Param.(%s x);"
+		 cn (convname_of_coltype ct);
 	if go.go_event then
 	  fprintlf oc "\t  changes := `Set_%s x :: !changes;" cn;
 	fprintl  oc "\t| _ -> ()";
 	fprintl  oc "\tend;")
       ti.ti_nonpk_cts;
-    fprint oc "\tbprintf qb \" WHERE ";
-    List.iteri
-      (fun i (cn, ct) ->
-	if i > 0 then fprint oc " AND ";
-	fprintf oc "%s = $%%d" cn)
+    List.iter
+      (fun (cn, ct) ->
+	fprintlf oc "\tUb.where ub \"%s\" C.Param.(%s o.pk.%s);"
+		 cn (convname_of_coltype ct) cn)
       ti.ti_pk_cts;
-    fprint oc "\"";
-    List.iteri
-      (fun i _ ->
-	if i = 0 then fprint oc " !pn" else fprintf oc " (!pn + %d)" i)
-      ti.ti_pk_cts;
-    fprintl oc ";";
-    fprintl oc "\tif !params = [] then Lwt.return_unit else begin";
-    fprintl oc "\t  C.exec (Caqti_query.oneshot_sql (Buffer.contents qb))";
-    fprintl oc "\t\t (Array.of_list (List.rev !params)) >|= fun () ->";
+    fprintl oc "\tbegin match Ub.contents ub with";
+    fprintl oc "\t| None -> Lwt.return_unit";
+    fprintl oc "\t| Some (q, params) ->";
+    fprintl oc "\t  C.exec q params >|= fun () ->";
     List.iteri
       (fun i (cn, _) ->
 	if i > 0 then fprint oc ";\n";
