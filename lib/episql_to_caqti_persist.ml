@@ -516,7 +516,8 @@ let emit_impl oc ti =
 
 let generate emit stmts oc =
   let emit_top = function
-    | Create_schema _ | Create_sequence _ | Create_enum _ -> ()
+    | Create_schema _ | Create_sequence _ | Create_enum _
+    | Drop_schema _ | Drop_table _ | Drop_sequence _ | Drop_type _ -> ()
     | Create_table (tqn, items) ->
       let pk_opt, cts = List.fold_right collect items (None, []) in
       begin match pk_opt with

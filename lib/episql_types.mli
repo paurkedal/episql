@@ -73,8 +73,14 @@ type sequence_attr =
   | `Minvalue of int | `Maxvalue of int | `Start of int (* FIXME: int64 *)
   | `Cache of int | `Cycle | `No_cycle | `Owner of qname ]
 
+type drop_option = [`If_exists | `Cascade | `Restrict]
+
 type statement =
   | Create_schema of string
   | Create_sequence of qname * bool * sequence_attr list
   | Create_table of qname * table_item list
   | Create_enum of qname * string list
+  | Drop_schema of string list * drop_option list
+  | Drop_table of qname list * drop_option list
+  | Drop_sequence of qname list * drop_option list
+  | Drop_type of qname list * drop_option list

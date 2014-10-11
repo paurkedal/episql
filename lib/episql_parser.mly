@@ -16,16 +16,19 @@
 
 %{
   open Episql_types
+  open Unprime_list
+  open Unprime_option
 %}
 
 /* Operators and special */
 %token COMMA DOT EOF SEMICOLON LPAREN RPAREN
 
 /* Keywords */
-%token<string> AS AT BY CACHE CHECK CREATE CYCLE DEFAULT ENUM FOREIGN
-%token<string> INCREMENT INHERIT KEY
+%token<string> AS AT BY CACHE CASCADE CHECK CREATE CYCLE
+%token<string> DEFAULT DROP ENUM EXISTS FOREIGN
+%token<string> IF INCREMENT INHERIT KEY
 %token<string> MINVALUE MAXVALUE NO NOT NULL WITH
-%token<string> PRIMARY REFERENCES UNIQUE SCHEMA SEQUENCE START
+%token<string> PRIMARY REFERENCES RESTRICT UNIQUE SCHEMA SEQUENCE START
 %token<string> TABLE TEMPORARY TYPE ZONE
 
 /* Type-Forming Words */
@@ -60,6 +63,28 @@ statement:
     { Create_table ($3, List.rev $5) }
   | CREATE TYPE tfqname AS ENUM LPAREN enum_cases RPAREN
     { Create_enum ($3, $7) }
+  | DROP SCHEMA nonempty_tfnames_r drop_options_r
+    { Drop_schema (List.rev $3, List.rev $4) }
+  | DROP SCHEMA IF EXISTS nonempty_tfnames_r drop_options_r
+    { Drop_schema (List.rev $5, `If_exists :: List.rev $6) }
+  | DROP TABLE nonempty_tfqnames_r drop_options_r
+    { Drop_table (List.rev $3, List.rev $4) }
+  | DROP TABLE IF EXISTS nonempty_tfqnames_r drop_options_r
+    { Drop_table (List.rev $5, `If_exists :: List.rev $6) }
+  | DROP SEQUENCE nonempty_tfqnames_r drop_options_r
+    { Drop_sequence (List.rev $3, List.rev $4) }
+  | DROP SEQUENCE IF EXISTS nonempty_tfqnames_r drop_options_r
+    { Drop_sequence (List.rev $5, `If_exists :: List.rev $6) }
+  | DROP TYPE nonempty_tfqnames_r drop_options_r
+    { Drop_type (List.rev $3, List.rev $4) }
+  | DROP TYPE IF EXISTS nonempty_tfqnames_r drop_options_r
+    { Drop_type (List.rev $5, `If_exists :: List.rev $6) }
+  ;
+
+drop_options_r:
+    /* empty */ { [] }
+  | drop_options_r CASCADE { `Cascade :: $1 }
+  | drop_options_r RESTRICT { `Restrict :: $1 }
   ;
 
 seq_attrs: /* empty */ { [] } | seq_attrs seq_attr { $2 :: $1 };
@@ -102,23 +127,28 @@ column_constraint:
   ;
 table_constraint:
     CHECK LPAREN expr RPAREN check_attr { `Check ($3, $5) }
-  | UNIQUE LPAREN nonempty_tfnames RPAREN
+  | UNIQUE LPAREN nonempty_tfnames_r RPAREN
     { `Unique (List.rev $3) }
-  | PRIMARY KEY LPAREN nonempty_tfnames RPAREN
+  | PRIMARY KEY LPAREN nonempty_tfnames_r RPAREN
     { `Primary_key (List.rev $4) }
-  | FOREIGN KEY LPAREN nonempty_tfnames RPAREN
+  | FOREIGN KEY LPAREN nonempty_tfnames_r RPAREN
     REFERENCES tfqname paren_column_names_opt
     { `Foreign_key (List.rev $4, $7, $8) }
   ;
 paren_column_names_opt:
     /* empty */ { [] }
-  | LPAREN nonempty_tfnames RPAREN { List.rev $2 }
+  | LPAREN nonempty_tfnames_r RPAREN { List.rev $2 }
   ;
 check_attr: /* empty */ { [] } | NO INHERIT { [`No_inherit] };
 
-nonempty_tfnames:
+nonempty_tfnames_r:
     tfname { [$1] }
-  | nonempty_tfnames COMMA tfname { $3 :: $1 }
+  | nonempty_tfnames_r COMMA tfname { $3 :: $1 }
+  ;
+
+nonempty_tfqnames_r:
+    tfqname { [$1] }
+  | nonempty_tfqnames_r COMMA tfqname { $3 :: $1 }
   ;
 
 enum_cases:
@@ -180,13 +210,16 @@ literal:
   ;
 identifier:
     IDENTIFIER { $1 }
+  | IF { $1 }
   | CACHE { $1 }
+  | CASCADE { $1 }
   | ENUM { $1 }
   | INCREMENT { $1 }
   | INHERIT { $1 }
   | KEY { $1 }
   | MINVALUE { $1 }
   | MAXVALUE { $1 }
+  | RESTRICT { $1 }
   | SCHEMA { $1 }
   | SEQUENCE { $1 }
   | TEMPORARY { $1 }

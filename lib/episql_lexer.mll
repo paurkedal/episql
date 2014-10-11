@@ -26,10 +26,14 @@
 	"AT", (fun idr -> AT idr);
 	"BY", (fun idr -> BY idr);
 	"CACHE", (fun idr -> CACHE idr);
+	"CASCADE", (fun idr -> CASCADE idr);
 	"CREATE", (fun idr -> CREATE idr);
 	"CYCLE", (fun idr -> CYCLE idr);
 	"DEFAULT", (fun idr -> DEFAULT idr);
+	"DROP", (fun idr -> DROP idr);
 	"ENUM", (fun idr -> ENUM idr);
+	"EXISTS", (fun idr -> EXISTS idr);
+	"IF", (fun idr -> IF idr);
 	"INCREMENT", (fun idr -> INCREMENT idr);
 	"INHERIT", (fun idr -> INHERIT idr);
 	"KEY", (fun idr -> KEY idr);
@@ -40,6 +44,7 @@
 	"NULL", (fun idr -> NULL idr);
 	"PRIMARY", (fun idr -> PRIMARY idr);
 	"REFERENCES", (fun idr -> REFERENCES idr);
+	"RESTRICT", (fun idr -> RESTRICT idr);
 	"UNIQUE", (fun idr -> UNIQUE idr);
 	"SCHEMA", (fun idr -> SCHEMA idr);
 	"SEQUENCE", (fun idr -> SEQUENCE idr);
