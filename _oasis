@@ -36,6 +36,13 @@ Executable "episql"
   ByteOpt: -linkall
   NativeOpt: -linkall
 
+Executable "test_caqti_persist"
+  Path: tests
+  MainIs: test_caqti_persist.ml
+  BuildDepends: caqti.lwt, episql.caqti-persist, prime.unstable, react
+  ByteOpt: -thread
+  NativeOpt: -thread
+
 Document api
   Title: Episql API Reference
   Type: ocamlbuild (0.4)
