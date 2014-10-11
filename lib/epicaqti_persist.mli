@@ -20,6 +20,8 @@ type 'a presence =
   | Present of 'a
   | Deleting of unit Lwt_condition.t
 
+exception Merge_conflict
+
 module type PK_CACHABLE = sig
   type pk
   type nonpk
@@ -37,7 +39,7 @@ module type PK_CACHED = sig
   }
   val find : pk -> t option
   val make : pk -> t Lwt.t
-  val merge : pk -> nonpk option -> t
+  val merge_present : pk * nonpk -> t Lwt.t
 end
 
 module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) :

@@ -387,18 +387,19 @@ let emit_impl oc ti =
     List.iter emit_field ti.ti_pk_cts;
     fprintl  oc "\t  } in";
     if ti.ti_nonpk_cts = [] then
-      fprintl oc "\t  merge pk (Some ()) in"
+      fprintl oc "\t  pk, () in"
     else begin
       fprintl oc "\t  let nonpk = {";
       List.iter emit_field ti.ti_nonpk_cts;
       fprintl oc "\t  } in";
-      fprintl oc "\t  merge pk (Some nonpk) in"
+      fprintl oc "\t  pk, nonpk in"
     end;
     if have_default then begin
-      fprintl oc "\tC.find q decode p >|= \
-		    function None -> assert false | Some r -> r"
+      fprintl oc "\tC.find q decode p >>=";
+      fprintl oc "\tfunction Some (pk, nonpk) -> merge_present (pk, nonpk)";
+      fprintl oc "\t       | None -> assert false"
     end else
-      fprintl oc "\tC.exec q p >|= fun () -> decode ()";
+      fprintl oc "\tC.exec q p >>= fun () -> merge_present (decode ())";
   end;
 
   if (go.go_insert || go.go_patch) && not ti.ti_pk_has_default then begin

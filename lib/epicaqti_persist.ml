@@ -20,6 +20,8 @@ type 'a presence =
   | Present of 'a
   | Deleting of unit Lwt_condition.t
 
+exception Merge_conflict
+
 let (>>=) = Lwt.(>>=)
 let (>|=) = Lwt.(>|=)
 
@@ -40,7 +42,7 @@ module type PK_CACHED = sig
   type t = {pk : pk; mutable nonpk : nonpk presence; beacon : beacon}
   val find : pk -> t option
   val make : pk -> t Lwt.t
-  val merge : pk -> nonpk option -> t
+  val merge_present : pk * nonpk -> t Lwt.t
 end
 
 module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
@@ -71,9 +73,21 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
       let nonpk = match nonpk with None -> Absent | Some x -> Present x in
       Beacon.embed fetch_grade (fun beacon -> W.merge cache {pk; nonpk; beacon})
 
-  let merge pk nonpk =
-    let nonpk = match nonpk with None -> Absent | Some x -> Present x in
-    W.merge cache (Beacon.embed fetch_grade (fun beacon -> {pk; nonpk; beacon}))
+  let merge_present (pk, nonpk) =
+    try
+      let o = W.find cache {pk; nonpk = Absent; beacon = Beacon.dummy} in
+      begin match o.nonpk with
+      | Deleting c -> Lwt_condition.wait c >|= fun () ->
+		      o.nonpk <- Present nonpk
+      | Absent -> o.nonpk <- Present nonpk; Lwt.return_unit
+      | Inserting _ | Present _ -> Lwt.fail Merge_conflict
+      end >|= fun () -> o
+    with Not_found ->
+      let o =
+	Beacon.embed fetch_grade
+		     (fun beacon -> {pk; nonpk = Present nonpk; beacon}) in
+      W.add cache o;
+      Lwt.return o
 end
 
 module Query_buffer (C : Caqti_lwt.CONNECTION) = struct
