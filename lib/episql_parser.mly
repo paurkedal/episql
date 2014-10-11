@@ -53,12 +53,12 @@ statements:
   ;
 
 statement:
-    CREATE SCHEMA identifier_tf { Create_schema $3 }
-  | CREATE temporary SEQUENCE qname_tf seq_attrs
+    CREATE SCHEMA tfname { Create_schema $3 }
+  | CREATE temporary SEQUENCE tfqname seq_attrs
     { Create_sequence ($4, $2, List.rev $5) }
-  | CREATE TABLE qname_tf LPAREN table_items RPAREN
+  | CREATE TABLE tfqname LPAREN table_items RPAREN
     { Create_table ($3, List.rev $5) }
-  | CREATE TYPE qname_tf AS ENUM LPAREN enum_cases RPAREN
+  | CREATE TYPE tfqname AS ENUM LPAREN enum_cases RPAREN
     { Create_enum ($3, $7) }
   ;
 
@@ -84,7 +84,7 @@ nonempty_table_items:
   | table_items COMMA table_item { $3 :: $1 }
   ;
 table_item:
-    identifier_tf datatype column_constraints { Column ($1, $2, List.rev $3) }
+    tfname datatype column_constraints { Column ($1, $2, List.rev $3) }
   | table_constraint { Constraint $1 }
   ;
 column_constraints:
@@ -97,28 +97,28 @@ column_constraint:
   | UNIQUE { `Unique }
   | PRIMARY KEY { `Primary_key }
   | DEFAULT expr { `Default $2 }
-  | REFERENCES qname_tf { `References ($2, None) }
-  | REFERENCES qname_tf LPAREN identifier_tf RPAREN {`References ($2, Some $4)}
+  | REFERENCES tfqname { `References ($2, None) }
+  | REFERENCES tfqname LPAREN tfname RPAREN {`References ($2, Some $4)}
   ;
 table_constraint:
     CHECK LPAREN expr RPAREN check_attr { `Check ($3, $5) }
-  | UNIQUE LPAREN nonempty_column_names RPAREN
+  | UNIQUE LPAREN nonempty_tfnames RPAREN
     { `Unique (List.rev $3) }
-  | PRIMARY KEY LPAREN nonempty_column_names RPAREN
+  | PRIMARY KEY LPAREN nonempty_tfnames RPAREN
     { `Primary_key (List.rev $4) }
-  | FOREIGN KEY LPAREN nonempty_column_names RPAREN
-    REFERENCES qname_tf paren_column_names_opt
+  | FOREIGN KEY LPAREN nonempty_tfnames RPAREN
+    REFERENCES tfqname paren_column_names_opt
     { `Foreign_key (List.rev $4, $7, $8) }
   ;
 paren_column_names_opt:
     /* empty */ { [] }
-  | LPAREN nonempty_column_names RPAREN { List.rev $2 }
+  | LPAREN nonempty_tfnames RPAREN { List.rev $2 }
   ;
 check_attr: /* empty */ { [] } | NO INHERIT { [`No_inherit] };
 
-nonempty_column_names:
-    identifier_tf { [$1] }
-  | nonempty_column_names COMMA identifier_tf { $3 :: $1 }
+nonempty_tfnames:
+    tfname { [$1] }
+  | nonempty_tfnames COMMA tfname { $3 :: $1 }
   ;
 
 enum_cases:
@@ -130,9 +130,9 @@ qname:
     identifier { (None, $1) }
   | identifier DOT identifier { (Some $1, $3) }
   ;
-qname_tf:
-    identifier_tf { (None, $1) }
-  | identifier_tf DOT identifier_tf { (Some $1, $3) }
+tfqname:
+    tfname { (None, $1) }
+  | tfname DOT tfname { (Some $1, $3) }
   ;
 datatype:
     BOOLEAN { `Boolean }
@@ -194,7 +194,7 @@ identifier:
   | ZONE { $1 }
   ;
 
-identifier_tf:
+tfname:
     identifier { $1 }
   | BOOLEAN { $1 }
   | REAL { $1 }
