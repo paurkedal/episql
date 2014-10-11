@@ -14,28 +14,38 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
+type empty
+
 type 'a presence =
   | Absent
   | Inserting of 'a Lwt_condition.t
   | Present of 'a
   | Deleting of unit Lwt_condition.t
 
+type ('a, 'b) patch = Insert of 'a * 'b list | Update of 'b list | Delete
+
 exception Merge_conflict
 
 module type PK_CACHABLE = sig
   type pk
   type nonpk
+  type req
+  type change
   val fetch : pk -> nonpk option Lwt.t
 end
 
 module type PK_CACHED = sig
   type pk
   type nonpk
+  type req
+  type change
   type beacon
   type t = {
     pk : pk;
     mutable nonpk : nonpk presence;
     beacon : beacon;
+    patches : (req, change) patch React.event;
+    notify : ?step: React.step -> (req, change) patch -> unit;
   }
   val find : pk -> t option
   val make : pk -> t Lwt.t
@@ -44,6 +54,7 @@ end
 
 module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) :
 	PK_CACHED with type pk := P.pk and type nonpk := P.nonpk
+		   and type req := P.req and type change := P.change
 		   and type beacon := Beacon.t
 
 module Query_buffer (C : Caqti_lwt.CONNECTION) : sig

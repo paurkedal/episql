@@ -14,11 +14,15 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
+type empty = Invalid_empty_value
+
 type 'a presence =
   | Absent
   | Inserting of 'a Lwt_condition.t
   | Present of 'a
   | Deleting of unit Lwt_condition.t
+
+type ('a, 'b) patch = Insert of 'a * 'b list | Update of 'b list | Delete
 
 exception Merge_conflict
 
@@ -32,14 +36,24 @@ let fetch_grade = 1e-3 *. cache_second
 module type PK_CACHABLE = sig
   type pk
   type nonpk
+  type req
+  type change
   val fetch : pk -> nonpk option Lwt.t
 end
 
 module type PK_CACHED = sig
   type pk
   type nonpk
+  type req
+  type change
   type beacon
-  type t = {pk : pk; mutable nonpk : nonpk presence; beacon : beacon}
+  type t = {
+    pk : pk;
+    mutable nonpk : nonpk presence;
+    beacon : beacon;
+    patches : (req, change) patch React.event;
+    notify : ?step: React.step -> (req, change) patch -> unit;
+  }
   val find : pk -> t option
   val make : pk -> t Lwt.t
   val merge_present : pk * nonpk -> t Lwt.t
@@ -51,6 +65,8 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
     pk : P.pk;
     mutable nonpk : P.nonpk presence;
     beacon : Beacon.t;
+    patches : (P.req, P.change) patch React.event;
+    notify : ?step: React.step -> (P.req, P.change) patch -> unit;
   }
 
   module W = Weak.Make (struct
@@ -61,21 +77,28 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
 
   let cache = W.create 17
 
+  let mk_key =
+    let notify ?step patch = assert false in
+    let patches = React.E.never in
+    fun pk -> {pk; nonpk = Absent; beacon = Beacon.dummy; patches; notify}
+
   let find pk =
-    try Some (W.find cache {pk; nonpk = Absent; beacon = Beacon.dummy})
+    try Some (W.find cache (mk_key pk))
     with Not_found -> None
 
   let make pk =
     try
-      Lwt.return (W.find cache {pk; nonpk = Absent; beacon = Beacon.dummy})
+      Lwt.return (W.find cache (mk_key pk))
     with Not_found ->
       P.fetch pk >|= fun nonpk ->
       let nonpk = match nonpk with None -> Absent | Some x -> Present x in
-      Beacon.embed fetch_grade (fun beacon -> W.merge cache {pk; nonpk; beacon})
+      let patches, notify = React.E.create () in
+      Beacon.embed fetch_grade
+	(fun beacon -> W.merge cache {pk; nonpk; beacon; patches; notify})
 
   let merge_present (pk, nonpk) =
     try
-      let o = W.find cache {pk; nonpk = Absent; beacon = Beacon.dummy} in
+      let o = W.find cache (mk_key pk) in
       begin match o.nonpk with
       | Deleting c -> Lwt_condition.wait c >|= fun () ->
 		      o.nonpk <- Present nonpk
@@ -84,8 +107,9 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
       end >|= fun () -> o
     with Not_found ->
       let o =
+	let patches, notify = React.E.create () in
 	Beacon.embed fetch_grade
-		     (fun beacon -> {pk; nonpk = Present nonpk; beacon}) in
+	  (fun beacon -> {pk; nonpk=Present nonpk; beacon; patches; notify}) in
       W.add cache o;
       Lwt.return o
 end
