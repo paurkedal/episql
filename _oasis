@@ -8,6 +8,10 @@ AlphaFeatures: pure_interface
 Plugins: DevFiles (0.4), META (0.4)
 BuildTools: ocamlbuild
 
+Flag caqti_persist
+  Description: Build caqti-persist library and code generator.
+  Default: true
+
 Library "episql"
   Path: lib
   InternalModules: Episql_lexer, Episql_parser
@@ -27,6 +31,8 @@ Library "episql-caqti-persist"
   Modules: Epicaqti_persist
   ByteOpt: -thread
   NativeOpt: -thread
+  Build$: flag(caqti_persist)
+  Install$: flag(caqti_persist)
 
 Executable "episql"
   Path: bin
@@ -42,6 +48,8 @@ Executable "test_caqti_persist"
   BuildDepends: caqti.lwt, episql.caqti-persist, prime.unstable, react
   ByteOpt: -thread
   NativeOpt: -thread
+  Build$: flag(caqti_persist)
+  Install: false
 
 Document api
   Title: Episql API Reference
