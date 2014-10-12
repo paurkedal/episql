@@ -356,33 +356,31 @@ let emit_impl oc ti =
     if have_default then
       fprintl oc "\tif not (Ib.have_ret ib) then Ib.ret ib \"0\";";
     fprintl  oc "\tlet q, p = Ib.contents ib in";
-    let emit_field (cn, ct) =
-      if ct.ct_defaultable then
-	if ct.ct_nullable then
-	  fprintlf oc "\t    %s = Some (getp %s C.Tuple.%s);"
-		   cn cn (convname_of_datatype ct.ct_type)
-	else
-	  fprintlf oc "\t    %s = getp %s C.Tuple.%s;"
-		   cn cn (convname_of_datatype ct.ct_type)
-      else
-	fprintlf oc "\t    %s;" cn in
     fprintl  oc "\tlet decode t =";
     if have_default then begin
       fprintl  oc "\t  let _i = ref (-1) in";
-      fprintl  oc "\t  let getp o c = \
-			 match o with Some x -> x \
-				    | None -> incr _i; c !_i t in";
+      fprintl  oc "\t  let _df c = function Some x -> x \
+					  | None -> incr _i; c !_i t in";
     end;
-    fprintl  oc "\t  let pk = {";
-    List.iter emit_field ti.ti_pk_cts;
-    fprintl  oc "\t  } in";
+    List.iter
+      (fun (cn, ct) ->
+	if ct.ct_defaultable then begin
+	  fprint oc "\t  let "; fprint oc cn;
+	  fprint oc (if ct.ct_nullable then " = Some (" else " = ");
+	  fprintf oc "_df C.Tuple.%s %s" (convname_of_datatype ct.ct_type) cn;
+	  fprintl oc (if ct.ct_nullable then ") in" else " in")
+	end)
+      ti.ti_cts;
+    fprint oc "\t  {";
+    let emit_field i (cn, ct) = if i > 0 then fprint oc "; "; fprint oc cn in
+    List.iteri emit_field ti.ti_pk_cts;
+    fprint oc "},";
     if ti.ti_nonpk_cts = [] then
-      fprintl oc "\t  pk, () in"
+      fprintl oc " () in"
     else begin
-      fprintl oc "\t  let nonpk = {";
-      List.iter emit_field ti.ti_nonpk_cts;
-      fprintl oc "\t  } in";
-      fprintl oc "\t  pk, nonpk in"
+      fprint oc "\n\t  {";
+      List.iteri emit_field ti.ti_nonpk_cts;
+      fprintl oc "} in"
     end;
     if have_default then begin
       fprintl oc "\tC.find q decode p >>=";

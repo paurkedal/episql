@@ -1,18 +1,18 @@
 DROP SCHEMA episql_tests CASCADE;
 CREATE SCHEMA episql_tests;
 
-CREATE TABLE episql_tests.cp_1s (
+CREATE TABLE episql_tests.cp_1d_0 (
   k0 SERIAL PRIMARY KEY
 );
-CREATE TABLE episql_tests.cp_1s_1o (
+CREATE TABLE episql_tests.cp_1d_1o (
   k0 SERIAL PRIMARY KEY,
   v0 text
 );
-CREATE TABLE episql_tests.cp_1s_1r (
+CREATE TABLE episql_tests.cp_1d_1r (
   k0 SERIAL PRIMARY KEY,
   v0 real NOT NULL
 );
-CREATE TABLE episql_tests.cp_1s_1o1r1d (
+CREATE TABLE episql_tests.cp_1d_1o1r1d (
   k0 SERIAL PRIMARY KEY,
   v0 integer,
   v1 text NOT NULL,

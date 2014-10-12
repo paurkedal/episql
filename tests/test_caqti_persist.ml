@@ -14,6 +14,8 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
+open Epicaqti_persist
+
 module P = struct
   module Cm = struct
     let cache_metric =
@@ -33,41 +35,37 @@ module M = Schema_one_persist.Make (P)
 open M
 
 let test_serial () =
-  lwt a = Cp_1s.create () in
-  Cp_1s.delete a >>
+  lwt a = Cp_1d_0.create () in
+  Cp_1d_0.delete a >>
 
-  lwt b = Cp_1s_1o.create () in
-  Cp_1s_1o.update ~v0:(Some "updated") b >>
-  Cp_1s_1o.patch b `Delete >>
+  lwt b = Cp_1d_1o.create () in
+  Cp_1d_1o.update ~v0:(Some "updated") b >>
+  Cp_1d_1o.patch b Delete >>
 
-(*
-  lwt c = Cp_1s_1o.create ~v0:"created" () in
-  Cp_1s_1o.delete c >>
-  Cp_1s_1o.insert c >>
-  Cp_1s_1o.patch c `Delete >>
+  lwt c = Cp_1d_1o.create ~v0:"created" () in
+  Cp_1d_1o.delete c >>
+  Cp_1d_1o.insert c >>
+  Cp_1d_1o.patch c Delete >>
 
-  lwt d = Cp_1s_1r.create ~v0:1.0 () in
-  Cp_1s_1r.patch d `Delete >>
-  Cp_1s_1r.(patch d (`Insert {v0 = 5.25})) >>
-  Cp_1s_1r.delete d >>
+  lwt d = Cp_1d_1r.create ~v0:1.0 () in
+  Cp_1d_1r.patch d Delete >>
+  Cp_1d_1r.(patch d (Insert ({req_v0 = 5.25}, []))) >>
+  Cp_1d_1r.delete d >>
 
-  lwt e = Cp_1s_1o1r1d.create ~v1:"zap" () in
-  Lwt_list.iter_s (Cp_1s_1o1r1d.patch e)
-    [ `Delete;
-      `Insert Cp_1s_1o1r1d.({v0 = Some (Int32.of_int 97); v1 = "ninety-seven";
-			     v2 = None; v3 = Int32.of_int 0});
-      `Update [`Set_v0 (Some (Int32.of_int 61))] ] >>
-  begin match Cp_1s_1o1r1d.get_nonpk e with
+  lwt e = Cp_1d_1o1r1d.create ~v1:"zap" ~v2:(CalendarLib.Calendar.now ()) () in
+  Lwt_list.iter_s (Cp_1d_1o1r1d.patch e)
+    [ Delete;
+      Insert (Cp_1d_1o1r1d.({req_v1 = "sixty-one"}), []);
+      Update [`Set_v0 (Some (Int32.of_int 61))] ] >>
+  begin match Cp_1d_1o1r1d.get_nonpk e with
   | None -> assert false
   | Some nonpk ->
-    let open Cp_1s_1o1r1d in
+    let open Cp_1d_1o1r1d in
     assert (nonpk.v0 = Some (Int32.of_int 61));
-    assert (nonpk.v1 = "ninety-seven");
+    assert (nonpk.v1 = "sixty-one");
     Lwt.return_unit
   end >>
-  Cp_1s_1o1r1d.delete e
-*)
-  Lwt.return_unit
+  Cp_1d_1o1r1d.delete e
 
 let main =
   test_serial () >>
