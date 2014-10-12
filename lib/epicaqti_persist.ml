@@ -114,40 +114,6 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
       Lwt.return o
 end
 
-module Query_buffer (C : Caqti_lwt.CONNECTION) = struct
-  open Caqti_metadata
-  open Caqti_query
-
-  type t = {
-    backend_info : backend_info;
-    buf : Buffer.t;
-    mutable param_no : int;
-    mutable params : C.param list;
-    mutable comma_supressed : bool;
-  }
-  let create backend_info =
-    { backend_info;
-      buf = Buffer.create 256;
-      param_no = 1; params = [];
-      comma_supressed = false }
-  let add_string {buf} s = Buffer.add_string buf s
-  let add_param b p =
-    b.params <- p :: b.params;
-    match b.backend_info.bi_parameter_style with
-    | `Linear s -> Buffer.add_string b.buf s
-    | `Indexed sf -> Buffer.add_string b.buf (sf b.param_no);
-		     b.param_no <- b.param_no + 1
-    | _ -> raise Missing_query_string
-  let supress_comma b = b.comma_supressed <- true
-  let add_comma b =
-    if b.comma_supressed = true
-    then b.comma_supressed <- false
-    else Buffer.add_string b.buf ", "
-  let contents b =
-    let qs = Buffer.contents b.buf in
-    Oneshot (fun _ -> qs), Array.of_list (List.rev b.params)
-end
-
 module Insert_buffer (C : Caqti_lwt.CONNECTION) = struct
   open Caqti_metadata
   open Caqti_query
