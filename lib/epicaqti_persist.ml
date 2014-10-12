@@ -201,11 +201,10 @@ module Insert_buffer (C : Caqti_lwt.CONNECTION) = struct
     begin match List.rev ib.returning with
     | [] -> ()
     | r :: rs ->
-      Buffer.add_string ib.buf " RETURNING (";
+      Buffer.add_string ib.buf " RETURNING ";
       Buffer.add_string ib.buf r;
       List.iter (fun r -> Buffer.add_string ib.buf ", ";
-			  Buffer.add_string ib.buf r) rs;
-      Buffer.add_char ib.buf ')'
+			  Buffer.add_string ib.buf r) rs
     end;
     let qs = Buffer.contents ib.buf in
     (Oneshot (fun _ -> qs), Array.of_list (List.rev ib.params))

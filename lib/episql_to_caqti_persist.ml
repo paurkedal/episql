@@ -270,7 +270,7 @@ let emit_impl oc ti =
 				      ti.ti_req_cts));
     if ti.ti_nonpk_def_cts <> [] then
       let def_cns = List.map fst ti.ti_nonpk_def_cts in
-      fprintf oc " RETURNING (%s)" (String.concat ", " def_cns) in
+      fprint oc (" RETURNING " ^ String.concat ", " def_cns) in
 
   let emit_delete next_param =
     fprintf oc "DELETE FROM %s WHERE " (Episql.string_of_qname ti.ti_tqn);
