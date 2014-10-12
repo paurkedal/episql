@@ -114,6 +114,7 @@ type genopts = {
   go_create : bool;
   go_update : bool;
   go_delete : bool;
+  go_getters : bool;
 }
 let go = {
   go_event = true;
@@ -122,6 +123,7 @@ let go = {
   go_create = true;
   go_update = true;
   go_delete = true;
+  go_getters = true;
 }
 
 let emit_difftypes oc ti =
@@ -172,6 +174,14 @@ let emit_intf oc ti =
   fprintl oc "    val make : pk -> t Lwt.t";
   fprintl oc "    val get_pk : t -> pk";
   fprintl oc "    val get_nonpk : t -> nonpk option";
+  if go.go_getters then begin
+    List.iter
+      (fun (cn, ct) ->
+	fprintlf oc "    val get_%s : t -> %s%s"
+		 cn (string_of_datatype ct.ct_type)
+		 (if ct.ct_pk then "" else " option"))
+      ti.ti_cts
+  end;
   if go.go_create then begin
     fprint oc "    val create :";
     List.iter
@@ -326,6 +336,19 @@ let emit_impl oc ti =
   fprintl oc "    let get_pk {pk} = pk";
   fprintl oc "    let get_nonpk = \
 		    function {nonpk = Present x} -> Some x | _ -> None";
+  if go.go_getters then begin
+    List.iter
+      (fun (cn, ct) ->
+	fprint oc "    let get_"; fprint oc cn; fprint oc " o = ";
+	if ct.ct_pk then
+	  fprintlf oc "o.pk.%s" cn
+	else if ct.ct_nullable then
+	  fprintlf oc "match o.nonpk with Present x -> x.%s | _ -> None" cn
+	else
+	  fprintlf oc "match o.nonpk with Present x -> Some x.%s | _ -> None"
+		   cn)
+      ti.ti_cts
+  end;
 
   if go.go_create then begin
     fprint  oc "    let create";
