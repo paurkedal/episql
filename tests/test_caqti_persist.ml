@@ -14,7 +14,7 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-open Epicaqti_persist
+open Caqti_persist
 
 module P = struct
   module Cm = struct

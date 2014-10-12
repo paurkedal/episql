@@ -23,12 +23,12 @@ Library "episql"
     Episql_to_shell,
     Episql_types
 
-Library "episql-caqti-persist"
+Library "caqti-persist"
   Path: lib
   FindlibParent: episql
   FindlibName: caqti-persist
   BuildDepends: caqti.lwt, extunix, lwt, prime, prime.unstable, react
-  Modules: Epicaqti_persist
+  Modules: Caqti_persist
   ByteOpt: -thread
   NativeOpt: -thread
   Build$: flag(caqti_persist)
