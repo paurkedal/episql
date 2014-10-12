@@ -72,7 +72,7 @@ type table_info = {
   ti_pk_cts : (string * coltype) list;
   ti_nonpk_cts : (string * coltype) list;
   ti_nonpk_def_cts : (string * coltype) list;
-  ti_nonpkreq_count : int;
+  ti_nonpk_req_cts : (string * coltype) list;
   ti_pk_has_default : bool;
 }
 
@@ -139,14 +139,14 @@ let emit_difftypes oc ti =
 		 (if i = 0 then '[' else '|') cn (string_of_coltype ct)
 		 (if i = len_nonpk - 1 then " ]" else ""))
       ti.ti_nonpk_cts;
-    if ti.ti_req_cts = [] then
+    if ti.ti_nonpk_req_cts = [] then
       fprintl oc "    type req = unit"
     else begin
       fprintl oc "    type req = {";
       List.iter
 	(fun (cn, ct) ->
 	  fprintlf oc "      req_%s : %s;" cn (string_of_datatype ct.ct_type))
-	ti.ti_req_cts;
+	ti.ti_nonpk_req_cts;
       fprintl oc "    }"
     end
   end
@@ -415,10 +415,7 @@ let emit_impl oc ti =
 
   if go.go_insert || go.go_patch then begin
     fprint  oc "    let insert";
-    let req_cts =
-      List.filter (fun (_, ct) -> not ct.ct_nullable && not ct.ct_defaultable)
-		  ti.ti_nonpk_cts in
-    List.iter (fun (cn, ct) -> fprintf oc " ~%s" cn) req_cts;
+    List.iter (fun (cn, ct) -> fprintf oc " ~%s" cn) ti.ti_nonpk_req_cts;
     fprintl oc " o =\n      let rec retry () =";
     fprintl oc "\tmatch o.nonpk with";
     fprintl oc "\t| Absent ->";
@@ -459,19 +456,16 @@ let emit_impl oc ti =
       fprintl oc "\t  o.nonpk <- Present nonpk;";
       fprintl oc "\t  Lwt_condition.broadcast c nonpk;"
     end;
-    if req_cts = [] then begin
-      if go.go_event then
+    if go.go_event then begin
+      if ti.ti_nonpk_req_cts = [] then begin
 	fprintl oc "\t  o.notify (Insert ((), []));"
-    end else begin
-      if go.go_event then begin
+      end else begin
 	fprint oc "\t  o.notify (Insert ({";
 	List.iteri
 	  (fun i (cn, ct) ->
 	    fprint oc (if i = 0 then "req_" else "; req_");
-	    fprint oc cn; fprint oc " = ";
-	    if ct.ct_pk then fprint oc "o.pk.";
-	    fprint oc cn)
-	  ti.ti_req_cts;
+	    fprint oc cn; fprint oc " = "; fprint oc cn)
+	  ti.ti_nonpk_req_cts;
 	fprintl oc "}, []));"
       end
     end;
@@ -554,10 +548,8 @@ let emit_impl oc ti =
       fprintl oc "      | Insert (req, []) ->";
       fprint  oc "\tinsert";
       List.iter
-	(fun (cn, ct) ->
-	  if not ct.ct_nullable && not ct.ct_defaultable then
-	    fprintf oc " ~%s:req.req_%s" cn cn)
-	ti.ti_nonpk_cts;
+	(fun (cn, ct) -> fprintf oc " ~%s:req.req_%s" cn cn)
+	ti.ti_nonpk_req_cts;
       fprintl oc " o;";
       fprintl oc "      | Insert (req, _) -> assert false (* FIXME *)";
       fprintl oc "      | Update changes ->";
@@ -603,13 +595,10 @@ let generate emit stmts oc =
 	let ti_pk_cts = List.filter (fun (_, {ct_pk}) -> ct_pk) ti_cts in
 	let ti_nonpk_cts = List.filter (fun (_, {ct_pk}) -> not ct_pk) ti_cts in
 	let ti_nonpk_def_cts =
-	  List.filter (fun (_, {ct_defaultable}) -> ct_defaultable)
-		      ti_nonpk_cts in
-	let is_nullable (_, {ct_nullable}) = ct_nullable in
-	let pk_count = List.length pk in
-	let nonpk_count = List.length ti_cts - pk_count in
-	let nullable_count = List.count is_nullable ti_cts in
-	let ti_nonpkreq_count = nonpk_count - nullable_count in
+	  List.filter (fun (_, ct) -> ct.ct_defaultable) ti_nonpk_cts in
+	let ti_nonpk_req_cts =
+	  List.filter (fun (_, ct) -> not ct.ct_nullable
+				   && not ct.ct_defaultable) ti_nonpk_cts in
 	let ti_pk_has_default =
 	  List.exists (fun (_, ct) -> ct.ct_defaultable) ti_pk_cts in
 	let ti = {
@@ -619,7 +608,7 @@ let generate emit stmts oc =
 	  ti_pk_cts;
 	  ti_nonpk_cts;
 	  ti_nonpk_def_cts;
-	  ti_nonpkreq_count;
+	  ti_nonpk_req_cts;
 	  ti_pk_has_default;
 	} in
 	emit oc ti
