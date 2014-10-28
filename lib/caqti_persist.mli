@@ -29,7 +29,7 @@ exception Merge_conflict
 module type PK_CACHABLE = sig
   type pk
   type nonpk
-  type req
+  type required
   type change
   val fetch : pk -> nonpk option Lwt.t
 end
@@ -37,15 +37,15 @@ end
 module type PK_CACHED = sig
   type pk
   type nonpk
-  type req
+  type required
   type change
   type beacon
   type t = {
     pk : pk;
     mutable nonpk : nonpk presence;
     beacon : beacon;
-    patches : (req, change) patch React.event;
-    notify : ?step: React.step -> (req, change) patch -> unit;
+    patches : (required, change) patch React.event;
+    notify : ?step: React.step -> (required, change) patch -> unit;
   }
   val find : pk -> t option
   val make : pk -> t Lwt.t
@@ -55,7 +55,7 @@ end
 
 module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) :
 	PK_CACHED with type pk := P.pk and type nonpk := P.nonpk
-		   and type req := P.req and type change := P.change
+		   and type required := P.required and type change := P.change
 		   and type beacon := Beacon.t
 
 module Insert_buffer (C : Caqti_lwt.CONNECTION) : sig

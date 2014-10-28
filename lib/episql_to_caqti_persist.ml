@@ -117,6 +117,9 @@ type genopts = {
   go_getters : bool;
   go_select : bool;
   go_collapse_pk : bool;
+  go_pk_prefix : string;
+  go_nonpk_prefix : string;
+  go_required_prefix : string;
 }
 let go = {
   go_event = true;
@@ -128,13 +131,16 @@ let go = {
   go_getters = true;
   go_select = true;
   go_collapse_pk = true;
+  go_pk_prefix = "k_";
+  go_nonpk_prefix = "f_";
+  go_required_prefix = "r_";
 }
 
 let emit_difftypes oc ti =
   let len_nonpk = List.length ti.ti_nonpk_cts in
   if ti.ti_nonpk_cts = [] then begin
     fprintl oc "    type change = empty";
-    fprintl oc "    type req = unit"
+    fprintl oc "    type required = unit"
   end else begin
     fprintl oc "    type change =";
     List.iteri
@@ -144,12 +150,13 @@ let emit_difftypes oc ti =
 		 (if i = len_nonpk - 1 then " ]" else ""))
       ti.ti_nonpk_cts;
     if ti.ti_nonpk_req_cts = [] then
-      fprintl oc "    type req = unit"
+      fprintl oc "    type required = unit"
     else begin
-      fprintl oc "    type req = {";
+      fprintl oc "    type required = {";
       List.iter
 	(fun (cn, ct) ->
-	  fprintlf oc "      req_%s : %s;" cn (string_of_datatype ct.ct_type))
+	  fprintlf oc "      %s%s : %s;"
+		   go.go_required_prefix cn (string_of_datatype ct.ct_type))
 	ti.ti_nonpk_req_cts;
       fprintl oc "    }"
     end
@@ -163,7 +170,8 @@ let emit_type_pk oc ti =
     fprintl oc "    type pk = {";
     List.iter
       (fun (cn, ct) ->
-	fprintlf oc "      %s : %s;" cn (string_of_coltype ct))
+	fprintlf oc "      %s%s : %s;"
+		 go.go_pk_prefix cn (string_of_coltype ct))
       ti.ti_pk_cts;
     fprintl oc "    }"
   end
@@ -178,7 +186,8 @@ let emit_type_nonpk ~in_intf oc ti =
       fprintl oc "    type nonpk = {";
     List.iter
       (fun (cn, ct) ->
-	fprintlf oc "      mutable %s : %s;" cn (string_of_coltype ct))
+	fprintlf oc "      mutable %s%s : %s;"
+		 go.go_nonpk_prefix cn (string_of_coltype ct))
       ti.ti_nonpk_cts;
     fprintl oc "    }"
   end
@@ -242,9 +251,9 @@ let emit_intf oc ti =
   if go.go_delete then
     fprintl oc "    val delete : t -> unit Lwt.t";
   if go.go_patch then
-    fprintl oc "    val patch : t -> (req, change) patch -> unit Lwt.t";
+    fprintl oc "    val patch : t -> (required, change) patch -> unit Lwt.t";
   if go.go_event then
-    fprintl oc "    val patches : t -> (req, change) patch React.E.t";
+    fprintl oc "    val patches : t -> (required, change) patch React.E.t";
   fprintl oc "  end\n"
 
 let emit_query oc name emit =
@@ -269,9 +278,9 @@ let emit_param oc ti pk cts =
       if go.go_collapse_pk && n_pk = 1 && ct.ct_pk then
 	fprint oc pk
       else if ct.ct_pk then
-	fprintf oc "%s.%s" pk cn
+	fprintf oc "%s.%s%s" pk go.go_pk_prefix cn
       else
-	fprint oc cn)
+	fprintf oc "%s" cn)
     cts;
   fprint oc "|])"
 
@@ -283,7 +292,8 @@ let emit_detuple oc cts =
     List.iteri
       (fun i (cn, ct) ->
 	if i > 0 then fprint oc "; ";
-	fprintf oc "%s = %s %d t" cn (convname_of_coltype ct) i)
+	fprintf oc "%s%s = %s %d t"
+		go.go_nonpk_prefix cn (convname_of_coltype ct) i)
       cts;
     fprint oc "})"
   end
@@ -345,7 +355,7 @@ let emit_impl oc ti =
   fprintl oc "    include Cache (struct";
   fprintl oc "      type _t0 = pk\ttype pk = _t0";
   fprintl oc "      type _t1 = nonpk\ttype nonpk = _t1";
-  fprintl oc "      type _t2 = req\ttype req = _t2";
+  fprintl oc "      type _t2 = required\ttype required = _t2";
   fprintl oc "      type _t3 = change\ttype change = _t3";
   fprintl oc "      let fetch pk =";
   emit_use_C oc 8;
@@ -365,12 +375,13 @@ let emit_impl oc ti =
 	if go.go_collapse_pk && n_pk = 1 && ct.ct_pk then
 	  fprintlf oc "o.pk"
 	else if ct.ct_pk then
-	  fprintlf oc "o.pk.%s" cn
+	  fprintlf oc "o.pk.%s%s" go.go_pk_prefix cn
 	else if ct.ct_nullable then
-	  fprintlf oc "match o.nonpk with Present x -> x.%s | _ -> None" cn
+	  fprintlf oc "match o.nonpk with Present x -> x.%s%s | _ -> None"
+		   go.go_nonpk_prefix cn
 	else
-	  fprintlf oc "match o.nonpk with Present x -> Some x.%s | _ -> None"
-		   cn)
+	  fprintlf oc "match o.nonpk with Present x -> Some x.%s%s | _ -> None"
+		   go.go_nonpk_prefix cn)
       ti.ti_cts
   end;
 
@@ -418,19 +429,21 @@ let emit_impl oc ti =
 	  fprintl oc (if ct.ct_nullable then ") in" else " in")
 	end)
       ti.ti_cts;
-    let emit_field i (cn, ct) = if i > 0 then fprint oc "; "; fprint oc cn in
+    let emit_field pfx i (cn, ct) =
+      if i > 0 then fprint oc "; ";
+      fprintf oc "%s%s = %s" pfx cn cn in
     if go.go_collapse_pk && List.length ti.ti_pk_cts = 1 then
       fprintf oc "\t  %s," (fst (List.hd ti.ti_pk_cts))
     else begin
       fprint oc "\t  {";
-      List.iteri emit_field ti.ti_pk_cts;
+      List.iteri (emit_field go.go_pk_prefix) ti.ti_pk_cts;
       fprint oc "},"
     end;
     if ti.ti_nonpk_cts = [] then
       fprintl oc " () in"
     else begin
       fprint oc "\n\t  {";
-      List.iteri emit_field ti.ti_nonpk_cts;
+      List.iteri (emit_field go.go_nonpk_prefix) ti.ti_nonpk_cts;
       fprintl oc "} in"
     end;
     if have_default then begin
@@ -473,7 +486,8 @@ let emit_impl oc ti =
       List.iteri
 	(fun i (cn, ct) ->
 	  if i > 0 then fprint oc "; ";
-	  fprintf oc "%s = %s %d t" cn (convname_of_coltype ct) i)
+	  fprintf oc "%s%s = %s %d t"
+		  go.go_pk_prefix cn (convname_of_coltype ct) i)
 	ti.ti_pk_cts;
       fprintl oc "}) in"
     end;
@@ -485,7 +499,8 @@ let emit_impl oc ti =
       List.iteri
 	(fun i (cn, ct) ->
 	  if i > 0 then fprint oc "; ";
-	  fprintf oc "%s = %s %d t" cn (convname_of_coltype ct) (i + n_pk))
+	  fprintf oc "%s%s = %s %d t"
+		  go.go_nonpk_prefix cn (convname_of_coltype ct) (i + n_pk))
 	ti.ti_nonpk_cts;
       fprintl oc "}) in"
     end;
@@ -528,9 +543,11 @@ let emit_impl oc ti =
       List.iteri
 	(fun i (cn, ct) ->
 	  if i > 0 then fprint oc "; ";
-	  fprint oc cn;
+	  fprint oc go.go_nonpk_prefix; fprint oc cn;
 	  if ct.ct_nullable then
-	    fprint oc (if ct.ct_defaultable then " = Some "^cn else " = None"))
+	    fprint oc (if ct.ct_defaultable then " = Some "^cn else " = None")
+	  else
+	    fprintf oc "= %s" cn)
 	ti.ti_nonpk_cts;
       fprintl oc "} in";
       fprintl oc "\t  o.nonpk <- Present nonpk;";
@@ -543,7 +560,8 @@ let emit_impl oc ti =
 	fprint oc "\t  o.notify (Insert ({";
 	List.iteri
 	  (fun i (cn, ct) ->
-	    fprint oc (if i = 0 then "req_" else "; req_");
+	    if i > 0 then fprint oc "; ";
+	    fprint oc go.go_required_prefix;
 	    fprint oc cn; fprint oc " = "; fprint oc cn)
 	  ti.ti_nonpk_req_cts;
 	fprintl oc "}, []));"
@@ -572,7 +590,7 @@ let emit_impl oc ti =
     List.iter
       (fun (cn, ct) ->
 	fprintlf oc "\tbegin match %s with" cn;
-	fprintlf oc "\t| Some x when x <> nonpk.%s ->" cn;
+	fprintlf oc "\t| Some x when x <> nonpk.%s%s ->" go.go_nonpk_prefix cn;
 	fprintlf oc "\t  Ub.set ub \"%s\" C.Param.(%s x);"
 		 cn (convname_of_coltype ct);
 	if go.go_event then
@@ -587,8 +605,8 @@ let emit_impl oc ti =
     else
       List.iter
 	(fun (cn, ct) ->
-	  fprintlf oc "\tUb.where ub \"%s\" C.Param.(%s o.pk.%s);"
-		   cn (convname_of_coltype ct) cn)
+	  fprintlf oc "\tUb.where ub \"%s\" C.Param.(%s o.pk.%s%s);"
+		   cn (convname_of_coltype ct) go.go_pk_prefix cn)
 	ti.ti_pk_cts;
     fprintl oc "\tbegin match Ub.contents ub with";
     fprintl oc "\t| None -> Lwt.return_unit";
@@ -597,8 +615,8 @@ let emit_impl oc ti =
     List.iteri
       (fun i (cn, _) ->
 	if i > 0 then fprint oc ";\n";
-	fprintf oc "\t  (match %s with None -> () | Some v -> nonpk.%s <- v)"
-		cn cn)
+	fprintf oc "\t  (match %s with None -> () | Some v -> nonpk.%s%s <- v)"
+		cn go.go_nonpk_prefix cn)
       ti.ti_nonpk_cts;
     if go.go_event then
       fprint oc ";\n\t  o.notify (Update (List.rev !changes))";
@@ -633,7 +651,7 @@ let emit_impl oc ti =
       fprintl oc "      | Insert (req, []) ->";
       fprint  oc "\tinsert";
       List.iter
-	(fun (cn, ct) -> fprintf oc " ~%s:req.req_%s" cn cn)
+	(fun (cn, ct) -> fprintf oc " ~%s:req.%s%s" cn go.go_required_prefix cn)
 	ti.ti_nonpk_req_cts;
       fprintl oc " o;";
       fprintl oc "      | Insert (req, _) -> assert false (* FIXME *)";

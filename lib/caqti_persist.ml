@@ -36,7 +36,7 @@ let fetch_grade = 1e-3 *. cache_second
 module type PK_CACHABLE = sig
   type pk
   type nonpk
-  type req
+  type required
   type change
   val fetch : pk -> nonpk option Lwt.t
 end
@@ -44,15 +44,15 @@ end
 module type PK_CACHED = sig
   type pk
   type nonpk
-  type req
+  type required
   type change
   type beacon
   type t = {
     pk : pk;
     mutable nonpk : nonpk presence;
     beacon : beacon;
-    patches : (req, change) patch React.event;
-    notify : ?step: React.step -> (req, change) patch -> unit;
+    patches : (required, change) patch React.event;
+    notify : ?step: React.step -> (required, change) patch -> unit;
   }
   val find : pk -> t option
   val make : pk -> t Lwt.t
@@ -66,8 +66,8 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
     pk : P.pk;
     mutable nonpk : P.nonpk presence;
     beacon : Beacon.t;
-    patches : (P.req, P.change) patch React.event;
-    notify : ?step: React.step -> (P.req, P.change) patch -> unit;
+    patches : (P.required, P.change) patch React.event;
+    notify : ?step: React.step -> (P.required, P.change) patch -> unit;
   }
 
   module W = Weak.Make (struct
