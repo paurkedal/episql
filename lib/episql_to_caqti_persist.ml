@@ -115,6 +115,7 @@ type genopts = {
   go_update : bool;
   go_delete : bool;
   go_getters : bool;
+  go_select : bool;
 }
 let go = {
   go_event = true;
@@ -124,6 +125,7 @@ let go = {
   go_update = true;
   go_delete = true;
   go_getters = true;
+  go_select = true;
 }
 
 let emit_difftypes oc ti =
@@ -181,6 +183,17 @@ let emit_intf oc ti =
 		 cn (string_of_datatype ct.ct_type)
 		 (if ct.ct_pk then "" else " option"))
       ti.ti_cts
+  end;
+  if go.go_select then begin
+    fprint oc "    val select :";
+    List.iter
+      (fun (cn, ct) ->
+	let tn = string_of_datatype ct.ct_type in
+	fprintf oc "\n      ?%s: [< `Eq of %s" cn tn;
+	if ct.ct_nullable then fprint oc " | `Null";
+	fprint oc "] ->")
+      ti.ti_cts;
+      fprintl oc "\n      unit -> t list Lwt.t"
   end;
   if go.go_create then begin
     fprint oc "    val create :";
@@ -411,6 +424,53 @@ let emit_impl oc ti =
       fprintl oc "\t       | None -> assert false"
     end else
       fprintl oc "\tC.exec q p >>= fun () -> merge_present (decode ())";
+  end;
+
+  if go.go_select then begin
+    fprint  oc "    let select";
+    List.iter (fun (cn, ct) -> fprint oc " ?"; fprint oc cn) ti.ti_cts;
+    fprintl oc " () =";
+    emit_use_C oc 6;
+    fprintl  oc "\tlet module Sb = Select_buffer (C) in";
+    fprintlf oc "\tlet sb = Sb.create C.backend_info \"%s\" in"
+	     (Episql.string_of_qname ti.ti_tqn);
+    let emit_ret (cn, _) = fprintlf oc "\tSb.ret sb \"%s\";" cn in
+    List.iter emit_ret ti.ti_pk_cts;
+    List.iter emit_ret ti.ti_nonpk_cts;
+    List.iter
+      (fun (cn, ct) ->
+	fprintlf oc "\tbegin match %s with" cn;
+	fprintl  oc "\t| None -> ()";
+	if ct.ct_nullable then
+	  fprintlf oc "\t| Some `Null -> Sb.(where sb [S\"%s IS NULL\"])" cn;
+	fprintlf oc "\t| Some (`Eq x) -> \
+			 Sb.(where sb [S\"%s = \"; P C.Param.(%s x)])"
+		    cn (convname_of_datatype ct.ct_type);
+	fprintl  oc "\tend;")
+      ti.ti_cts;
+    fprintl  oc "\tlet q, p = Sb.contents sb in";
+    fprintl  oc "\tlet decode t acc =";
+    fprint   oc "\t  let pk = C.Tuple.({";
+    List.iteri
+      (fun i (cn, ct) ->
+	if i > 0 then fprint oc "; ";
+	fprintf oc "%s = %s %d t" cn (convname_of_coltype ct) i)
+      ti.ti_pk_cts;
+    fprintl oc "}) in";
+    if ti.ti_nonpk_cts = [] then
+      fprintl oc "\t  let nonpk = () in"
+    else begin
+      let n_pk = List.length ti.ti_pk_cts in
+      fprint  oc "\t  let nonpk = C.Tuple.({";
+      List.iteri
+	(fun i (cn, ct) ->
+	  if i > 0 then fprint oc "; ";
+	  fprintf oc "%s = %s %d t" cn (convname_of_coltype ct) (i + n_pk))
+	ti.ti_nonpk_cts;
+      fprintl oc "}) in"
+    end;
+    fprintl oc "\t  merge (pk, Present nonpk) :: acc in";
+    fprintl oc "\tC.fold q decode p []"
   end;
 
   if go.go_insert || go.go_patch then begin

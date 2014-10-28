@@ -52,7 +52,12 @@ let test_serial () =
   Cp_1d_1r.(patch d (Insert ({req_v0 = 5.25}, []))) >>
   Cp_1d_1r.delete d >>
 
-  lwt e = Cp_1d_1o1r1d.create ~v1:"zap" ~v2:(CalendarLib.Calendar.now ()) () in
+  let now = CalendarLib.Calendar.now () in
+  lwt e = Cp_1d_1o1r1d.create ~v1:"zap" ~v2:now () in
+  begin match_lwt Cp_1d_1o1r1d.select ~v2:(`Eq now) () with
+  | [e'] -> assert (e == e'); Lwt.return_unit
+  | _ -> assert false
+  end >>
   Lwt_list.iter_s (Cp_1d_1o1r1d.patch e)
     [ Delete;
       Insert (Cp_1d_1o1r1d.({req_v1 = "sixty-one"}), []);

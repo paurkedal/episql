@@ -56,6 +56,7 @@ module type PK_CACHED = sig
   }
   val find : pk -> t option
   val make : pk -> t Lwt.t
+  val merge : pk * nonpk presence -> t
   val merge_present : pk * nonpk -> t Lwt.t
 end
 
@@ -86,15 +87,18 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
     try Some (W.find cache (mk_key pk))
     with Not_found -> None
 
+  let merge (pk, nonpk) =
+    let patches, notify = React.E.create () in
+    Beacon.embed fetch_grade
+      (fun beacon -> W.merge cache {pk; nonpk; beacon; patches; notify})
+
   let make pk =
     try
       Lwt.return (W.find cache (mk_key pk))
     with Not_found ->
       P.fetch pk >|= fun nonpk ->
       let nonpk = match nonpk with None -> Absent | Some x -> Present x in
-      let patches, notify = React.E.create () in
-      Beacon.embed fetch_grade
-	(fun beacon -> W.merge cache {pk; nonpk; beacon; patches; notify})
+      merge (pk, nonpk)
 
   let merge_present (pk, nonpk) =
     try
@@ -112,6 +116,7 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
 	  (fun beacon -> {pk; nonpk=Present nonpk; beacon; patches; notify}) in
       W.add cache o;
       Lwt.return o
+
 end
 
 module Insert_buffer (C : Caqti_lwt.CONNECTION) = struct
@@ -176,9 +181,13 @@ module Insert_buffer (C : Caqti_lwt.CONNECTION) = struct
     (Oneshot (fun _ -> qs), Array.of_list (List.rev ib.params))
 end
 
+let make_param_for backend_info =
+  match backend_info.Caqti_metadata.bi_parameter_style with
+  | `Linear s -> fun _ -> s
+  | `Indexed sf -> sf
+  | _ -> raise Caqti_query.Missing_query_string
+
 module Update_buffer (C : Caqti_lwt.CONNECTION) = struct
-  open Caqti_metadata
-  open Caqti_query
 
   type state = Init | Set | Where | Noop
 
@@ -195,12 +204,8 @@ module Update_buffer (C : Caqti_lwt.CONNECTION) = struct
     Buffer.add_string buf "UPDATE ";
     Buffer.add_string buf table_name;
     Buffer.add_string buf " SET ";
-    let make_param =
-      match backend_info.bi_parameter_style with
-      | `Linear s -> fun _ -> s
-      | `Indexed sf -> sf
-      | _ -> raise Missing_query_string in
-    {make_param; buf; param_count = 0; params = []; state = Init}
+    { make_param = make_param_for backend_info; buf;
+      param_count = 0; params = []; state = Init }
 
   let assign ub pn pv =
     Buffer.add_string ub.buf pn;
@@ -230,5 +235,66 @@ module Update_buffer (C : Caqti_lwt.CONNECTION) = struct
     match ub.state with
     | Init | Noop -> None
     | Set -> assert false (* Precaution, we don't need unconditional update. *)
-    | Where -> Some (Oneshot (fun _ -> qs), Array.of_list (List.rev ub.params))
+    | Where -> Some (Caqti_query.Oneshot (fun _ -> qs),
+		     Array.of_list (List.rev ub.params))
+end
+
+module Select_buffer (C : Caqti_lwt.CONNECTION) = struct
+
+  type query_fragment = S of string | P of C.param
+
+  type state = Init | Ret | Where
+
+  type t = {
+    make_param : int -> string;
+    buf : Buffer.t;
+    table_name : string;
+    mutable params : C.param list;
+    mutable param_count : int;
+    mutable state : state;
+  }
+
+  let create backend_info table_name =
+    let buf = Buffer.create 256 in
+    Buffer.add_string buf "SELECT ";
+    { make_param = make_param_for backend_info; buf; table_name;
+      params = []; param_count = 0; state = Init; }
+
+  let ret sb pn =
+    match sb.state with
+    | Init -> sb.state <- Ret; Buffer.add_string sb.buf pn
+    | Ret -> Buffer.add_string sb.buf ", "; Buffer.add_string sb.buf pn
+    | Where -> assert false
+
+  let where sb qfs =
+    begin match sb.state with
+    | Init -> assert false
+    | Ret ->
+      Buffer.add_string sb.buf " FROM ";
+      Buffer.add_string sb.buf sb.table_name;
+      Buffer.add_string sb.buf " WHERE ";
+      sb.state <- Where
+    | Where ->
+      Buffer.add_string sb.buf " AND "
+    end;
+    List.iter
+      (function
+	| S s -> Buffer.add_string sb.buf s
+	| P pv ->
+	  Buffer.add_string sb.buf (sb.make_param sb.param_count);
+	  sb.params <- pv :: sb.params;
+	  sb.param_count <- sb.param_count + 1)
+      qfs
+
+  let contents sb =
+    begin match sb.state with
+    | Init -> assert false
+    | Ret ->
+      Buffer.add_string sb.buf " FROM ";
+      Buffer.add_string sb.buf sb.table_name
+    | Where -> ()
+    end;
+    let qs = Buffer.contents sb.buf in
+    Caqti_query.Oneshot (fun _ -> qs), Array.of_list (List.rev sb.params)
+
 end

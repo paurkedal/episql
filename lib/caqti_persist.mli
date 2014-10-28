@@ -49,6 +49,7 @@ module type PK_CACHED = sig
   }
   val find : pk -> t option
   val make : pk -> t Lwt.t
+  val merge : pk * nonpk presence -> t
   val merge_present : pk * nonpk -> t Lwt.t
 end
 
@@ -72,4 +73,13 @@ module Update_buffer (C : Caqti_lwt.CONNECTION) : sig
   val set : t -> string -> C.param -> unit
   val where : t -> string -> C.param -> unit
   val contents : t -> (Caqti_query.query * C.param array) option
+end
+
+module Select_buffer (C : Caqti_lwt.CONNECTION) : sig
+  type t
+  type query_fragment = S of string | P of C.param
+  val create : Caqti_metadata.backend_info -> string -> t
+  val ret : t -> string -> unit
+  val where : t -> query_fragment list -> unit
+  val contents : t -> Caqti_query.query * C.param array
 end
