@@ -586,7 +586,10 @@ let generate emit stmts oc =
       | Some pk ->
 	let set_pk = function
 	  | cn, {ct_pk = true} as cn_ct -> cn_ct
-	  | cn, ct -> cn, {ct with ct_pk = List.mem cn pk} in
+	  | cn, ct ->
+	    let ct_pk = List.mem cn pk in
+	    let ct_nullable = ct.ct_nullable && not ct_pk in
+	    cn, {ct with ct_pk; ct_nullable} in
 	let ti_cts = List.map set_pk cts in
 	let ti_req_cts =
 	  List.filter
