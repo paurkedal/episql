@@ -55,7 +55,7 @@ module type PK_CACHED = sig
     notify : ?step: React.step -> (required, change) patch -> unit;
   }
   val find : pk -> t option
-  val make : pk -> t Lwt.t
+  val fetch : pk -> t Lwt.t
   val merge : pk * nonpk presence -> t
   val merge_created : pk * nonpk -> t Lwt.t
 end
@@ -92,7 +92,7 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
     Beacon.embed fetch_grade
       (fun beacon -> W.merge cache {pk; nonpk; beacon; patches; notify})
 
-  let make pk =
+  let fetch pk =
     try
       Lwt.return (W.find cache (mk_key pk))
     with Not_found ->

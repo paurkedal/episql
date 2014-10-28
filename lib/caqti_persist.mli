@@ -48,7 +48,7 @@ module type PK_CACHED = sig
     notify : ?step: React.step -> (required, change) patch -> unit;
   }
   val find : pk -> t option
-  val make : pk -> t Lwt.t
+  val fetch : pk -> t Lwt.t
   val merge : pk * nonpk presence -> t
   val merge_created : pk * nonpk -> t Lwt.t
 end

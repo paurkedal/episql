@@ -198,7 +198,7 @@ let emit_intf oc ti =
   emit_type_nonpk ~in_intf:true oc ti;
   emit_difftypes oc ti;
   fprintl oc "    type t";
-  fprintl oc "    val make : pk -> t Lwt.t";
+  fprintl oc "    val fetch : pk -> t Lwt.t";
   fprintl oc "    val get_pk : t -> pk";
   fprintl oc "    val get_nonpk : t -> nonpk option";
   if go.go_getters then begin
