@@ -57,7 +57,7 @@ module type PK_CACHED = sig
   val find : pk -> t option
   val make : pk -> t Lwt.t
   val merge : pk * nonpk presence -> t
-  val merge_present : pk * nonpk -> t Lwt.t
+  val merge_created : pk * nonpk -> t Lwt.t
 end
 
 module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
@@ -100,7 +100,7 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
       let nonpk = match nonpk with None -> Absent | Some x -> Present x in
       merge (pk, nonpk)
 
-  let merge_present (pk, nonpk) =
+  let merge_created (pk, nonpk) =
     try
       let o = W.find cache (mk_key pk) in
       begin match o.nonpk with

@@ -420,10 +420,10 @@ let emit_impl oc ti =
     end;
     if have_default then begin
       fprintl oc "\tC.find q decode p >>=";
-      fprintl oc "\tfunction Some (pk, nonpk) -> merge_present (pk, nonpk)";
+      fprintl oc "\tfunction Some (pk, nonpk) -> merge_created (pk, nonpk)";
       fprintl oc "\t       | None -> assert false"
     end else
-      fprintl oc "\tC.exec q p >>= fun () -> merge_present (decode ())";
+      fprintl oc "\tC.exec q p >>= fun () -> merge_created (decode ())";
   end;
 
   if go.go_select then begin

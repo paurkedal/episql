@@ -50,7 +50,7 @@ module type PK_CACHED = sig
   val find : pk -> t option
   val make : pk -> t Lwt.t
   val merge : pk * nonpk presence -> t
-  val merge_present : pk * nonpk -> t Lwt.t
+  val merge_created : pk * nonpk -> t Lwt.t
 end
 
 module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) :
