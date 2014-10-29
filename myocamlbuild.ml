@@ -17,6 +17,10 @@ let () =
        ~deps:["tests/%.sql"; episql_prog] ~prod:"tests/%_persist_types.mli"
        (episql "caqti-persist-types-mli" "tests/%.sql"
 	       "tests/%_persist_types.mli");
+  rule ".sql -> _persist_types.ml" ~tags:["episql"]
+       ~deps:["tests/%.sql"; episql_prog] ~prod:"tests/%_persist_types.ml"
+       (episql "caqti-persist-types-ml" "tests/%.sql"
+	       "tests/%_persist_types.ml");
   rule ".sql -> _persist.mli" ~tags:["episql"]
        ~deps:["tests/%.sql"; episql_prog] ~prod:"tests/%_persist.mli"
        (episql ~types:"%_persist_types"
