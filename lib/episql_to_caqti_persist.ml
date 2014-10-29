@@ -110,6 +110,7 @@ let rec findent oc n =
 type genopts = {
   go_event : bool;
   go_patch : bool;
+  go_burst : bool;
   go_insert : bool;
   go_create : bool;
   go_update : bool;
@@ -124,6 +125,7 @@ type genopts = {
 let go = {
   go_event = true;
   go_patch = true;
+  go_burst = true;
   go_insert = true;
   go_create = true;
   go_update = true;
@@ -255,6 +257,8 @@ let emit_intf oc ti =
     fprintl oc "    val patch : t -> patch -> unit Lwt.t";
   if go.go_event then
     fprintl oc "    val patches : t -> patch React.E.t";
+  if go.go_burst then
+    fprintl oc "    val burst : t -> patch option";
   fprintl oc "  end\n"
 
 let emit_query oc name emit =
@@ -676,6 +680,32 @@ let emit_impl oc ti =
   end;
 
   if go.go_event then fprintl oc "    let patches {patches} = patches";
+
+  if go.go_burst then begin
+    fprintl oc "    let burst o =";
+    fprintl oc "      match o.nonpk with";
+    fprintl oc "      | Present nonpk ->";
+    if List.length ti.ti_nonpk_req_cts = 0 then
+      fprintl oc "\tlet r = () in"
+    else begin
+      fprintl oc "\tlet r = {";
+      List.iter
+	(fun (cn, _) ->
+	  fprintlf oc "\t  %s%s = nonpk.%s%s;"
+		   go.go_required_prefix cn go.go_nonpk_prefix cn)
+	ti.ti_nonpk_req_cts;
+      fprintl oc "\t} in"
+    end;
+    fprintl oc "\tlet p = [";
+    List.iter
+      (fun (cn, ct) ->
+	if ct.ct_nullable || ct.ct_defaultable then
+	  fprintlf oc "\t  `Set_%s nonpk.%s%s;" cn go.go_nonpk_prefix cn)
+      ti.ti_nonpk_cts;
+    fprintl oc "\t] in";
+    fprintl oc "\tSome (Insert (r, p))";
+    fprintl oc "      | _ -> None"
+  end;
 
   fprintl oc "  end"
 
