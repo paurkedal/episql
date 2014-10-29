@@ -14,8 +14,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-type empty = Invalid_empty_value
-
 type 'a presence =
   | Absent
   | Inserting of 'a Lwt_condition.t
@@ -23,9 +21,9 @@ type 'a presence =
   | Deleting of unit Lwt_condition.t
 
 type ('a, 'b) persist_patch =
-  | Insert of 'a * 'b list
-  | Update of 'b list
-  | Delete
+  [ `Insert of 'a * 'b list
+  | `Update of 'b list
+  | `Delete ]
 
 exception Merge_conflict
 

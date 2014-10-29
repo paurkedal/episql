@@ -108,21 +108,23 @@ let rec findent oc n =
 	    else (output_char oc ' ';  findent oc (n - 1))
 
 type genopts = {
-  go_event : bool;
-  go_patch : bool;
-  go_burst : bool;
-  go_insert : bool;
-  go_create : bool;
-  go_update : bool;
-  go_delete : bool;
-  go_getters : bool;
-  go_select : bool;
-  go_collapse_pk : bool;
-  go_pk_prefix : string;
-  go_nonpk_prefix : string;
-  go_required_prefix : string;
+  mutable go_types_module : string option;
+  mutable go_event : bool;
+  mutable go_patch : bool;
+  mutable go_burst : bool;
+  mutable go_insert : bool;
+  mutable go_create : bool;
+  mutable go_update : bool;
+  mutable go_delete : bool;
+  mutable go_getters : bool;
+  mutable go_select : bool;
+  mutable go_collapse_pk : bool;
+  mutable go_pk_prefix : string;
+  mutable go_nonpk_prefix : string;
+  mutable go_required_prefix : string;
 }
 let go = {
+  go_types_module = None;
   go_event = true;
   go_patch = true;
   go_burst = true;
@@ -171,7 +173,7 @@ let emit_type_nonpk ~in_intf oc ti =
 let emit_type_patch_etc oc ti =
   let len_nonpk = List.length ti.ti_nonpk_cts in
   if ti.ti_nonpk_cts = [] then begin
-    fprintl oc "    type change = empty";
+    fprintl oc "    type change = Prime.counit";
     fprintl oc "    type required = unit"
   end else begin
     fprintl oc "    type change =";
@@ -195,11 +197,24 @@ let emit_type_patch_etc oc ti =
   end;
   fprintl oc "    type patch = (required, change) persist_patch"
 
+let emit_types_intf oc ti =
+  fprintlf oc "module %s : sig" (String.capitalize (snd ti.ti_tqn));
+  emit_type_pk oc ti;
+  emit_type_nonpk ~in_intf:false oc ti;
+  emit_type_patch_etc oc ti;
+  fprintl oc "end"
+
 let emit_intf oc ti =
   fprintf oc "  module %s : sig\n" (String.capitalize (snd ti.ti_tqn));
-  emit_type_pk oc ti;
-  emit_type_nonpk ~in_intf:true oc ti;
-  emit_type_patch_etc oc ti;
+  begin match go.go_types_module with
+  | None ->
+    emit_type_pk oc ti;
+    emit_type_nonpk ~in_intf:true oc ti;
+    emit_type_patch_etc oc ti
+  | Some tm ->
+    fprintlf oc "    include module type of %s.%s"
+	     tm (String.capitalize (snd ti.ti_tqn))
+  end;
   fprintl oc "    type t";
   fprintl oc "    val fetch : pk -> t Lwt.t";
   fprintl oc "    val get_pk : t -> pk";
@@ -560,9 +575,9 @@ let emit_impl oc ti =
     end;
     if go.go_event then begin
       if ti.ti_nonpk_req_cts = [] then begin
-	fprintl oc "\t  o.notify (Insert ((), []));"
+	fprintl oc "\t  o.notify (`Insert ((), []));"
       end else begin
-	fprint oc "\t  o.notify (Insert ({";
+	fprint oc "\t  o.notify (`Insert ({";
 	List.iteri
 	  (fun i (cn, ct) ->
 	    if i > 0 then fprint oc "; ";
@@ -624,7 +639,7 @@ let emit_impl oc ti =
 		cn go.go_nonpk_prefix cn)
       ti.ti_nonpk_cts;
     if go.go_event then
-      fprint oc ";\n\t  o.notify (Update (List.rev !changes))";
+      fprint oc ";\n\t  o.notify (`Update (List.rev !changes))";
     fprintl oc "\n\tend"
   end;
 
@@ -640,7 +655,7 @@ let emit_impl oc ti =
     fprintl oc "\t  o.nonpk <- Deleting c;";
     fprint  oc "\t  C.exec Q.delete ";
     emit_param oc ti "pk" ti.ti_pk_cts; fprintl oc " >|=";
-    fprintl oc "\t  fun () -> o.nonpk <- Absent; o.notify Delete";
+    fprintl oc "\t  fun () -> o.nonpk <- Absent; o.notify `Delete";
     fprintl oc "\t| Deleting c -> Lwt_condition.wait c in";
     fprintl oc "      retry ()"
   end;
@@ -649,18 +664,18 @@ let emit_impl oc ti =
     fprintl oc "    let patch o p =";
     fprintl oc "      match p with";
     if ti.ti_nonpk_cts = [] then begin
-      fprintl oc "      | Insert ((), []) -> insert o";
-      fprintl oc "      | Update [] -> Lwt.return_unit";
-      fprintl oc "      | Insert ((), _) | Update _ -> assert false"
+      fprintl oc "      | `Insert ((), []) -> insert o";
+      fprintl oc "      | `Update [] -> Lwt.return_unit";
+      fprintl oc "      | `Insert ((), _) | `Update _ -> assert false"
     end else begin
-      fprintl oc "      | Insert (req, []) ->";
+      fprintl oc "      | `Insert (req, []) ->";
       fprint  oc "\tinsert";
       List.iter
 	(fun (cn, ct) -> fprintf oc " ~%s:req.%s%s" cn go.go_required_prefix cn)
 	ti.ti_nonpk_req_cts;
       fprintl oc " o;";
-      fprintl oc "      | Insert (req, _) -> assert false (* FIXME *)";
-      fprintl oc "      | Update changes ->";
+      fprintl oc "      | `Insert (req, _) -> assert false (* FIXME *)";
+      fprintl oc "      | `Update changes ->";
       List.iter
 	(fun (cn, _) -> fprintlf oc "\tlet %s = ref None in" cn)
 	ti.ti_nonpk_cts;
@@ -676,7 +691,7 @@ let emit_impl oc ti =
       List.iter (fun (cn, _) -> fprintf oc " ?%s:!%s" cn cn) ti.ti_nonpk_cts;
       fprintl oc " o";
     end;
-    fprintl oc "      | Delete -> delete o"
+    fprintl oc "      | `Delete -> delete o"
   end;
 
   if go.go_event then fprintl oc "    let patches {patches} = patches";
@@ -703,7 +718,7 @@ let emit_impl oc ti =
 	  fprintlf oc "\t  `Set_%s nonpk.%s%s;" cn go.go_nonpk_prefix cn)
       ti.ti_nonpk_cts;
     fprintl oc "\t] in";
-    fprintl oc "\tSome (Insert (r, p))";
+    fprintl oc "\tSome (`Insert (r, p))";
     fprintl oc "      | _ -> None"
   end;
 
@@ -776,6 +791,24 @@ let generate_impl stmts oc =
   generate emit_impl stmts oc;
   fprintl oc "end"
 
+let generate_types_intf stmts oc =
+  fprintl oc "(* Generated by episql. *)\n";
+  fprintl oc "type ('a, 'b) persist_patch =";
+  fprintl oc "  [ `Insert of 'a * 'b list";
+  fprintl oc "  | `Update of 'b list";
+  fprintl oc "  | `Delete ]\n";
+  generate emit_types_intf stmts oc
+
 let () =
-  Episql.register_generator "caqti-persist-mli" generate_intf;
-  Episql.register_generator "caqti-persist-ml" generate_impl
+  let set_types_module mn =
+    go.go_types_module <-
+      Some (String.capitalize (if Filename.check_suffix mn ".mli"
+			       then Filename.chop_suffix mn ".mli"
+			       else mn)) in
+  let arg_specs = [
+    "-types-module", Arg.String set_types_module,
+      "MODULE Import generated types from MODULE."
+  ] in
+  Episql.register_generator ~arg_specs "caqti-persist-mli" generate_intf;
+  Episql.register_generator ~arg_specs "caqti-persist-ml" generate_impl;
+  Episql.register_generator "caqti-persist-types-mli" generate_types_intf

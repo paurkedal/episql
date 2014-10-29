@@ -3,18 +3,28 @@
 
 let episql_prog = "bin/episql_main.native"
 
-let episql gen sql ml env build =
+let episql ?types gen sql ml env build =
   let sql = env sql and ml = env ml in
+  let types =
+    match types with
+    | None -> []
+    | Some types -> [A"-types-module"; P(String.capitalize (env types))] in
   let tags = Tags.union (tags_of_pathname sql) (tags_of_pathname ml) in
-  Cmd (S [P episql_prog; T (tags ++ "episql"); A"-g"; A gen;
+  Cmd (S [P episql_prog; T (tags ++ "episql"); A"-g"; A gen; S types;
           P sql; A"-o"; Px ml])
 let () =
+  rule ".sql -> _persist_types.mli" ~tags:["episql"]
+       ~deps:["tests/%.sql"; episql_prog] ~prod:"tests/%_persist_types.mli"
+       (episql "caqti-persist-types-mli" "tests/%.sql"
+	       "tests/%_persist_types.mli");
   rule ".sql -> _persist.mli" ~tags:["episql"]
        ~deps:["tests/%.sql"; episql_prog] ~prod:"tests/%_persist.mli"
-       (episql "caqti-persist-mli" "tests/%.sql" "tests/%_persist.mli");
+       (episql ~types:"%_persist_types"
+	       "caqti-persist-mli" "tests/%.sql" "tests/%_persist.mli");
   rule ".sql -> _persist.ml" ~tags:["episql"]
        ~deps:["tests/%.sql"; episql_prog] ~prod:"tests/%_persist.ml"
-       (episql "caqti-persist-ml" "tests/%.sql" "tests/%_persist.ml")
+       (episql ~types:"%_persist_types"
+	       "caqti-persist-ml" "tests/%.sql" "tests/%_persist.ml")
 
 let () = dispatch begin function
 
