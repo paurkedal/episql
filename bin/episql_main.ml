@@ -29,24 +29,32 @@ let disable_keywords = List.iter disable_keyword *< Prime_string.chop_affix ","
 let () =
   let arg_inputs = ref [] in
   let arg_output = ref "-" in
-  let arg_generator = ref Episql_to_macaque.generate in
-  let set_generator gn =
-    try arg_generator := Episql.generate gn
-    with Not_found -> raise (Arg.Bad (gn ^ " is not a supported generator")) in
+  let arg_generator = ref None in
+  let arg_specs = ref [] in
   let gens = String.concat ", " (Episql.generator_names ()) in
-  let arg_specs = Arg.align
+  let set_generator gn =
+    try
+      let generate, subarg_specs = Episql.find_generator gn in
+      arg_generator := Some generate;
+      arg_specs := Arg.align (!arg_specs @ subarg_specs)
+    with Not_found -> raise (Arg.Bad (gn ^ " is not a supported generator")) in
+  arg_specs := Arg.align
     [ "-g", Arg.String set_generator,
 	"GENERATOR Select generator among: " ^ gens;
       "-o", Arg.Set_string arg_output,
 	"PATH Output path.";
       "-disable-keywords", Arg.String disable_keywords,
 	"KW,...,KW Disable the given keywords, in case they clash with \
-		   column, table, or other names in your schema."
-	] in
-  Arg.parse arg_specs (fun fp -> arg_inputs := fp :: !arg_inputs) Sys.argv.(0);
+		   column, table, or other names in your schema." ];
+  Arg.parse_dynamic arg_specs (fun fp -> arg_inputs := fp :: !arg_inputs)
+		    Sys.argv.(0);
+  let generator =
+    match !arg_generator with
+    | None -> fprintf stderr "The -g option is mandatory.\n"; exit 64
+    | Some g -> g in
   flush stderr;
   let stmts =
     List.fold (fun fp acc -> Episql.parse_file fp @ acc) !arg_inputs [] in
   match !arg_output with
-  | "-" -> !arg_generator stmts stdout
-  | fp -> Prime_io.with_file_out (!arg_generator stmts) fp
+  | "-" -> generator stmts stdout
+  | fp -> Prime_io.with_file_out (generator stmts) fp

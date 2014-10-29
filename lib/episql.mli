@@ -30,8 +30,9 @@ val autorec : (expression -> expression) -> expression -> expression
 
 type generator = statement list -> out_channel -> unit
 
-val generate : string -> generator
+val find_generator : string -> generator * (Arg.key * Arg.spec * Arg.doc) list
 
-val register_generator : string -> generator -> unit
+val register_generator : ?arg_specs: (Arg.key * Arg.spec * Arg.doc) list ->
+			 string -> generator -> unit
 
 val generator_names : unit -> string list

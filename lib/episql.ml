@@ -94,7 +94,10 @@ let rec autorec g = function
   | Expr_app (f, es) -> g (Expr_app (f, List.map (autorec g) es))
 
 type generator = statement list -> out_channel -> unit
-let generators : (string, generator) Hashtbl.t = Hashtbl.create 11
-let generate gn = Hashtbl.find generators gn
-let register_generator gn g = Hashtbl.add generators gn g
+let generators :
+  (string, generator * (Arg.key * Arg.spec * Arg.doc) list) Hashtbl.t =
+  Hashtbl.create 11
+let find_generator gn = Hashtbl.find generators gn
+let register_generator ?(arg_specs = []) gn g =
+  Hashtbl.add generators gn (g, arg_specs)
 let generator_names () = Hashtbl.fold (fun s _ acc -> s :: acc) generators []
