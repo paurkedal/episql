@@ -136,32 +136,6 @@ let go = {
   go_required_prefix = "r_";
 }
 
-let emit_difftypes oc ti =
-  let len_nonpk = List.length ti.ti_nonpk_cts in
-  if ti.ti_nonpk_cts = [] then begin
-    fprintl oc "    type change = empty";
-    fprintl oc "    type required = unit"
-  end else begin
-    fprintl oc "    type change =";
-    List.iteri
-      (fun i (cn, ct) ->
-	fprintlf oc "      %c `Set_%s of %s%s"
-		 (if i = 0 then '[' else '|') cn (string_of_coltype ct)
-		 (if i = len_nonpk - 1 then " ]" else ""))
-      ti.ti_nonpk_cts;
-    if ti.ti_nonpk_req_cts = [] then
-      fprintl oc "    type required = unit"
-    else begin
-      fprintl oc "    type required = {";
-      List.iter
-	(fun (cn, ct) ->
-	  fprintlf oc "      %s%s : %s;"
-		   go.go_required_prefix cn (string_of_datatype ct.ct_type))
-	ti.ti_nonpk_req_cts;
-      fprintl oc "    }"
-    end
-  end
-
 let emit_type_pk oc ti =
   if go.go_collapse_pk && List.length ti.ti_pk_cts = 1 then
     fprintlf oc "    type pk = %s"
@@ -192,11 +166,38 @@ let emit_type_nonpk ~in_intf oc ti =
     fprintl oc "    }"
   end
 
+let emit_type_patch_etc oc ti =
+  let len_nonpk = List.length ti.ti_nonpk_cts in
+  if ti.ti_nonpk_cts = [] then begin
+    fprintl oc "    type change = empty";
+    fprintl oc "    type required = unit"
+  end else begin
+    fprintl oc "    type change =";
+    List.iteri
+      (fun i (cn, ct) ->
+	fprintlf oc "      %c `Set_%s of %s%s"
+		 (if i = 0 then '[' else '|') cn (string_of_coltype ct)
+		 (if i = len_nonpk - 1 then " ]" else ""))
+      ti.ti_nonpk_cts;
+    if ti.ti_nonpk_req_cts = [] then
+      fprintl oc "    type required = unit"
+    else begin
+      fprintl oc "    type required = {";
+      List.iter
+	(fun (cn, ct) ->
+	  fprintlf oc "      %s%s : %s;"
+		   go.go_required_prefix cn (string_of_datatype ct.ct_type))
+	ti.ti_nonpk_req_cts;
+      fprintl oc "    }"
+    end
+  end;
+  fprintl oc "    type patch = (required, change) persist_patch"
+
 let emit_intf oc ti =
   fprintf oc "  module %s : sig\n" (String.capitalize (snd ti.ti_tqn));
   emit_type_pk oc ti;
   emit_type_nonpk ~in_intf:true oc ti;
-  emit_difftypes oc ti;
+  emit_type_patch_etc oc ti;
   fprintl oc "    type t";
   fprintl oc "    val fetch : pk -> t Lwt.t";
   fprintl oc "    val get_pk : t -> pk";
@@ -251,9 +252,9 @@ let emit_intf oc ti =
   if go.go_delete then
     fprintl oc "    val delete : t -> unit Lwt.t";
   if go.go_patch then
-    fprintl oc "    val patch : t -> (required, change) patch -> unit Lwt.t";
+    fprintl oc "    val patch : t -> patch -> unit Lwt.t";
   if go.go_event then
-    fprintl oc "    val patches : t -> (required, change) patch React.E.t";
+    fprintl oc "    val patches : t -> patch React.E.t";
   fprintl oc "  end\n"
 
 let emit_query oc name emit =
@@ -351,7 +352,7 @@ let emit_impl oc ti =
   fprintl oc "    end";
   emit_type_pk oc ti;
   emit_type_nonpk ~in_intf:false oc ti;
-  emit_difftypes oc ti;
+  emit_type_patch_etc oc ti;
   fprintl oc "    include Cache (struct";
   fprintl oc "      type _t0 = pk\ttype pk = _t0";
   fprintl oc "      type _t1 = nonpk\ttype nonpk = _t1";

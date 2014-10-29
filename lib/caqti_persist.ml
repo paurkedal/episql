@@ -22,7 +22,10 @@ type 'a presence =
   | Present of 'a
   | Deleting of unit Lwt_condition.t
 
-type ('a, 'b) patch = Insert of 'a * 'b list | Update of 'b list | Delete
+type ('a, 'b) persist_patch =
+  | Insert of 'a * 'b list
+  | Update of 'b list
+  | Delete
 
 exception Merge_conflict
 
@@ -51,8 +54,8 @@ module type PK_CACHED = sig
     pk : pk;
     mutable nonpk : nonpk presence;
     beacon : beacon;
-    patches : (required, change) patch React.event;
-    notify : ?step: React.step -> (required, change) patch -> unit;
+    patches : (required, change) persist_patch React.event;
+    notify : ?step: React.step -> (required, change) persist_patch -> unit;
   }
   val find : pk -> t option
   val fetch : pk -> t Lwt.t
@@ -66,8 +69,8 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
     pk : P.pk;
     mutable nonpk : P.nonpk presence;
     beacon : Beacon.t;
-    patches : (P.required, P.change) patch React.event;
-    notify : ?step: React.step -> (P.required, P.change) patch -> unit;
+    patches : (P.required, P.change) persist_patch React.event;
+    notify : ?step: React.step -> (P.required, P.change) persist_patch -> unit;
   }
 
   module W = Weak.Make (struct
