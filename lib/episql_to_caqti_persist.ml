@@ -151,7 +151,8 @@ let rec findent oc n =
 	    else (output_char oc ' ';  findent oc (n - 1))
 
 let emit_custom_open oc =
-  List.iter (fun m -> fprintlf oc "open %s" m) go.go_open
+  List.iter (fun m -> fprintlf oc "open %s" m) (List.rev go.go_open);
+  output_char oc '\n'
 
 let emit_deriving_nl oc =
   if go.go_deriving = [] then
@@ -187,7 +188,7 @@ let emit_type_nonpk ~in_intf oc ti =
 	fprintlf oc "      mutable %s%s : %s;"
 		 go.go_nonpk_prefix cn (string_of_coltype ct))
       ti.ti_nonpk_cts;
-    fprint oc "    }"
+    fprintl oc "    }"
   end
 
 let emit_type_patch_etc oc ti =
