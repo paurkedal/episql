@@ -18,6 +18,49 @@ open Episql_types
 open Printf
 open Unprime_list
 
+type genopts = {
+  mutable go_types_module : string option;
+  mutable go_event : bool;
+  mutable go_patch : bool;
+  mutable go_burst : bool;
+  mutable go_insert : bool;
+  mutable go_create : bool;
+  mutable go_update : bool;
+  mutable go_delete : bool;
+  mutable go_getters : bool;
+  mutable go_select : bool;
+  mutable go_collapse_pk : bool;
+  mutable go_pk_prefix : string;
+  mutable go_nonpk_prefix : string;
+  mutable go_required_prefix : string;
+  mutable go_deriving : string list;
+  mutable go_open : string list;
+  mutable go_type_counit : string;
+  mutable go_type_date : string;
+  mutable go_type_timestamp : string;
+}
+let go = {
+  go_types_module = None;
+  go_event = true;
+  go_patch = true;
+  go_burst = true;
+  go_insert = true;
+  go_create = true;
+  go_update = true;
+  go_delete = true;
+  go_getters = true;
+  go_select = true;
+  go_collapse_pk = true;
+  go_pk_prefix = "k_";
+  go_nonpk_prefix = "f_";
+  go_required_prefix = "r_";
+  go_deriving = [];
+  go_open = [];
+  go_type_counit = "Prime.counit";
+  go_type_date = "CalendarLib.Date.t";
+  go_type_timestamp = "CalendarLib.Calendar.t";
+}
+
 let convname_of_datatype = function
   | `Boolean -> "bool"
   | `Smallint | `Smallserial -> "int"
@@ -44,9 +87,9 @@ let string_of_datatype = function
   | `Bytea -> "string"
   | `Numeric _ | `Decimal _ -> "float" (* FIXME *)
   | `Time -> "float"
-  | `Date -> "CalendarLib.Date.t"
-  | `Timestamp -> "CalendarLib.Calendar.t"
-  | `Timestamp_with_timezone -> "CalendarLib.Calendar.t"
+  | `Date -> go.go_type_date
+  | `Timestamp -> go.go_type_timestamp
+  | `Timestamp_with_timezone -> go.go_type_timestamp
   | `Interval -> "string" (* FIXME *)
   | `Custom _ -> "string"
 
@@ -107,38 +150,14 @@ let rec findent oc n =
   if n >= 8 then (output_char oc '\t'; findent oc (n - 8))
 	    else (output_char oc ' ';  findent oc (n - 1))
 
-type genopts = {
-  mutable go_types_module : string option;
-  mutable go_event : bool;
-  mutable go_patch : bool;
-  mutable go_burst : bool;
-  mutable go_insert : bool;
-  mutable go_create : bool;
-  mutable go_update : bool;
-  mutable go_delete : bool;
-  mutable go_getters : bool;
-  mutable go_select : bool;
-  mutable go_collapse_pk : bool;
-  mutable go_pk_prefix : string;
-  mutable go_nonpk_prefix : string;
-  mutable go_required_prefix : string;
-}
-let go = {
-  go_types_module = None;
-  go_event = true;
-  go_patch = true;
-  go_burst = true;
-  go_insert = true;
-  go_create = true;
-  go_update = true;
-  go_delete = true;
-  go_getters = true;
-  go_select = true;
-  go_collapse_pk = true;
-  go_pk_prefix = "k_";
-  go_nonpk_prefix = "f_";
-  go_required_prefix = "r_";
-}
+let emit_custom_open oc =
+  List.iter (fun m -> fprintlf oc "open %s" m) go.go_open
+
+let emit_deriving_nl oc =
+  if go.go_deriving = [] then
+    fprintl oc ""
+  else
+    fprintlf oc " deriving (%s)" (String.concat ", " go.go_deriving)
 
 let emit_type_pk oc ti =
   if go.go_collapse_pk && List.length ti.ti_pk_cts = 1 then
@@ -151,7 +170,8 @@ let emit_type_pk oc ti =
 	fprintlf oc "      %s%s : %s;"
 		 go.go_pk_prefix cn (string_of_coltype ct))
       ti.ti_pk_cts;
-    fprintl oc "    }"
+    fprint oc "    }";
+    emit_deriving_nl oc
   end
 
 let emit_type_nonpk ~in_intf oc ti =
@@ -167,24 +187,27 @@ let emit_type_nonpk ~in_intf oc ti =
 	fprintlf oc "      mutable %s%s : %s;"
 		 go.go_nonpk_prefix cn (string_of_coltype ct))
       ti.ti_nonpk_cts;
-    fprintl oc "    }"
+    fprint oc "    }"
   end
 
 let emit_type_patch_etc oc ti =
   let len_nonpk = List.length ti.ti_nonpk_cts in
   if ti.ti_nonpk_cts = [] then begin
-    fprintl oc "    type change = Prime.counit";
-    fprintl oc "    type required = unit"
+    fprintf oc "    type change = %s" go.go_type_counit;
+    emit_deriving_nl oc;
+    fprint  oc "    type required = unit";
+    emit_deriving_nl oc
   end else begin
     fprintl oc "    type change =";
     List.iteri
       (fun i (cn, ct) ->
-	fprintlf oc "      %c `Set_%s of %s%s"
-		 (if i = 0 then '[' else '|') cn (string_of_coltype ct)
-		 (if i = len_nonpk - 1 then " ]" else ""))
+	fprintf oc "      %c `Set_%s of %s%s"
+		(if i = 0 then '[' else '|') cn (string_of_coltype ct)
+		(if i = len_nonpk - 1 then " ]" else "\n"))
       ti.ti_nonpk_cts;
+    emit_deriving_nl oc;
     if ti.ti_nonpk_req_cts = [] then
-      fprintl oc "    type required = unit"
+      fprint  oc "    type required = unit"
     else begin
       fprintl oc "    type required = {";
       List.iter
@@ -192,10 +215,12 @@ let emit_type_patch_etc oc ti =
 	  fprintlf oc "      %s%s : %s;"
 		   go.go_required_prefix cn (string_of_datatype ct.ct_type))
 	ti.ti_nonpk_req_cts;
-      fprintl oc "    }"
-    end
+      fprint  oc "    }"
+    end;
+    emit_deriving_nl oc
   end;
-  fprintl oc "    type patch = (required, change) persist_patch"
+  fprint oc "    type patch = (required, change) persist_patch";
+  emit_deriving_nl oc
 
 let emit_types ~in_intf oc ti =
   if in_intf then
@@ -785,6 +810,7 @@ let common_header = "\
 
 let generate_intf stmts oc =
   fprint  oc common_header;
+  emit_custom_open oc;
   fprintl oc "module Make (P : P) : sig";
   generate emit_intf stmts oc;
   fprintl oc "end"
@@ -792,6 +818,7 @@ let generate_intf stmts oc =
 let generate_impl stmts oc =
   fprint  oc common_header;
   fprintl oc "open Printf";
+  emit_custom_open oc;
   fprintl oc "let (>>=) = Lwt.(>>=)";
   fprintl oc "let (>|=) = Lwt.(>|=)";
   fprintl oc "module Make (P : P) = struct";
@@ -801,10 +828,13 @@ let generate_impl stmts oc =
 
 let generate_types ~in_intf stmts oc =
   fprintl oc "(* Generated by episql. *)\n";
+  emit_custom_open oc;
   fprintl oc "type ('a, 'b) persist_patch =";
   fprintl oc "  [ `Insert of 'a * 'b list";
   fprintl oc "  | `Update of 'b list";
-  fprintl oc "  | `Delete ]\n";
+  fprint  oc "  | `Delete ]";
+  emit_deriving_nl oc;
+  fprintl oc "";
   generate (emit_types ~in_intf) stmts oc
 
 let () =
@@ -813,13 +843,35 @@ let () =
       Some (String.capitalize (if Filename.check_suffix mn ".mli"
 			       then Filename.chop_suffix mn ".mli"
 			       else mn)) in
+  let common_arg_specs = [
+    "-deriving", Arg.String (fun c -> go.go_deriving <- c :: go.go_deriving),
+      "CLASS Add deriving (CLASS) to type definitions. \
+	     Only supported with separate types module. \
+	     The -use-type* and -open flags are useful for supplementing \
+	     suitable definitions for missing classes.";
+    "-open", Arg.String (fun m -> go.go_open <- m :: go.go_open),
+      "MODULE Open MODULE at top of the generated files but after other \
+	      open statements.";
+    "-with-type-counit", Arg.String (fun s -> go.go_type_counit <- s),
+      "T Use T as the Prime.counit type.";
+    "-with-type-date", Arg.String (fun s -> go.go_type_date <- s),
+      "T Use T as the CalendarLib.Date.t type.";
+    "-with-type-timestamp", Arg.String (fun s -> go.go_type_timestamp <- s),
+      "T Use T as the CalendarLib.Calendar.t type.";
+    "-with-types-from",
+      Arg.String (fun m -> go.go_type_counit <- m ^ ".counit";
+			   go.go_type_date <- m ^ ".date";
+			   go.go_type_timestamp <- m ^ ".timestamp"),
+      "MODULE Shortcut to use counit, date, and timestamp from MODULE.";
+  ] in
   let arg_specs = [
     "-types-module", Arg.String set_types_module,
-      "MODULE Import generated types from MODULE."
-  ] in
+      "MODULE Import generated types from MODULE.";
+  ] @ common_arg_specs in
+  let types_arg_specs = common_arg_specs in
   Episql.register_generator ~arg_specs "caqti-persist-mli" generate_intf;
   Episql.register_generator ~arg_specs "caqti-persist-ml" generate_impl;
-  Episql.register_generator "caqti-persist-types-mli"
+  Episql.register_generator ~arg_specs:types_arg_specs "caqti-persist-types-mli"
 			    (generate_types ~in_intf:true);
-  Episql.register_generator "caqti-persist-types-ml"
+  Episql.register_generator ~arg_specs:types_arg_specs "caqti-persist-types-ml"
 			    (generate_types ~in_intf:false)
