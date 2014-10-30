@@ -850,8 +850,7 @@ let () =
 	     The -use-type* and -open flags are useful for supplementing \
 	     suitable definitions for missing classes.";
     "-open", Arg.String (fun m -> go.go_open <- m :: go.go_open),
-      "MODULE Open MODULE at top of the generated files but after other \
-	      open statements.";
+      "M Open M at top of the generated files but after other open statements.";
     "-with-type-counit", Arg.String (fun s -> go.go_type_counit <- s),
       "T Use T as the Prime.counit type.";
     "-with-type-date", Arg.String (fun s -> go.go_type_date <- s),
@@ -862,11 +861,13 @@ let () =
       Arg.String (fun m -> go.go_type_counit <- m ^ ".counit";
 			   go.go_type_date <- m ^ ".date";
 			   go.go_type_timestamp <- m ^ ".timestamp"),
-      "MODULE Shortcut to use counit, date, and timestamp from MODULE.";
+      "M Shortcut for passing M.counit, M.date, and M.timestamp to the other \
+	 -with-type-* options.";
   ] in
   let arg_specs = [
-    "-types-module", Arg.String set_types_module,
-      "MODULE Import generated types from MODULE.";
+    "-t", Arg.String set_types_module,
+      "M Assume M contains corresponding types generated with \
+	 -g caqti-persist-types-*.";
   ] @ common_arg_specs in
   let types_arg_specs = common_arg_specs in
   Episql.register_generator ~arg_specs "caqti-persist-mli" generate_intf;
