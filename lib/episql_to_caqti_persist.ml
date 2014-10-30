@@ -372,9 +372,14 @@ let emit_impl oc ti =
 	    ti.ti_nonpk_cts;
 *)
   fprintl oc "    end";
-  emit_type_pk oc ti;
-  emit_type_nonpk ~in_intf:false oc ti;
-  emit_type_patch_etc oc ti;
+  begin match go.go_types_module with
+  | None ->
+    emit_type_pk oc ti;
+    emit_type_nonpk ~in_intf:false oc ti;
+    emit_type_patch_etc oc ti
+  | Some tm ->
+    fprintlf oc "    include %s.%s" tm (String.capitalize (snd ti.ti_tqn))
+  end;
   fprintl oc "    include Cache (struct";
   fprintl oc "      type _t0 = pk\ttype pk = _t0";
   fprintl oc "      type _t1 = nonpk\ttype nonpk = _t1";
