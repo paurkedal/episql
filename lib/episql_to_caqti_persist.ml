@@ -240,9 +240,14 @@ let emit_intf oc ti =
     emit_type_pk oc ti;
     emit_type_nonpk ~in_intf:true oc ti;
     emit_type_patch_etc oc ti
-  | Some tm ->
-    fprintlf oc "    include module type of %s.%s"
-	     tm (String.capitalize (snd ti.ti_tqn))
+  | Some types_module ->
+    let mn = types_module ^ "." ^ String.capitalize (snd ti.ti_tqn) in
+    fprintlf oc "    include module type of %s" mn;
+    fprintlf oc "\twith type pk = %s.pk" mn;
+    fprintlf oc "\t and type nonpk = %s.nonpk" mn;
+    fprintlf oc "\t and type change = %s.change" mn;
+    fprintlf oc "\t and type required = %s.required" mn;
+    fprintlf oc "\t and type patch = %s.patch" mn
   end;
   fprintl oc "    type t";
   fprintl oc "    val fetch : pk -> t Lwt.t";
