@@ -250,7 +250,6 @@ let emit_intf oc ti =
     fprintlf oc "\t and type patch = %s.patch" mn
   end;
   fprintl oc "    type t";
-  fprintl oc "    val fetch : pk -> t Lwt.t";
   fprintl oc "    val get_pk : t -> pk";
   fprintl oc "    val get_nonpk : t -> nonpk option";
   if go.go_getters then begin
@@ -261,6 +260,7 @@ let emit_intf oc ti =
 		 (if ct.ct_pk then "" else " option"))
       ti.ti_cts
   end;
+  fprintl oc "    val fetch : pk -> t Lwt.t";
   if go.go_select then begin
     fprint oc "    val select :";
     List.iter
@@ -283,11 +283,12 @@ let emit_intf oc ti =
     fprintl oc "\n      unit -> t Lwt.t"
   end;
   if go.go_insert then begin
-    fprint  oc "    val insert :";
+    fprint oc "    val insert :";
     List.iter
       (fun (cn, ct) ->
-	if not ct.ct_nullable && not ct.ct_defaultable then
-	  fprintf oc "\n      %s: %s ->" cn (string_of_datatype ct.ct_type))
+	fprintf oc "\n      %s%s: %s ->"
+		(if ct.ct_nullable || ct.ct_defaultable then "?" else "")
+		cn (string_of_datatype ct.ct_type))
       ti.ti_nonpk_cts;
     fprintl oc "\n      t -> unit Lwt.t"
   end;
@@ -368,40 +369,15 @@ let emit_impl oc ti =
       (Episql.string_of_qname ti.ti_tqn);
     emit_pk_cond next_param in
 
-  let emit_insert next_param =
-    let tqn = Episql.string_of_qname ti.ti_tqn in
-    if ti.ti_req_cts = [] then
-      fprintf oc "INSERT INTO %s DEFAULT VALUES" tqn
-    else
-      fprintf oc "INSERT INTO %s (%s) VALUES (%s)" tqn
-	(String.concat ", " (List.map (fun (cn, _) -> cn) ti.ti_req_cts))
-	(String.concat ", " (List.map (fun (cn, _) -> next_param ())
-				      ti.ti_req_cts));
-    if ti.ti_nonpk_def_cts <> [] then
-      let def_cns = List.map fst ti.ti_nonpk_def_cts in
-      fprint oc (" RETURNING " ^ String.concat ", " def_cns) in
-
   let emit_delete next_param =
     fprintf oc "DELETE FROM %s WHERE " (Episql.string_of_qname ti.ti_tqn);
     emit_pk_cond next_param in
 
-(*
-  let emit_set cn next_param =
-    fprintf oc "UPDATE %s SET %s = %s WHERE "
-      (Episql.string_of_qname ti.ti_tqn) cn (next_param ());
-    emit_pk_cond next_param in
-*)
 
   fprintf oc "  module %s = struct\n" (String.capitalize (snd ti.ti_tqn));
   fprintl oc "    module Q = struct";
   emit_query oc "fetch" emit_fetch;
-  if go.go_insert || go.go_patch then
-    emit_query oc "insert" emit_insert;
   emit_query oc "delete" emit_delete;
-(*
-  List.iter (fun (cn, _) -> emit_query oc ("set_" ^ cn) (emit_set cn))
-	    ti.ti_nonpk_cts;
-*)
   fprintl oc "    end";
   begin match go.go_types_module with
   | None ->
@@ -442,6 +418,108 @@ let emit_impl oc ti =
 	  fprintlf oc "match o.nonpk with Present x -> Some x.%s%s | _ -> None"
 		   go.go_nonpk_prefix cn)
       ti.ti_cts
+  end;
+
+  if go.go_insert || go.go_patch then begin
+    fprint  oc "    let insert";
+    List.iter
+      (fun (cn, ct) ->
+	fprintf oc " %c%s"
+		(if ct.ct_nullable || ct.ct_defaultable then '?' else '~') cn)
+      ti.ti_nonpk_cts;
+    fprintl  oc " o =\n";
+    fprintl  oc "      let rec retry () =";
+    fprintl  oc "\tmatch o.nonpk with";
+    fprintl  oc "\t| Absent ->";
+    fprintl  oc "\t  let c = Lwt_condition.create () in";
+    fprintl  oc "\t  o.nonpk <- Inserting c;";
+    emit_use_C oc 10;
+    fprintl  oc "\t    let module Ib = Insert_buffer (C) in";
+    fprintlf oc "\t    let ib = Ib.create C.backend_info \"%s\" in"
+	     (Episql.string_of_qname ti.ti_tqn);
+    if go.go_collapse_pk && List.length ti.ti_pk_cts = 1 then
+      let cn, ct = List.hd ti.ti_pk_cts in
+      fprintlf oc "\t    Ib.set ib \"%s\" C.Param.(%s o.pk);"
+	       cn (convname_of_datatype ct.ct_type)
+    else
+      List.iter
+	(fun (cn, ct) ->
+	  fprintlf oc "\t    Ib.set ib \"%s\" C.Param.(%s o.pk.%s%s);"
+		   cn (convname_of_datatype ct.ct_type) go.go_pk_prefix cn)
+	ti.ti_pk_cts;
+    List.iter
+      (fun (cn, ct) ->
+	if ct.ct_nullable || ct.ct_defaultable then
+	  fprintlf oc "\t    (match %s with \
+			      None -> () \
+			      | Some x -> Ib.set ib \"%s\" C.Param.(%s x));"
+		   cn cn (convname_of_datatype ct.ct_type)
+	else
+	  fprintlf oc "\t    Ib.set ib \"%s\" C.Param.(%s %s);"
+		   cn (convname_of_datatype ct.ct_type) cn)
+      ti.ti_nonpk_cts;
+    List.iter
+      (fun (cn, ct) ->
+	if ct.ct_defaultable then
+	  fprintlf oc "\t    Ib.ret ib \"%s\";" cn)
+	ti.ti_nonpk_cts;
+    fprintl  oc "\t    let q, p = Ib.contents ib in";
+
+    let emit_field pfx i (cn, ct) =
+      if i > 0 then fprint oc "; ";
+      fprintf oc "%s%s = %s" pfx cn cn in
+    if ti.ti_nonpk_def_cts <> [] then begin
+      fprintl  oc "\t    let decode t =";
+      fprintl  oc "\t      let _i = ref (-1) in";
+      fprintl  oc "\t      let _df c = function Some x -> x \
+					      | None -> incr _i; c !_i t in";
+      List.iter
+	(fun (cn, ct) ->
+	  fprint oc "\t      let "; fprint oc cn;
+	  fprint oc (if ct.ct_nullable then " = Some (" else " = ");
+	  fprintf oc "_df C.Tuple.%s %s" (convname_of_datatype ct.ct_type) cn;
+	  fprintl oc (if ct.ct_nullable then ") in" else " in"))
+	ti.ti_nonpk_def_cts;
+      if ti.ti_nonpk_cts = [] then
+	fprintl oc " () in"
+      else begin
+	fprint oc "\t      {";
+	List.iteri (emit_field go.go_nonpk_prefix) ti.ti_nonpk_cts;
+	fprintl oc "} in"
+      end;
+      fprintl oc "\t    C.find q decode p >|= fun nonpk_o ->";
+      fprintl oc "\t    let nonpk = match nonpk_o with None -> assert false \
+						     | Some x -> x in"
+    end else begin
+      fprintl oc "\t    C.exec q p >|= fun () ->";
+      if ti.ti_nonpk_cts = [] then
+	fprintl oc "\t    let nonpk = () in"
+      else begin
+	fprint oc "\t    let nonpk = {";
+	List.iteri (emit_field go.go_nonpk_prefix) ti.ti_nonpk_cts;
+	fprintl oc "} in"
+      end
+    end;
+    fprintl  oc "\t    o.nonpk <- Present nonpk;";
+    fprintl  oc "\t    Lwt_condition.broadcast c nonpk;";
+    if go.go_event then begin
+      if ti.ti_nonpk_req_cts = [] then begin
+	fprintl oc "\t    o.notify (`Insert ((), []));"
+      end else begin
+	fprint oc "\t    o.notify (`Insert ({";
+	List.iteri
+	  (fun i (cn, ct) ->
+	    if i > 0 then fprint oc "; ";
+	    fprint oc go.go_required_prefix;
+	    fprint oc cn; fprint oc " = "; fprint oc cn)
+	  ti.ti_nonpk_req_cts;
+	fprintl oc "}, []));"
+      end
+    end;
+    fprintl  oc "\t| Inserting c -> Lwt_condition.wait c >|= fun _ -> ()";
+    fprintl  oc "\t| Present x -> Lwt.return_unit";
+    fprintl  oc "\t| Deleting c -> Lwt_condition.wait c >>= retry in";
+    fprintl  oc "      retry ()"
   end;
 
   if go.go_create then begin
@@ -565,72 +643,6 @@ let emit_impl oc ti =
     end;
     fprintl oc "\t  merge (pk, Present nonpk) :: acc in";
     fprintl oc "\tC.fold q decode p []"
-  end;
-
-  if go.go_insert || go.go_patch then begin
-    fprint  oc "    let insert";
-    List.iter (fun (cn, ct) -> fprintf oc " ~%s" cn) ti.ti_nonpk_req_cts;
-    fprintl oc " o =\n      let rec retry () =";
-    fprintl oc "\tmatch o.nonpk with";
-    fprintl oc "\t| Absent ->";
-    fprintl oc "\t  let c = Lwt_condition.create () in";
-    fprintl oc "\t  o.nonpk <- Inserting c;";
-    emit_use_C oc 10;
-    if ti.ti_nonpk_def_cts <> [] then begin
-      fprint oc "\t  C.find Q.insert C.Tuple.(fun t -> (";
-      List.iteri
-	(fun i (cn, ct) ->
-	  if i > 0 then fprint oc ", ";
-	  fprintf oc "%s %d t" (convname_of_datatype ct.ct_type) i)
-	ti.ti_nonpk_def_cts;
-      fprint oc ")) ";
-      emit_param oc ti "o.pk" ti.ti_req_cts;
-      fprintl oc " >>= fun df ->";
-      fprint  oc "\t  let ";
-      List.iteri (fun i (cn,_) -> if i > 0 then fprint oc ", "; fprint oc cn)
-		 ti.ti_nonpk_def_cts;
-      fprintl oc " = match df with Some x -> x | None -> assert false in"
-    end else begin
-      fprint  oc "\t  C.exec Q.insert ";
-      emit_param oc ti "o.pk" ti.ti_req_cts; fprintl oc " >>= fun () ->"
-    end;
-    if ti.ti_nonpk_cts = [] then begin
-      fprintl oc "\t  o.nonpk <- Present ();";
-      fprintl oc "\t  Lwt_condition.broadcast c ();"
-    end else begin
-      fprint  oc "\t  let nonpk = {";
-      List.iteri
-	(fun i (cn, ct) ->
-	  if i > 0 then fprint oc "; ";
-	  fprint oc go.go_nonpk_prefix; fprint oc cn;
-	  if ct.ct_nullable then
-	    fprint oc (if ct.ct_defaultable then " = Some "^cn else " = None")
-	  else
-	    fprintf oc "= %s" cn)
-	ti.ti_nonpk_cts;
-      fprintl oc "} in";
-      fprintl oc "\t  o.nonpk <- Present nonpk;";
-      fprintl oc "\t  Lwt_condition.broadcast c nonpk;"
-    end;
-    if go.go_event then begin
-      if ti.ti_nonpk_req_cts = [] then begin
-	fprintl oc "\t  o.notify (`Insert ((), []));"
-      end else begin
-	fprint oc "\t  o.notify (`Insert ({";
-	List.iteri
-	  (fun i (cn, ct) ->
-	    if i > 0 then fprint oc "; ";
-	    fprint oc go.go_required_prefix;
-	    fprint oc cn; fprint oc " = "; fprint oc cn)
-	  ti.ti_nonpk_req_cts;
-	fprintl oc "}, []));"
-      end
-    end;
-    fprintl oc "\t  Lwt.return_unit";
-    fprintl oc "\t| Inserting c -> Lwt_condition.wait c >|= fun _ -> ()";
-    fprintl oc "\t| Present x -> Lwt.return_unit";
-    fprint  oc "\t| Deleting c -> Lwt_condition.wait c >>= retry";
-    fprintl oc " in\n      retry ()"
   end;
 
   if (go.go_update || go.go_patch) && ti.ti_nonpk_cts <> [] then begin
