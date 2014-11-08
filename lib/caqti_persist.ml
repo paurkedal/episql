@@ -41,29 +41,29 @@ let fetch_grade = 1e-3 *. cache_second
 
 module type PK_CACHABLE = sig
   type pk
-  type nonpk
+  type state
   type fields
   type change
-  val fetch : pk -> nonpk option Lwt.t
+  val fetch : pk -> state option Lwt.t
 end
 
 module type PK_CACHED = sig
   type pk
-  type nonpk
+  type state
   type fields
   type change
   type beacon
   type t = {
     pk : pk;
-    mutable nonpk : nonpk presence;
+    mutable state : state presence;
     beacon : beacon;
     patches : (fields, change) persist_patch_out React.event;
     notify : ?step: React.step -> (fields, change) persist_patch_out -> unit;
   }
   val find : pk -> t option
   val fetch : pk -> t Lwt.t
-  val merge : pk * nonpk presence -> t
-  val merge_created : pk * nonpk -> t Lwt.t
+  val merge : pk * state presence -> t
+  val merge_created : pk * state -> t Lwt.t
 end
 
 module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
@@ -72,7 +72,7 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
 
   type t = {
     pk : P.pk;
-    mutable nonpk : P.nonpk presence;
+    mutable state : P.state presence;
     beacon : Beacon.t;
     patches : patch_out React.event;
     notify : ?step: React.step -> patch_out -> unit;
@@ -89,39 +89,39 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
   let mk_key =
     let notify ?step patch = assert false in
     let patches = React.E.never in
-    fun pk -> {pk; nonpk = Absent; beacon = Beacon.dummy; patches; notify}
+    fun pk -> {pk; state = Absent; beacon = Beacon.dummy; patches; notify}
 
   let find pk =
     try Some (W.find cache (mk_key pk))
     with Not_found -> None
 
-  let merge (pk, nonpk) =
+  let merge (pk, state) =
     let patches, notify = React.E.create () in
     Beacon.embed fetch_grade
-      (fun beacon -> W.merge cache {pk; nonpk; beacon; patches; notify})
+      (fun beacon -> W.merge cache {pk; state; beacon; patches; notify})
 
   let fetch pk =
     try
       Lwt.return (W.find cache (mk_key pk))
     with Not_found ->
-      P.fetch pk >|= fun nonpk ->
-      let nonpk = match nonpk with None -> Absent | Some x -> Present x in
-      merge (pk, nonpk)
+      P.fetch pk >|= fun state ->
+      let state = match state with None -> Absent | Some x -> Present x in
+      merge (pk, state)
 
-  let merge_created (pk, nonpk) =
+  let merge_created (pk, state) =
     try
       let o = W.find cache (mk_key pk) in
-      begin match o.nonpk with
+      begin match o.state with
       | Deleting c -> Lwt_condition.wait c >|= fun () ->
-		      o.nonpk <- Present nonpk
-      | Absent -> o.nonpk <- Present nonpk; Lwt.return_unit
+		      o.state <- Present state
+      | Absent -> o.state <- Present state; Lwt.return_unit
       | Inserting _ | Present _ -> Lwt.fail Merge_conflict
       end >|= fun () -> o
     with Not_found ->
       let o =
 	let patches, notify = React.E.create () in
 	Beacon.embed fetch_grade
-	  (fun beacon -> {pk; nonpk=Present nonpk; beacon; patches; notify}) in
+	  (fun beacon -> {pk; state=Present state; beacon; patches; notify}) in
       W.add cache o;
       Lwt.return o
 

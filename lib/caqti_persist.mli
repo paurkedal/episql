@@ -34,33 +34,33 @@ exception Merge_conflict
 
 module type PK_CACHABLE = sig
   type pk
-  type nonpk
+  type state
   type fields
   type change
-  val fetch : pk -> nonpk option Lwt.t
+  val fetch : pk -> state option Lwt.t
 end
 
 module type PK_CACHED = sig
   type pk
-  type nonpk
+  type state
   type fields
   type change
   type beacon
   type t = {
     pk : pk;
-    mutable nonpk : nonpk presence;
+    mutable state : state presence;
     beacon : beacon;
     patches : (fields, change) persist_patch_out React.event;
     notify : ?step: React.step -> (fields, change) persist_patch_out -> unit;
   }
   val find : pk -> t option
   val fetch : pk -> t Lwt.t
-  val merge : pk * nonpk presence -> t
-  val merge_created : pk * nonpk -> t Lwt.t
+  val merge : pk * state presence -> t
+  val merge_created : pk * state -> t Lwt.t
 end
 
 module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) :
-	PK_CACHED with type pk := P.pk and type nonpk := P.nonpk
+	PK_CACHED with type pk := P.pk and type state := P.state
 		   and type fields := P.fields and type change := P.change
 		   and type beacon := Beacon.t
 

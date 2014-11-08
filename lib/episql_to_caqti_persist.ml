@@ -31,7 +31,7 @@ type genopts = {
   mutable go_select : bool;
   mutable go_collapse_pk : bool;
   mutable go_pk_prefix : string;
-  mutable go_nonpk_prefix : string;
+  mutable go_state_prefix : string;
   mutable go_fields_prefix : string;
   mutable go_rfields_prefix : string;
   mutable go_dfields_prefix : string;
@@ -54,7 +54,7 @@ let go = {
   go_select = true;
   go_collapse_pk = true;
   go_pk_prefix = "k_";
-  go_nonpk_prefix = "s_";
+  go_state_prefix = "s_";
   go_fields_prefix = "f_";
   go_rfields_prefix = "r_";
   go_dfields_prefix = "d_";
@@ -185,16 +185,16 @@ let emit_type_pk oc ti =
 
 let emit_type_nonpk ~in_intf oc ti =
   if ti.ti_nonpk_cts = [] then
-    fprintl oc "    type nonpk = unit"
+    fprintl oc "    type state = unit"
   else begin
     if in_intf then
-      fprintl oc "    type nonpk = private {"
+      fprintl oc "    type state = private {"
     else
-      fprintl oc "    type nonpk = {";
+      fprintl oc "    type state = {";
     List.iter
       (fun (cn, ct) ->
 	fprintlf oc "      mutable %s%s : %s;"
-		 go.go_nonpk_prefix cn (string_of_coltype ct))
+		 go.go_state_prefix cn (string_of_coltype ct))
       ti.ti_nonpk_cts;
     fprintl oc "    }"
   end
@@ -298,7 +298,7 @@ let emit_intf oc ti =
   emit_type_nonpk ~in_intf:true oc ti;
   fprintl oc "    type t";
   fprintl oc "    val get_pk : t -> pk";
-  fprintl oc "    val get_nonpk : t -> nonpk option";
+  fprintl oc "    val get_state : t -> state option";
   if go.go_get_fields then
     fprintl oc "    val get_fields : t -> fields option";
   if go.go_getters then begin
@@ -395,7 +395,7 @@ let emit_detuple oc cts =
       (fun i (cn, ct) ->
 	if i > 0 then fprint oc "; ";
 	fprintf oc "%s%s = %s %d t"
-		go.go_nonpk_prefix cn (convname_of_coltype ct) i)
+		go.go_state_prefix cn (convname_of_coltype ct) i)
       cts;
     fprint oc "})"
   end
@@ -436,7 +436,7 @@ let emit_impl oc ti =
   emit_type_nonpk ~in_intf:false oc ti;
   fprintl oc "    include Cache (struct";
   fprintl oc "      type _t0 = pk\ttype pk = _t0";
-  fprintl oc "      type _t1 = nonpk\ttype nonpk = _t1";
+  fprintl oc "      type _t1 = state\ttype state = _t1";
   fprintl oc "      type _t2 = fields\ttype fields = _t2";
   fprintl oc "      type _t3 = change\ttype change = _t3";
   fprintl oc "      let fetch pk =";
@@ -447,8 +447,8 @@ let emit_impl oc ti =
   fprintl oc "    end)";
 
   fprintl oc "    let get_pk {pk} = pk";
-  fprintl oc "    let get_nonpk = \
-		    function {nonpk = Present x} -> Some x | _ -> None";
+  fprintl oc "    let get_state = \
+		    function {state = Present x} -> Some x | _ -> None";
   if go.go_getters then begin
     let n_pk = List.length ti.ti_pk_cts in
     List.iter
@@ -459,11 +459,11 @@ let emit_impl oc ti =
 	else if ct.ct_pk then
 	  fprintlf oc "o.pk.%s%s" go.go_pk_prefix cn
 	else if ct.ct_nullable then
-	  fprintlf oc "match o.nonpk with Present x -> x.%s%s | _ -> None"
-		   go.go_nonpk_prefix cn
+	  fprintlf oc "match o.state with Present x -> x.%s%s | _ -> None"
+		   go.go_state_prefix cn
 	else
-	  fprintlf oc "match o.nonpk with Present x -> Some x.%s%s | _ -> None"
-		   go.go_nonpk_prefix cn)
+	  fprintlf oc "match o.state with Present x -> Some x.%s%s | _ -> None"
+		   go.go_state_prefix cn)
       ti.ti_cts
   end;
 
@@ -476,10 +476,10 @@ let emit_impl oc ti =
       ti.ti_nonpk_cts;
     fprintl  oc " o =";
     fprintl  oc "      let rec retry () =";
-    fprintl  oc "\tmatch o.nonpk with";
+    fprintl  oc "\tmatch o.state with";
     fprintl  oc "\t| Absent ->";
     fprintl  oc "\t  let c = Lwt_condition.create () in";
-    fprintl  oc "\t  o.nonpk <- Inserting c;";
+    fprintl  oc "\t  o.state <- Inserting c;";
     emit_use_C oc 10;
     fprintl  oc "\t    let module Ib = Insert_buffer (C) in";
     fprintlf oc "\t    let ib = Ib.create C.backend_info \"%s\" in"
@@ -531,24 +531,24 @@ let emit_impl oc ti =
 	fprintl oc " () in"
       else begin
 	fprint oc "\t      {";
-	List.iteri (emit_field go.go_nonpk_prefix) ti.ti_nonpk_cts;
+	List.iteri (emit_field go.go_state_prefix) ti.ti_nonpk_cts;
 	fprintl oc "} in"
       end;
       fprintl oc "\t    C.find q decode p >|= fun nonpk_o ->";
-      fprintl oc "\t    let nonpk = match nonpk_o with None -> assert false \
+      fprintl oc "\t    let state = match nonpk_o with None -> assert false \
 						     | Some x -> x in"
     end else begin
       fprintl oc "\t    C.exec q p >|= fun () ->";
       if ti.ti_nonpk_cts = [] then
-	fprintl oc "\t    let nonpk = () in"
+	fprintl oc "\t    let state = () in"
       else begin
-	fprint oc "\t    let nonpk = {";
-	List.iteri (emit_field go.go_nonpk_prefix) ti.ti_nonpk_cts;
+	fprint oc "\t    let state = {";
+	List.iteri (emit_field go.go_state_prefix) ti.ti_nonpk_cts;
 	fprintl oc "} in"
       end
     end;
-    fprintl  oc "\t    o.nonpk <- Present nonpk;";
-    fprint   oc "\t    Lwt_condition.broadcast c nonpk";
+    fprintl  oc "\t    o.state <- Present state;";
+    fprint   oc "\t    Lwt_condition.broadcast c state";
     if go.go_event then begin
       fprintl oc ";";
       if ti.ti_nonpk_cts = [] then
@@ -557,8 +557,8 @@ let emit_impl oc ti =
 	fprintl oc "\t    o.notify (`Insert {";
 	List.iter
 	  (fun (cn, ct) ->
-	    fprintlf oc "\t      %s%s = nonpk.%s%s;"
-		     go.go_fields_prefix cn go.go_nonpk_prefix cn)
+	    fprintlf oc "\t      %s%s = state.%s%s;"
+		     go.go_fields_prefix cn go.go_state_prefix cn)
 	  ti.ti_nonpk_cts;
 	fprintl oc "\t    })"
       end
@@ -628,12 +628,12 @@ let emit_impl oc ti =
       fprintl oc " () in"
     else begin
       fprint oc "\n\t  {";
-      List.iteri (emit_field go.go_nonpk_prefix) ti.ti_nonpk_cts;
+      List.iteri (emit_field go.go_state_prefix) ti.ti_nonpk_cts;
       fprintl oc "} in"
     end;
     if have_default then begin
       fprintl oc "\tC.find q decode p >>=";
-      fprintl oc "\tfunction Some (pk, nonpk) -> merge_created (pk, nonpk)";
+      fprintl oc "\tfunction Some (pk, state) -> merge_created (pk, state)";
       fprintl oc "\t       | None -> assert false"
     end else
       fprintl oc "\tC.exec q p >>= fun () -> merge_created (decode ())";
@@ -677,19 +677,19 @@ let emit_impl oc ti =
       fprintl oc "}) in"
     end;
     if ti.ti_nonpk_cts = [] then
-      fprintl oc "\t  let nonpk = () in"
+      fprintl oc "\t  let state = () in"
     else begin
       let n_pk = List.length ti.ti_pk_cts in
-      fprint  oc "\t  let nonpk = C.Tuple.({";
+      fprint  oc "\t  let state = C.Tuple.({";
       List.iteri
 	(fun i (cn, ct) ->
 	  if i > 0 then fprint oc "; ";
 	  fprintf oc "%s%s = %s %d t"
-		  go.go_nonpk_prefix cn (convname_of_coltype ct) (i + n_pk))
+		  go.go_state_prefix cn (convname_of_coltype ct) (i + n_pk))
 	ti.ti_nonpk_cts;
       fprintl oc "}) in"
     end;
-    fprintl oc "\t  merge (pk, Present nonpk) :: acc in";
+    fprintl oc "\t  merge (pk, Present state) :: acc in";
     fprintl oc "\tC.fold q decode p []"
   end;
 
@@ -697,9 +697,9 @@ let emit_impl oc ti =
     fprint  oc "    let update ";
     List.iter (fun (cn, ct) -> fprintf oc "?%s " cn) ti.ti_nonpk_cts;
     fprintl oc "o =";
-    fprintl oc "      match get_nonpk o with";
+    fprintl oc "      match get_state o with";
     fprintl oc "      | None -> Lwt.fail (Failure \"Update of absent row.\")";
-    fprint  oc "      | Some nonpk -> ";
+    fprint  oc "      | Some state -> ";
     emit_use_C oc 0;
     fprintl  oc "\tlet module Ub = Update_buffer (C) in";
     fprintlf oc "\tlet ub = Ub.create C.backend_info \"%s\" in"
@@ -709,7 +709,7 @@ let emit_impl oc ti =
     List.iter
       (fun (cn, ct) ->
 	fprintlf oc "\tbegin match %s with" cn;
-	fprintlf oc "\t| Some x when x <> nonpk.%s%s ->" go.go_nonpk_prefix cn;
+	fprintlf oc "\t| Some x when x <> state.%s%s ->" go.go_state_prefix cn;
 	fprintlf oc "\t  Ub.set ub \"%s\" C.Param.(%s x);"
 		 cn (convname_of_coltype ct);
 	if go.go_event then
@@ -734,8 +734,8 @@ let emit_impl oc ti =
     List.iteri
       (fun i (cn, _) ->
 	if i > 0 then fprint oc ";\n";
-	fprintf oc "\t  (match %s with None -> () | Some v -> nonpk.%s%s <- v)"
-		cn go.go_nonpk_prefix cn)
+	fprintf oc "\t  (match %s with None -> () | Some v -> state.%s%s <- v)"
+		cn go.go_state_prefix cn)
       ti.ti_nonpk_cts;
     if go.go_event then
       fprint oc ";\n\t  o.notify (`Update (List.rev !changes))";
@@ -746,15 +746,15 @@ let emit_impl oc ti =
     fprintl oc "    let delete ({pk} as o) =";
     emit_use_C oc 6;
     fprintl oc "      let rec retry () =";
-    fprintl oc "\tmatch o.nonpk with";
+    fprintl oc "\tmatch o.state with";
     fprintl oc "\t| Absent -> Lwt.return_unit";
     fprintl oc "\t| Inserting c -> Lwt_condition.wait c >>= fun _ -> retry ()";
     fprintl oc "\t| Present _ ->";
     fprintl oc "\t  let c = Lwt_condition.create () in";
-    fprintl oc "\t  o.nonpk <- Deleting c;";
+    fprintl oc "\t  o.state <- Deleting c;";
     fprint  oc "\t  C.exec Q.delete ";
     emit_param oc ti "pk" ti.ti_pk_cts; fprintl oc " >|=";
-    fprintl oc "\t  fun () -> o.nonpk <- Absent; o.notify `Delete";
+    fprintl oc "\t  fun () -> o.state <- Absent; o.notify `Delete";
     fprintl oc "\t| Deleting c -> Lwt_condition.wait c in";
     fprintl oc "      retry ()"
   end;
@@ -799,16 +799,16 @@ let emit_impl oc ti =
 
   if go.go_get_fields then begin
     fprintl oc "    let get_fields o =";
-    fprintl oc "      match o.nonpk with";
-    fprintl oc "      | Present nonpk ->";
+    fprintl oc "      match o.state with";
+    fprintl oc "      | Present state ->";
     if ti.ti_nonpk_cts = [] then
       fprintl oc "\tSome ()"
     else begin
       fprintl oc "\tSome {";
       List.iter
 	(fun (cn, _) ->
-	  fprintlf oc "\t  %s%s = nonpk.%s%s;"
-		   go.go_fields_prefix cn go.go_nonpk_prefix cn)
+	  fprintlf oc "\t  %s%s = state.%s%s;"
+		   go.go_fields_prefix cn go.go_state_prefix cn)
 	ti.ti_nonpk_cts;
       fprintl oc "\t}"
     end;
