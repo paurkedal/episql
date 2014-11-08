@@ -24,6 +24,7 @@ type genopts = {
   mutable go_patch : bool;
   mutable go_get_fields : bool;
   mutable go_insert : bool;
+  mutable go_insert_upserts : bool;
   mutable go_create : bool;
   mutable go_update : bool;
   mutable go_delete : bool;
@@ -47,6 +48,7 @@ let go = {
   go_patch = true;
   go_get_fields = true;
   go_insert = true;
+  go_insert_upserts = true;
   go_create = true;
   go_update = true;
   go_delete = true;
@@ -698,7 +700,42 @@ let emit_impl oc ti =
     List.iter (fun (cn, ct) -> fprintf oc "?%s " cn) ti.ti_nonpk_cts;
     fprintl oc "o =";
     fprintl oc "      match get_state o with";
-    fprintl oc "      | None -> Lwt.fail (Failure \"Update of absent row.\")";
+    fprintl oc "      | None ->";
+    if go.go_insert_upserts then begin
+      List.iter
+	(fun (cn, ct) ->
+	  if ct.ct_nullable then
+	    fprintlf oc "\tlet %s = match %s with None -> None | Some x -> x in"
+		     cn cn)
+	ti.ti_nonpk_nonreq_cts;
+      if ti.ti_nonpk_req_cts = [] then begin
+	fprint  oc "\tinsert";
+	List.iter (fun (cn, _) -> fprintf oc " ?%s" cn) ti.ti_nonpk_cts;
+	fprintl oc " o"
+      end else begin
+	fprint  oc "\tbegin match ";
+	List.iteri
+	  (fun i (cn, _) -> if i > 0 then fprint oc ", "; fprint oc cn)
+	  ti.ti_nonpk_req_cts;
+	fprintl oc " with";
+	fprint  oc "\t| ";
+	List.iteri
+	  (fun i (cn, _) -> if i > 0 then fprint oc ", "; fprintf oc "Some %s" cn)
+	  ti.ti_nonpk_req_cts;
+	fprintl oc " ->";
+	fprint  oc "\t  insert";
+	List.iter
+	  (fun (cn, ct) ->
+	    fprintf oc " %c%s" (if coltype_is_required ct then '~' else '?') cn)
+	  ti.ti_nonpk_cts;
+	fprintl oc " o";
+	fprintl oc "\t| _ ->";
+	fprintl oc "\t  Lwt.fail (Failure \"Attempt to update an absent row \
+					with insufficient data to insert.\")";
+	fprintl oc "\tend";
+      end
+    end else
+      fprintl oc "\tLwt.fail (Failure \"Update of absent row.\")";
     fprint  oc "      | Some state -> ";
     emit_use_C oc 0;
     fprintl  oc "\tlet module Ub = Update_buffer (C) in";
