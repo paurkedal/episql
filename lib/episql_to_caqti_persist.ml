@@ -22,7 +22,7 @@ type genopts = {
   mutable go_types_module : string option;
   mutable go_event : bool;
   mutable go_patch : bool;
-  mutable go_burst : bool;
+  mutable go_get_fields : bool;
   mutable go_insert : bool;
   mutable go_create : bool;
   mutable go_update : bool;
@@ -45,7 +45,7 @@ let go = {
   go_types_module = None;
   go_event = true;
   go_patch = true;
-  go_burst = true;
+  go_get_fields = true;
   go_insert = true;
   go_create = true;
   go_update = true;
@@ -299,6 +299,8 @@ let emit_intf oc ti =
   fprintl oc "    type t";
   fprintl oc "    val get_pk : t -> pk";
   fprintl oc "    val get_nonpk : t -> nonpk option";
+  if go.go_get_fields then
+    fprintl oc "    val get_fields : t -> fields option";
   if go.go_getters then begin
     List.iter
       (fun (cn, ct) ->
@@ -354,8 +356,6 @@ let emit_intf oc ti =
     fprintl oc "    val patch : t -> patch_in -> unit Lwt.t";
   if go.go_event then
     fprintl oc "    val patches : t -> patch_out React.E.t";
-  if go.go_burst then
-    fprintl oc "    val burst : t -> patch_out option";
   fprintl oc "  end\n"
 
 let emit_query oc name emit =
@@ -797,20 +797,20 @@ let emit_impl oc ti =
 
   if go.go_event then fprintl oc "    let patches {patches} = patches";
 
-  if go.go_burst then begin
-    fprintl oc "    let burst o =";
+  if go.go_get_fields then begin
+    fprintl oc "    let get_fields o =";
     fprintl oc "      match o.nonpk with";
     fprintl oc "      | Present nonpk ->";
     if ti.ti_nonpk_cts = [] then
-      fprintl oc "\tSome (`Insert ())"
+      fprintl oc "\tSome ()"
     else begin
-      fprintl oc "\tSome (`Insert {";
+      fprintl oc "\tSome {";
       List.iter
 	(fun (cn, _) ->
 	  fprintlf oc "\t  %s%s = nonpk.%s%s;"
 		   go.go_fields_prefix cn go.go_nonpk_prefix cn)
 	ti.ti_nonpk_cts;
-      fprintl oc "\t})"
+      fprintl oc "\t}"
     end;
     fprintl oc "      | _ -> None"
   end;
