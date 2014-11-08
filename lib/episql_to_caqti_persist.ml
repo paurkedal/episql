@@ -263,9 +263,18 @@ let emit_types ~in_intf oc ti =
   else begin
     fprintl oc "    let defaults = {";
     List.iter
-      (fun (cn, _) -> fprintlf oc "      %s%s = None;" go.go_dfields_prefix cn)
+      (fun (cn, _) -> fprintlf oc "\t%s%s = None;" go.go_dfields_prefix cn)
       ti.ti_nonpk_nonreq_cts;
     fprintl oc "    }"
+  end;
+  if in_intf then
+    fprintl oc "    val changes_of_fields : fields -> change list"
+  else begin
+    fprintl oc "    let changes_of_fields f = [";
+    List.iter
+      (fun (cn, _) -> fprintlf oc "\t`Set_%s f.%s%s;" cn go.go_fields_prefix cn)
+      ti.ti_nonpk_cts;
+    fprintl oc "    ]"
   end;
   fprintl oc "end\n"
 
