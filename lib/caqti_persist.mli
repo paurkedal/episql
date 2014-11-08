@@ -20,9 +20,14 @@ type 'a presence =
   | Present of 'a
   | Deleting of unit Lwt_condition.t
 
-type ('a, 'b) persist_patch =
-  [ `Insert of 'a * 'b list
-  | `Update of 'b list
+type ('rfields, 'dfields, 'change) persist_patch_in =
+  [ `Insert of 'rfields * 'dfields
+  | `Update of 'change list
+  | `Delete ]
+
+type ('fields, 'change) persist_patch_out =
+  [ `Insert of 'fields
+  | `Update of 'change list
   | `Delete ]
 
 exception Merge_conflict
@@ -30,7 +35,7 @@ exception Merge_conflict
 module type PK_CACHABLE = sig
   type pk
   type nonpk
-  type required
+  type fields
   type change
   val fetch : pk -> nonpk option Lwt.t
 end
@@ -38,15 +43,15 @@ end
 module type PK_CACHED = sig
   type pk
   type nonpk
-  type required
+  type fields
   type change
   type beacon
   type t = {
     pk : pk;
     mutable nonpk : nonpk presence;
     beacon : beacon;
-    patches : (required, change) persist_patch React.event;
-    notify : ?step: React.step -> (required, change) persist_patch -> unit;
+    patches : (fields, change) persist_patch_out React.event;
+    notify : ?step: React.step -> (fields, change) persist_patch_out -> unit;
   }
   val find : pk -> t option
   val fetch : pk -> t Lwt.t
@@ -56,7 +61,7 @@ end
 
 module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) :
 	PK_CACHED with type pk := P.pk and type nonpk := P.nonpk
-		   and type required := P.required and type change := P.change
+		   and type fields := P.fields and type change := P.change
 		   and type beacon := Beacon.t
 
 module Insert_buffer (C : Caqti_lwt.CONNECTION) : sig

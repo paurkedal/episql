@@ -49,7 +49,7 @@ let test_serial () =
 
   lwt d = Cp_1d_1r.create ~v0:1.0 () in
   Cp_1d_1r.patch d `Delete >>
-  Cp_1d_1r.(patch d (`Insert ({r_v0 = 5.25}, []))) >>
+  Cp_1d_1r.(patch d (`Insert ({r_v0 = 5.25}, defaults))) >>
   Cp_1d_1r.delete d >>
 
   let now = CalendarLib.Calendar.now () in
@@ -60,14 +60,14 @@ let test_serial () =
   end >>
   Lwt_list.iter_s (Cp_1d_1o1r1d.patch e)
     [ `Delete;
-      `Insert (Cp_1d_1o1r1d.({r_v1 = "sixty-one"}), []);
+      `Insert (Cp_1d_1o1r1d.({r_v1 = "sixty-one"}, defaults));
       `Update [`Set_v0 (Some (Int32.of_int 61))] ] >>
   begin match Cp_1d_1o1r1d.get_nonpk e with
   | None -> assert false
   | Some nonpk ->
     let open Cp_1d_1o1r1d in
-    assert (nonpk.f_v0 = Some (Int32.of_int 61));
-    assert (nonpk.f_v1 = "sixty-one");
+    assert (nonpk.s_v0 = Some (Int32.of_int 61));
+    assert (nonpk.s_v1 = "sixty-one");
     Lwt.return_unit
   end >>
   Cp_1d_1o1r1d.delete e
