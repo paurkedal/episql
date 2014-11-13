@@ -171,11 +171,11 @@ let emit_deriving_nl oc =
 
 let emit_type_pk oc ti =
   if go.go_collapse_pk && List.length ti.ti_pk_cts = 1 then begin
-    fprintf oc "    type pk = %s"
+    fprintf oc "    type key = %s"
 	    (string_of_coltype (snd (List.hd ti.ti_pk_cts)));
     emit_deriving_nl oc
   end else begin
-    fprintl oc "    type pk = {";
+    fprintl oc "    type key = {";
     List.iter
       (fun (cn, ct) ->
 	fprintlf oc "      %s%s : %s;"
@@ -289,7 +289,7 @@ let emit_intf oc ti =
   | Some types_module ->
     let mn = types_module ^ "." ^ String.capitalize (snd ti.ti_tqn) in
     fprintlf oc "    include module type of %s" mn;
-    fprintlf oc "\twith type pk = %s.pk" mn;
+    fprintlf oc "\twith type key = %s.key" mn;
     fprintlf oc "\t and type value = %s.value" mn;
     fprintlf oc "\t and type value_r = %s.value_r" mn;
     fprintlf oc "\t and type value_d = %s.value_d" mn;
@@ -299,7 +299,7 @@ let emit_intf oc ti =
   end;
   emit_type_nonpk ~in_intf:true oc ti;
   fprintl oc "    type t";
-  fprintl oc "    val get_pk : t -> pk";
+  fprintl oc "    val get_key : t -> key";
   fprintl oc "    val get_state : t -> state option";
   if go.go_get_value then
     fprintl oc "    val get_value : t -> value option";
@@ -311,7 +311,7 @@ let emit_intf oc ti =
 		 (if ct.ct_pk then "" else " option"))
       ti.ti_cts
   end;
-  fprintl oc "    val fetch : pk -> t Lwt.t";
+  fprintl oc "    val fetch : key -> t Lwt.t";
   if go.go_select then begin
     fprint oc "    val select :";
     List.iter
@@ -437,18 +437,18 @@ let emit_impl oc ti =
   end;
   emit_type_nonpk ~in_intf:false oc ti;
   fprintl oc "    include Cache (struct";
-  fprintl oc "      type _t0 = pk\ttype pk = _t0";
+  fprintl oc "      type _t0 = key\ttype key = _t0";
   fprintl oc "      type _t1 = state\ttype state = _t1";
   fprintl oc "      type _t2 = value\ttype value = _t2";
   fprintl oc "      type _t3 = change\ttype change = _t3";
-  fprintl oc "      let fetch pk =";
+  fprintl oc "      let fetch key =";
   emit_use_C oc 8;
   fprint  oc "\tC.find Q.fetch ";
   emit_detuple oc ti.ti_nonpk_cts; fprint oc " ";
-  emit_param oc ti "pk" ti.ti_pk_cts; fprintl oc "";
+  emit_param oc ti "key" ti.ti_pk_cts; fprintl oc "";
   fprintl oc "    end)";
 
-  fprintl oc "    let get_pk {pk} = pk";
+  fprintl oc "    let get_key {key} = key";
   fprintl oc "    let get_state = \
 		    function {state = Present x} -> Some x | _ -> None";
   if go.go_getters then begin
@@ -457,9 +457,9 @@ let emit_impl oc ti =
       (fun (cn, ct) ->
 	fprint oc "    let get_"; fprint oc cn; fprint oc " o = ";
 	if go.go_collapse_pk && n_pk = 1 && ct.ct_pk then
-	  fprintlf oc "o.pk"
+	  fprintlf oc "o.key"
 	else if ct.ct_pk then
-	  fprintlf oc "o.pk.%s%s" go.go_pk_prefix cn
+	  fprintlf oc "o.key.%s%s" go.go_pk_prefix cn
 	else if ct.ct_nullable then
 	  fprintlf oc "match o.state with Present x -> x.%s%s | _ -> None"
 		   go.go_state_prefix cn
@@ -488,12 +488,12 @@ let emit_impl oc ti =
 	     (Episql.string_of_qname ti.ti_tqn);
     if go.go_collapse_pk && List.length ti.ti_pk_cts = 1 then
       let cn, ct = List.hd ti.ti_pk_cts in
-      fprintlf oc "\t    Ib.set ib \"%s\" C.Param.(%s o.pk);"
+      fprintlf oc "\t    Ib.set ib \"%s\" C.Param.(%s o.key);"
 	       cn (convname_of_datatype ct.ct_type)
     else
       List.iter
 	(fun (cn, ct) ->
-	  fprintlf oc "\t    Ib.set ib \"%s\" C.Param.(%s o.pk.%s%s);"
+	  fprintlf oc "\t    Ib.set ib \"%s\" C.Param.(%s o.key.%s%s);"
 		   cn (convname_of_datatype ct.ct_type) go.go_pk_prefix cn)
 	ti.ti_pk_cts;
     List.iter
@@ -635,7 +635,7 @@ let emit_impl oc ti =
     end;
     if have_default then begin
       fprintl oc "\tC.find q decode p >>=";
-      fprintl oc "\tfunction Some (pk, state) -> merge_created (pk, state)";
+      fprintl oc "\tfunction Some (key, state) -> merge_created (key, state)";
       fprintl oc "\t       | None -> assert false"
     end else
       fprintl oc "\tC.exec q p >>= fun () -> merge_created (decode ())";
@@ -666,10 +666,10 @@ let emit_impl oc ti =
     fprintl  oc "\tlet q, p = Sb.contents sb in";
     fprintl  oc "\tlet decode t acc =";
     if go.go_collapse_pk && List.length ti.ti_pk_cts = 1 then
-      fprintlf oc "\t  let pk = C.Tuple.(%s 0 t) in"
+      fprintlf oc "\t  let key = C.Tuple.(%s 0 t) in"
 	       (convname_of_coltype (snd (List.hd ti.ti_cts)))
     else begin
-      fprint   oc "\t  let pk = C.Tuple.({";
+      fprint   oc "\t  let key = C.Tuple.({";
       List.iteri
 	(fun i (cn, ct) ->
 	  if i > 0 then fprint oc "; ";
@@ -691,7 +691,7 @@ let emit_impl oc ti =
 	ti.ti_nonpk_cts;
       fprintl oc "}) in"
     end;
-    fprintl oc "\t  merge (pk, Present state) :: acc in";
+    fprintl oc "\t  merge (key, Present state) :: acc in";
     fprintl oc "\tC.fold q decode p []"
   end;
 
@@ -756,12 +756,12 @@ let emit_impl oc ti =
       ti.ti_nonpk_cts;
     if go.go_collapse_pk && List.length ti.ti_pk_cts = 1 then
       let (cn, ct) = List.hd ti.ti_pk_cts in
-      fprintlf oc "\tUb.where ub \"%s\" C.Param.(%s o.pk);"
+      fprintlf oc "\tUb.where ub \"%s\" C.Param.(%s o.key);"
 	       cn (convname_of_coltype ct)
     else
       List.iter
 	(fun (cn, ct) ->
-	  fprintlf oc "\tUb.where ub \"%s\" C.Param.(%s o.pk.%s%s);"
+	  fprintlf oc "\tUb.where ub \"%s\" C.Param.(%s o.key.%s%s);"
 		   cn (convname_of_coltype ct) go.go_pk_prefix cn)
 	ti.ti_pk_cts;
     fprintl oc "\tbegin match Ub.contents ub with";
@@ -780,7 +780,7 @@ let emit_impl oc ti =
   end;
 
   if go.go_delete || go.go_patch then begin
-    fprintl oc "    let delete ({pk} as o) =";
+    fprintl oc "    let delete ({key} as o) =";
     emit_use_C oc 6;
     fprintl oc "      let rec retry () =";
     fprintl oc "\tmatch o.state with";
@@ -790,7 +790,7 @@ let emit_impl oc ti =
     fprintl oc "\t  let c = Lwt_condition.create () in";
     fprintl oc "\t  o.state <- Deleting c;";
     fprint  oc "\t  C.exec Q.delete ";
-    emit_param oc ti "pk" ti.ti_pk_cts; fprintl oc " >|=";
+    emit_param oc ti "key" ti.ti_pk_cts; fprintl oc " >|=";
     fprintl oc "\t  fun () -> o.state <- Absent; o.notify `Delete";
     fprintl oc "\t| Deleting c -> Lwt_condition.wait c in";
     fprintl oc "      retry ()"

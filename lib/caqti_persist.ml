@@ -40,30 +40,30 @@ let cache_second = 1.0 /. cache_hertz
 let fetch_grade = 1e-3 *. cache_second
 
 module type PK_CACHABLE = sig
-  type pk
+  type key
   type state
   type value
   type change
-  val fetch : pk -> state option Lwt.t
+  val fetch : key -> state option Lwt.t
 end
 
 module type PK_CACHED = sig
-  type pk
+  type key
   type state
   type value
   type change
   type beacon
   type t = {
-    pk : pk;
+    key : key;
     mutable state : state presence;
     beacon : beacon;
     patches : (value, change) persist_patch_out React.event;
     notify : ?step: React.step -> (value, change) persist_patch_out -> unit;
   }
-  val find : pk -> t option
-  val fetch : pk -> t Lwt.t
-  val merge : pk * state presence -> t
-  val merge_created : pk * state -> t Lwt.t
+  val find : key -> t option
+  val fetch : key -> t Lwt.t
+  val merge : key * state presence -> t
+  val merge_created : key * state -> t Lwt.t
 end
 
 module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
@@ -71,7 +71,7 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
   type patch_out = (P.value, P.change) persist_patch_out
 
   type t = {
-    pk : P.pk;
+    key : P.key;
     mutable state : P.state presence;
     beacon : Beacon.t;
     patches : patch_out React.event;
@@ -80,8 +80,8 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
 
   module W = Weak.Make (struct
     type tmp = t type t = tmp
-    let equal a b = a.pk = b.pk
-    let hash a = Hashtbl.hash a.pk
+    let equal a b = a.key = b.key
+    let hash a = Hashtbl.hash a.key
   end)
 
   let cache = W.create 17
@@ -89,28 +89,28 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
   let mk_key =
     let notify ?step patch = assert false in
     let patches = React.E.never in
-    fun pk -> {pk; state = Absent; beacon = Beacon.dummy; patches; notify}
+    fun key -> {key; state = Absent; beacon = Beacon.dummy; patches; notify}
 
-  let find pk =
-    try Some (W.find cache (mk_key pk))
+  let find key =
+    try Some (W.find cache (mk_key key))
     with Not_found -> None
 
-  let merge (pk, state) =
+  let merge (key, state) =
     let patches, notify = React.E.create () in
     Beacon.embed fetch_grade
-      (fun beacon -> W.merge cache {pk; state; beacon; patches; notify})
+      (fun beacon -> W.merge cache {key; state; beacon; patches; notify})
 
-  let fetch pk =
+  let fetch key =
     try
-      Lwt.return (W.find cache (mk_key pk))
+      Lwt.return (W.find cache (mk_key key))
     with Not_found ->
-      P.fetch pk >|= fun state ->
+      P.fetch key >|= fun state ->
       let state = match state with None -> Absent | Some x -> Present x in
-      merge (pk, state)
+      merge (key, state)
 
-  let merge_created (pk, state) =
+  let merge_created (key, state) =
     try
-      let o = W.find cache (mk_key pk) in
+      let o = W.find cache (mk_key key) in
       begin match o.state with
       | Deleting c -> Lwt_condition.wait c >|= fun () ->
 		      o.state <- Present state
@@ -121,7 +121,7 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
       let o =
 	let patches, notify = React.E.create () in
 	Beacon.embed fetch_grade
-	  (fun beacon -> {pk; state=Present state; beacon; patches; notify}) in
+	  (fun beacon -> {key; state=Present state; beacon; patches; notify}) in
       W.add cache o;
       Lwt.return o
 
