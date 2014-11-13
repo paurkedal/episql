@@ -22,7 +22,7 @@ type genopts = {
   mutable go_types_module : string option;
   mutable go_event : bool;
   mutable go_patch : bool;
-  mutable go_get_fields : bool;
+  mutable go_get_value : bool;
   mutable go_insert : bool;
   mutable go_insert_upserts : bool;
   mutable go_create : bool;
@@ -33,9 +33,9 @@ type genopts = {
   mutable go_collapse_pk : bool;
   mutable go_pk_prefix : string;
   mutable go_state_prefix : string;
-  mutable go_fields_prefix : string;
-  mutable go_rfields_prefix : string;
-  mutable go_dfields_prefix : string;
+  mutable go_value_prefix : string;
+  mutable go_value_r_prefix : string;
+  mutable go_value_d_prefix : string;
   mutable go_deriving : string list;
   mutable go_open : string list;
   mutable go_type_counit : string;
@@ -46,7 +46,7 @@ let go = {
   go_types_module = None;
   go_event = true;
   go_patch = true;
-  go_get_fields = true;
+  go_get_value = true;
   go_insert = true;
   go_insert_upserts = true;
   go_create = true;
@@ -57,9 +57,9 @@ let go = {
   go_collapse_pk = true;
   go_pk_prefix = "k_";
   go_state_prefix = "s_";
-  go_fields_prefix = "f_";
-  go_rfields_prefix = "r_";
-  go_dfields_prefix = "d_";
+  go_value_prefix = "v_";
+  go_value_r_prefix = "r_";
+  go_value_d_prefix = "d_";
   go_deriving = [];
   go_open = [];
   go_type_counit = "Prime.counit";
@@ -203,35 +203,35 @@ let emit_type_nonpk ~in_intf oc ti =
 
 let emit_type_patch_etc oc ti =
   if ti.ti_nonpk_cts = [] then begin
-    fprint  oc "    type fields = unit"; emit_deriving_nl oc
+    fprint  oc "    type value = unit"; emit_deriving_nl oc
   end else begin
-    fprintl oc "    type fields = {";
+    fprintl oc "    type value = {";
     List.iter
       (fun (cn, ct) ->
 	fprintlf oc "      %s%s : %s;"
-		 go.go_fields_prefix cn (string_of_coltype ct))
+		 go.go_value_prefix cn (string_of_coltype ct))
       ti.ti_nonpk_cts;
     fprint  oc "    }"; emit_deriving_nl oc
   end;
   if ti.ti_nonpk_req_cts = [] then begin
-    fprint  oc "    type rfields = unit"; emit_deriving_nl oc
+    fprint  oc "    type value_r = unit"; emit_deriving_nl oc
   end else begin
-    fprintl oc "    type rfields = {";
+    fprintl oc "    type value_r = {";
     List.iter
       (fun (cn, ct) ->
 	fprintlf oc "      %s%s : %s;"
-		 go.go_rfields_prefix cn (string_of_datatype ct.ct_type))
+		 go.go_value_r_prefix cn (string_of_datatype ct.ct_type))
       ti.ti_nonpk_req_cts;
     fprint  oc "    }"; emit_deriving_nl oc
   end;
   if ti.ti_nonpk_nonreq_cts = [] then begin
-    fprint  oc "    type dfields = unit"; emit_deriving_nl oc
+    fprint  oc "    type value_d = unit"; emit_deriving_nl oc
   end else begin
-    fprintl oc "    type dfields = {";
+    fprintl oc "    type value_d = {";
     List.iter
       (fun (cn, ct) ->
 	fprintlf oc "      %s%s : %s option;"
-		 go.go_dfields_prefix cn (string_of_datatype ct.ct_type))
+		 go.go_value_d_prefix cn (string_of_datatype ct.ct_type))
       ti.ti_nonpk_nonreq_cts;
     fprint  oc "    }"; emit_deriving_nl oc
   end;
@@ -246,9 +246,9 @@ let emit_type_patch_etc oc ti =
       ti.ti_nonpk_cts;
     fprint oc "]"; emit_deriving_nl oc;
   end;
-  fprint oc "    type patch_in = (rfields, dfields, change) persist_patch_in";
+  fprint oc "    type patch_in = (value_r, value_d, change) persist_patch_in";
   emit_deriving_nl oc;
-  fprint oc "    type patch_out = (fields, change) persist_patch_out";
+  fprint oc "    type patch_out = (value, change) persist_patch_out";
   emit_deriving_nl oc
 
 let emit_types ~in_intf oc ti =
@@ -259,22 +259,22 @@ let emit_types ~in_intf oc ti =
   emit_type_pk oc ti;
   emit_type_patch_etc oc ti;
   if in_intf then begin
-    fprintl oc "    val defaults : dfields"
+    fprintl oc "    val defaults : value_d"
   end else if ti.ti_nonpk_nonreq_cts = [] then
     fprintl oc "    let defaults = ()"
   else begin
     fprintl oc "    let defaults = {";
     List.iter
-      (fun (cn, _) -> fprintlf oc "\t%s%s = None;" go.go_dfields_prefix cn)
+      (fun (cn, _) -> fprintlf oc "\t%s%s = None;" go.go_value_d_prefix cn)
       ti.ti_nonpk_nonreq_cts;
     fprintl oc "    }"
   end;
   if in_intf then
-    fprintl oc "    val changes_of_fields : fields -> change list"
+    fprintl oc "    val changes_of_value : value -> change list"
   else begin
-    fprintl oc "    let changes_of_fields f = [";
+    fprintl oc "    let changes_of_value f = [";
     List.iter
-      (fun (cn, _) -> fprintlf oc "\t`Set_%s f.%s%s;" cn go.go_fields_prefix cn)
+      (fun (cn, _) -> fprintlf oc "\t`Set_%s f.%s%s;" cn go.go_value_prefix cn)
       ti.ti_nonpk_cts;
     fprintl oc "    ]"
   end;
@@ -290,9 +290,9 @@ let emit_intf oc ti =
     let mn = types_module ^ "." ^ String.capitalize (snd ti.ti_tqn) in
     fprintlf oc "    include module type of %s" mn;
     fprintlf oc "\twith type pk = %s.pk" mn;
-    fprintlf oc "\t and type fields = %s.fields" mn;
-    fprintlf oc "\t and type rfields = %s.rfields" mn;
-    fprintlf oc "\t and type dfields = %s.dfields" mn;
+    fprintlf oc "\t and type value = %s.value" mn;
+    fprintlf oc "\t and type value_r = %s.value_r" mn;
+    fprintlf oc "\t and type value_d = %s.value_d" mn;
     fprintlf oc "\t and type change = %s.change" mn;
     fprintlf oc "\t and type patch_in = %s.patch_in" mn;
     fprintlf oc "\t and type patch_out = %s.patch_out" mn
@@ -301,8 +301,8 @@ let emit_intf oc ti =
   fprintl oc "    type t";
   fprintl oc "    val get_pk : t -> pk";
   fprintl oc "    val get_state : t -> state option";
-  if go.go_get_fields then
-    fprintl oc "    val get_fields : t -> fields option";
+  if go.go_get_value then
+    fprintl oc "    val get_value : t -> value option";
   if go.go_getters then begin
     List.iter
       (fun (cn, ct) ->
@@ -439,7 +439,7 @@ let emit_impl oc ti =
   fprintl oc "    include Cache (struct";
   fprintl oc "      type _t0 = pk\ttype pk = _t0";
   fprintl oc "      type _t1 = state\ttype state = _t1";
-  fprintl oc "      type _t2 = fields\ttype fields = _t2";
+  fprintl oc "      type _t2 = value\ttype value = _t2";
   fprintl oc "      type _t3 = change\ttype change = _t3";
   fprintl oc "      let fetch pk =";
   emit_use_C oc 8;
@@ -560,7 +560,7 @@ let emit_impl oc ti =
 	List.iter
 	  (fun (cn, ct) ->
 	    fprintlf oc "\t      %s%s = state.%s%s;"
-		     go.go_fields_prefix cn go.go_state_prefix cn)
+		     go.go_value_prefix cn go.go_state_prefix cn)
 	  ti.ti_nonpk_cts;
 	fprintl oc "\t    })"
       end
@@ -807,10 +807,10 @@ let emit_impl oc ti =
       fprintl oc "      | `Insert (r, d) ->";
       fprint  oc "\tinsert";
       List.iter
-	(fun (cn, ct) -> fprintf oc " ~%s:r.%s%s" cn go.go_rfields_prefix cn)
+	(fun (cn, ct) -> fprintf oc " ~%s:r.%s%s" cn go.go_value_r_prefix cn)
 	ti.ti_nonpk_req_cts;
       List.iter
-	(fun (cn, ct) -> fprintf oc " ?%s:d.%s%s" cn go.go_dfields_prefix cn)
+	(fun (cn, ct) -> fprintf oc " ?%s:d.%s%s" cn go.go_value_d_prefix cn)
 	ti.ti_nonpk_nonreq_cts;
       fprintl oc " o;";
       fprintl oc "      | `Update changes ->";
@@ -834,8 +834,8 @@ let emit_impl oc ti =
 
   if go.go_event then fprintl oc "    let patches {patches} = patches";
 
-  if go.go_get_fields then begin
-    fprintl oc "    let get_fields o =";
+  if go.go_get_value then begin
+    fprintl oc "    let get_value o =";
     fprintl oc "      match o.state with";
     fprintl oc "      | Present state ->";
     if ti.ti_nonpk_cts = [] then
@@ -845,7 +845,7 @@ let emit_impl oc ti =
       List.iter
 	(fun (cn, _) ->
 	  fprintlf oc "\t  %s%s = state.%s%s;"
-		   go.go_fields_prefix cn go.go_state_prefix cn)
+		   go.go_value_prefix cn go.go_state_prefix cn)
 	ti.ti_nonpk_cts;
       fprintl oc "\t}"
     end;
@@ -929,13 +929,13 @@ let generate_impl stmts oc =
 let generate_types ~in_intf stmts oc =
   fprintl oc "(* Generated by episql. *)\n";
   emit_custom_open oc;
-  fprintl oc "type ('rfields, 'dfields, 'change) persist_patch_in =";
-  fprintl oc "  [ `Insert of 'rfields * 'dfields";
+  fprintl oc "type ('value_r, 'value_d, 'change) persist_patch_in =";
+  fprintl oc "  [ `Insert of 'value_r * 'value_d";
   fprintl oc "  | `Update of 'change list";
   fprint  oc "  | `Delete ]";
   emit_deriving_nl oc;
-  fprintl oc "type ('fields, 'change) persist_patch_out =";
-  fprintl oc "  [ `Insert of 'fields";
+  fprintl oc "type ('value, 'change) persist_patch_out =";
+  fprintl oc "  [ `Insert of 'value";
   fprintl oc "  | `Update of 'change list";
   fprint  oc "  | `Delete ]";
   emit_deriving_nl oc;

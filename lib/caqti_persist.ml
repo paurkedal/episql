@@ -20,13 +20,13 @@ type 'a presence =
   | Present of 'a
   | Deleting of unit Lwt_condition.t
 
-type ('rfields, 'dfields, 'change) persist_patch_in =
-  [ `Insert of 'rfields * 'dfields
+type ('value_r, 'value_d, 'change) persist_patch_in =
+  [ `Insert of 'value_r * 'value_d
   | `Update of 'change list
   | `Delete ]
 
-type ('fields, 'change) persist_patch_out =
-  [ `Insert of 'fields
+type ('value, 'change) persist_patch_out =
+  [ `Insert of 'value
   | `Update of 'change list
   | `Delete ]
 
@@ -42,7 +42,7 @@ let fetch_grade = 1e-3 *. cache_second
 module type PK_CACHABLE = sig
   type pk
   type state
-  type fields
+  type value
   type change
   val fetch : pk -> state option Lwt.t
 end
@@ -50,15 +50,15 @@ end
 module type PK_CACHED = sig
   type pk
   type state
-  type fields
+  type value
   type change
   type beacon
   type t = {
     pk : pk;
     mutable state : state presence;
     beacon : beacon;
-    patches : (fields, change) persist_patch_out React.event;
-    notify : ?step: React.step -> (fields, change) persist_patch_out -> unit;
+    patches : (value, change) persist_patch_out React.event;
+    notify : ?step: React.step -> (value, change) persist_patch_out -> unit;
   }
   val find : pk -> t option
   val fetch : pk -> t Lwt.t
@@ -68,7 +68,7 @@ end
 
 module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
 
-  type patch_out = (P.fields, P.change) persist_patch_out
+  type patch_out = (P.value, P.change) persist_patch_out
 
   type t = {
     pk : P.pk;
