@@ -62,7 +62,7 @@ let test_serial () =
     [ `Delete;
       `Insert (Cp_1d_1o1r1d.({r_v1 = "sixty-one"}, defaults));
       `Update [`Set_v0 (Some (Int32.of_int 61))] ] >>
-  begin match Cp_1d_1o1r1d.get_state e with
+  begin match Cp_1d_1o1r1d.state e with
   | None -> assert false
   | Some nonpk ->
     let open Cp_1d_1o1r1d in

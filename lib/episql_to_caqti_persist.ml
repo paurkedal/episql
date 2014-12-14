@@ -22,7 +22,7 @@ type genopts = {
   mutable go_types_module : string option;
   mutable go_event : bool;
   mutable go_patch : bool;
-  mutable go_get_value : bool;
+  mutable go_value : bool;
   mutable go_insert : bool;
   mutable go_insert_upserts : bool;
   mutable go_create : bool;
@@ -47,7 +47,7 @@ let go = {
   go_types_module = None;
   go_event = true;
   go_patch = true;
-  go_get_value = true;
+  go_value = true;
   go_insert = true;
   go_insert_upserts = true;
   go_create = true;
@@ -301,10 +301,10 @@ let emit_intf oc ti =
   end;
   emit_type_nonpk ~in_intf:true oc ti;
   fprintl oc "    type t";
-  fprintl oc "    val get_key : t -> key";
-  fprintl oc "    val get_state : t -> state option";
-  if go.go_get_value then
-    fprintl oc "    val get_value : t -> value option";
+  fprintl oc "    val key : t -> key";
+  fprintl oc "    val state : t -> state option";
+  if go.go_value then
+    fprintl oc "    val value : t -> value option";
   if go.go_getters then begin
     List.iter
       (fun (cn, ct) ->
@@ -452,8 +452,8 @@ let emit_impl oc ti =
   emit_param oc ti "key" ti.ti_pk_cts; fprintl oc "";
   fprintl oc "    end)";
 
-  fprintl oc "    let get_key {key} = key";
-  fprintl oc "    let get_state = \
+  fprintl oc "    let key {key} = key";
+  fprintl oc "    let state = \
 		    function {state = Present x} -> Some x | _ -> None";
   if go.go_getters then begin
     let n_pk = List.length ti.ti_pk_cts in
@@ -735,7 +735,7 @@ let emit_impl oc ti =
     fprint  oc "    let update ";
     List.iter (fun (cn, ct) -> fprintf oc "?%s " cn) ti.ti_nonpk_cts;
     fprintl oc "o =";
-    fprintl oc "      match get_state o with";
+    fprintl oc "      match state o with";
     fprintl oc "      | None ->";
     if go.go_insert_upserts then begin
       List.iter
@@ -872,8 +872,8 @@ let emit_impl oc ti =
 
   if go.go_event then fprintl oc "    let patches {patches} = patches";
 
-  if go.go_get_value then begin
-    fprintl oc "    let get_value o =";
+  if go.go_value then begin
+    fprintl oc "    let value o =";
     fprintl oc "      match o.state with";
     fprintl oc "      | Present state ->";
     if ti.ti_nonpk_cts = [] then
