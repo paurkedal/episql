@@ -30,6 +30,7 @@ type genopts = {
   mutable go_delete : bool;
   mutable go_getters : bool;
   mutable go_select : bool;
+  mutable go_select_cache : bool;
   mutable go_collapse_pk : bool;
   mutable go_pk_prefix : string;
   mutable go_state_prefix : string;
@@ -54,6 +55,7 @@ let go = {
   go_delete = true;
   go_getters = true;
   go_select = true;
+  go_select_cache = true;
   go_collapse_pk = true;
   go_pk_prefix = "k_";
   go_state_prefix = "s_";
@@ -471,6 +473,12 @@ let emit_impl oc ti =
       ti.ti_cts
   end;
 
+  if go.go_select_cache then begin
+    fprintl oc "    let select_cache = \
+		      Prime_cache.create P.Beacon.cache_metric 19";
+    fprintl oc "    let clear_select_cache () = Prime_cache.clear select_cache"
+  end;
+
   if go.go_insert || go.go_patch then begin
     fprint  oc "    let insert";
     List.iter
@@ -539,10 +547,14 @@ let emit_impl oc ti =
 	fprintl oc "} in"
       end;
       fprintl oc "\t    C.find q decode p >|= fun nonpk_o ->";
+      if go.go_select_cache then
+	fprintl oc "\t    clear_select_cache ();";
       fprintl oc "\t    let state = match nonpk_o with None -> assert false \
 						     | Some x -> x in"
     end else begin
       fprintl oc "\t    C.exec q p >|= fun () ->";
+      if go.go_select_cache then
+	fprintl oc "\t    clear_select_cache ();";
       if ti.ti_nonpk_cts = [] then
 	fprintl oc "\t    let state = () in"
       else begin
@@ -636,17 +648,33 @@ let emit_impl oc ti =
       fprintl oc "} in"
     end;
     if have_default then begin
-      fprintl oc "\tC.find q decode p >>=";
-      fprintl oc "\tfunction Some (key, state) -> merge_created (key, state)";
-      fprintl oc "\t       | None -> assert false"
-    end else
-      fprintl oc "\tC.exec q p >>= fun () -> merge_created (decode ())";
+      fprintl oc "\tC.find q decode p >>= function";
+      fprint  oc "\t| Some (key, state) -> ";
+      if go.go_select_cache then fprint oc "clear_select_cache (); ";
+      fprintl oc "merge_created (key, state)";
+      fprintl oc "\t| None -> assert false"
+    end else begin
+      fprint  oc "\tC.exec q p >>= fun () -> ";
+      if go.go_select_cache then fprint oc "clear_select_cache (); ";
+      fprintl oc "merge_created (decode ())"
+    end;
   end;
 
   if go.go_select then begin
     fprint  oc "    let select";
     List.iter (fun (cn, ct) -> fprint oc " ?"; fprint oc cn) ti.ti_cts;
     fprintl oc " () =";
+    if go.go_select_cache then begin
+      fprint oc "      let args = ";
+      List.iteri
+	(fun i (cn, _) ->
+	  if i <> 0 then fprint oc ", ";
+	  fprint oc cn)
+	ti.ti_cts;
+      fprintl oc " in";
+      fprintl oc "      try Lwt.return (Prime_cache.find select_cache args) \
+			with Not_found ->";
+    end;
     emit_use_C oc 6;
     fprintl  oc "\tlet module Sb = Select_buffer (C) in";
     fprintlf oc "\tlet sb = Sb.create C.backend_info \"%s\" in"
@@ -694,7 +722,13 @@ let emit_impl oc ti =
       fprintl oc "}) in"
     end;
     fprintl oc "\t  merge (key, Present state) :: acc in";
-    fprintl oc "\tC.fold q decode p []"
+    if go.go_select_cache then begin
+      fprintl  oc "\tC.fold q decode p [] >|= fun r ->\n";
+      fprintlf oc "\tlet g = !select_grade (List.length r * %d + %d) in"
+		  (List.length ti.ti_nonpk_cts) (List.length ti.ti_cts + 2);
+      fprintl  oc "\tPrime_cache.replace select_cache g args r; r"
+    end else
+      fprintl oc "\tC.fold q decode p []"
   end;
 
   if (go.go_update || go.go_patch) && ti.ti_nonpk_cts <> [] then begin
@@ -770,6 +804,7 @@ let emit_impl oc ti =
     fprintl oc "\t| None -> Lwt.return_unit";
     fprintl oc "\t| Some (q, params) ->";
     fprintl oc "\t  C.exec q params >|= fun () ->";
+    if go.go_select_cache then fprintl oc "\t  clear_select_cache ();";
     List.iteri
       (fun i (cn, _) ->
 	if i > 0 then fprint oc ";\n";
@@ -792,8 +827,9 @@ let emit_impl oc ti =
     fprintl oc "\t  let c = Lwt_condition.create () in";
     fprintl oc "\t  o.state <- Deleting c;";
     fprint  oc "\t  C.exec Q.delete ";
-    emit_param oc ti "key" ti.ti_pk_cts; fprintl oc " >|=";
-    fprintl oc "\t  fun () -> o.state <- Absent; o.notify `Delete";
+    emit_param oc ti "key" ti.ti_pk_cts; fprintl oc " >|= fun () ->";
+    if go.go_select_cache then fprintl oc "\t  clear_select_cache ();";
+    fprintl oc "\t  o.state <- Absent; o.notify `Delete";
     fprintl oc "\t| Deleting c -> Lwt_condition.wait c in";
     fprintl oc "      retry ()"
   end;
