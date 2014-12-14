@@ -37,13 +37,20 @@ let (>|=) = Lwt.(>|=)
 
 let cache_hertz = Int64.to_float ExtUnixSpecific.(sysconf CLK_TCK)
 let cache_second = 1.0 /. cache_hertz
-let fetch_grade = 1e-3 *. cache_second
+let query_overhead = ref (1e-3 *. cache_second)
+let transfer_grade = ref (1e-8 *. cache_second)
+
+let default_select_grade n = !query_overhead /. float_of_int n
+			  +. !transfer_grade
+let select_grade = ref default_select_grade
 
 module type PK_CACHABLE = sig
   type key
   type state
   type value
   type change
+  val key_size : int
+  val state_size : int
   val fetch : key -> state option Lwt.t
 end
 
@@ -85,6 +92,7 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
   end)
 
   let cache = W.create 17
+  let fetch_grade = !select_grade (P.key_size + P.state_size + 8)
 
   let mk_key =
     let notify ?step patch = assert false in

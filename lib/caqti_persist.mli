@@ -32,11 +32,16 @@ type ('value, 'change) persist_patch_out =
 
 exception Merge_conflict
 
+val default_select_grade : int -> float
+val select_grade : (int -> float) ref
+
 module type PK_CACHABLE = sig
   type key
   type state
   type value
   type change
+  val key_size : int
+  val state_size : int
   val fetch : key -> state option Lwt.t
 end
 

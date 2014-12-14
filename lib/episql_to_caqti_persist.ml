@@ -441,6 +441,8 @@ let emit_impl oc ti =
   fprintl oc "      type _t1 = state\ttype state = _t1";
   fprintl oc "      type _t2 = value\ttype value = _t2";
   fprintl oc "      type _t3 = change\ttype change = _t3";
+  fprintlf oc "      let key_size = %d" (List.length ti.ti_pk_cts);
+  fprintlf oc "      let state_size = %d" (List.length ti.ti_nonpk_cts);
   fprintl oc "      let fetch key =";
   emit_use_C oc 8;
   fprint  oc "\tC.find Q.fetch ";
