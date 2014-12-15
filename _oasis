@@ -1,6 +1,6 @@
 OASISFormat: 0.4
 Name: episql
-Version: 0.4
+Version: 0.5
 Synopsis: Tool to derive code from SQL schemas
 Authors: Petter A. Urkedal
 License: LGPL-3
