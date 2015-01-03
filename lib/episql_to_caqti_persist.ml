@@ -447,7 +447,7 @@ let emit_impl oc ti =
   fprintlf oc "      let state_size = %d" (List.length ti.ti_nonpk_cts);
   fprintl oc "      let fetch key =";
   emit_use_C oc 8;
-  fprint  oc "\tC.find Q.fetch ";
+  fprint  oc "\tC.find_opt Q.fetch ";
   emit_detuple oc ti.ti_nonpk_cts; fprint oc " ";
   emit_param oc ti "key" ti.ti_pk_cts; fprintl oc "";
   fprintl oc "    end)";
@@ -546,11 +546,9 @@ let emit_impl oc ti =
 	List.iteri (emit_field go.go_state_prefix) ti.ti_nonpk_cts;
 	fprintl oc "} in"
       end;
-      fprintl oc "\t    C.find q decode p >|= fun nonpk_o ->";
+      fprintl oc "\t    C.find q decode p >|= fun state ->";
       if go.go_select_cache then
 	fprintl oc "\t    clear_select_cache ();";
-      fprintl oc "\t    let state = match nonpk_o with None -> assert false \
-						     | Some x -> x in"
     end else begin
       fprintl oc "\t    C.exec q p >|= fun () ->";
       if go.go_select_cache then
@@ -648,11 +646,9 @@ let emit_impl oc ti =
       fprintl oc "} in"
     end;
     if have_default then begin
-      fprintl oc "\tC.find q decode p >>= function";
-      fprint  oc "\t| Some (key, state) -> ";
+      fprint  oc "\tC.find q decode p >>= fun (key, state) ->\n\t";
       if go.go_select_cache then fprint oc "clear_select_cache (); ";
-      fprintl oc "merge_created (key, state)";
-      fprintl oc "\t| None -> assert false"
+      fprintl oc "merge_created (key, state)"
     end else begin
       fprint  oc "\tC.exec q p >>= fun () -> ";
       if go.go_select_cache then fprint oc "clear_select_cache (); ";
