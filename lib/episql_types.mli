@@ -56,7 +56,9 @@ type column_constraint =
   | `Unique
   | `Primary_key
   | `Default of expression
-  | `References of qname * string option ]
+  | `References of qname * string option
+  | `On_delete of [`Cascade | `Restrict]
+  | `On_update of [`Cascade | `Restrict] ]
 
 type table_constraint =
   [ `Check of expression * [`No_inherit] list

@@ -945,14 +945,18 @@ let common_header = "\
 let generate_intf stmts oc =
   fprint  oc common_header;
   emit_custom_open oc;
-  fprintl oc "module Make (P : P) : sig\n";
+  fprintl oc "module type S = sig\n";
   generate emit_intf stmts oc;
-  fprintl oc "end"
+  fprintl oc "end\n\n";
+  fprintl oc "module Make (P : P) : S\n"
 
 let generate_impl stmts oc =
   fprint  oc common_header;
   fprintl oc "open Printf";
   emit_custom_open oc;
+  fprintl oc "module type S = sig\n";
+  generate emit_intf stmts oc;
+  fprintl oc "end\n\n";
   fprintl oc "let (>>=) = Lwt.(>>=)";
   fprintl oc "let (>|=) = Lwt.(>|=)";
   fprintl oc "module Make (P : P) = struct";

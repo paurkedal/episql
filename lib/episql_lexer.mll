@@ -30,6 +30,7 @@
 	"CREATE", (fun idr -> CREATE idr);
 	"CYCLE", (fun idr -> CYCLE idr);
 	"DEFAULT", (fun idr -> DEFAULT idr);
+	"DELETE", (fun idr -> DELETE idr);
 	"DROP", (fun idr -> DROP idr);
 	"ENUM", (fun idr -> ENUM idr);
 	"EXISTS", (fun idr -> EXISTS idr);
@@ -42,6 +43,7 @@
 	"NO", (fun idr -> NO idr);
 	"NOT", (fun idr -> NOT idr);
 	"NULL", (fun idr -> NULL idr);
+	"ON", (fun idr -> ON idr);
 	"PRIMARY", (fun idr -> PRIMARY idr);
 	"REFERENCES", (fun idr -> REFERENCES idr);
 	"RESTRICT", (fun idr -> RESTRICT idr);
@@ -54,6 +56,7 @@
 	"TEMPORARY", (fun idr -> TEMPORARY idr);
 	"TIME", (fun idr -> TIME idr);
 	"TYPE", (fun idr -> TYPE idr);
+	"UPDATE", (fun idr -> UPDATE idr);
 	"WITH", (fun idr -> WITH idr);
 	"ZONE", (fun idr -> ZONE idr);
 

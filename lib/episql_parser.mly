@@ -25,10 +25,10 @@
 
 /* Keywords */
 %token<string> AS AT BY CACHE CASCADE CHECK CREATE CYCLE
-%token<string> DEFAULT DROP ENUM EXISTS FOREIGN
+%token<string> DEFAULT DELETE DROP ENUM EXISTS FOREIGN
 %token<string> IF INCREMENT INHERIT KEY
-%token<string> MINVALUE MAXVALUE NO NOT NULL WITH
-%token<string> PRIMARY REFERENCES RESTRICT UNIQUE SCHEMA SEQUENCE START
+%token<string> MINVALUE MAXVALUE NO NOT NULL ON WITH
+%token<string> PRIMARY REFERENCES RESTRICT UNIQUE UPDATE SCHEMA SEQUENCE START
 %token<string> TABLE TEMPORARY TYPE ZONE
 
 /* Type-Forming Words */
@@ -124,6 +124,8 @@ column_constraint:
   | DEFAULT expr { `Default $2 }
   | REFERENCES tfqname { `References ($2, None) }
   | REFERENCES tfqname LPAREN tfname RPAREN {`References ($2, Some $4)}
+  | ON DELETE action { `On_delete $3 }
+  | ON UPDATE action { `On_update $3 }
   ;
 table_constraint:
     CHECK LPAREN expr RPAREN check_attr { `Check ($3, $5) }
@@ -140,6 +142,11 @@ paren_column_names_opt:
   | LPAREN nonempty_tfnames_r RPAREN { List.rev $2 }
   ;
 check_attr: /* empty */ { [] } | NO INHERIT { [`No_inherit] };
+
+action:
+    CASCADE { `Cascade }
+  | RESTRICT { `Restrict }
+  ;
 
 nonempty_tfnames_r:
     tfname { [$1] }

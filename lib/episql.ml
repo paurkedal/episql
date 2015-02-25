@@ -88,6 +88,10 @@ let string_of_column_constraint = function
   | `Default e -> "DEFAULT(" ^ string_of_expression e ^ ")"
   | `References (tqn, None) -> "REFERENCES " ^ string_of_qname tqn
   | `References (tqn, Some cn) -> "REFERENCES ("^(string_of_qname tqn)^")"^cn
+  | `On_delete `Cascade -> "ON DELETE CASCADE"
+  | `On_delete `Restrict -> "ON DELETE RESTRICT"
+  | `On_update `Cascade -> "ON UPDATE CASCADE"
+  | `On_update `Restrict -> "ON UPDATE RESTRICT"
 
 let rec autorec g = function
   | Expr_qname _ | Expr_literal _ as e -> g e

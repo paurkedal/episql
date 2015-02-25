@@ -68,7 +68,7 @@ let generate stmts oc =
   let emit_expr e = output_string oc (string_of_expression e) in
   let emit_column_constraint = function
     | `Not_null | `Primary_key -> output_string oc " NOT NULL"
-    | `Null | `Unique | `References _ -> ()
+    | `Null | `Unique | `References _ | `On_delete _ | `On_update _ -> ()
     | `Default e ->
       try
 	let e = translate e in
