@@ -17,6 +17,7 @@
 open Episql_types
 open Printf
 open Unprime_list
+open Unprime_option
 
 type genopts = {
   mutable go_types_module : string option;
@@ -42,6 +43,8 @@ type genopts = {
   mutable go_type_counit : string;
   mutable go_type_date : string;
   mutable go_type_timestamp : string;
+  mutable go_raise_on_absent : bool;
+  mutable go_log_debug : string option;
 }
 let go = {
   go_types_module = None;
@@ -67,6 +70,8 @@ let go = {
   go_type_counit = "Prime.counit";
   go_type_date = "CalendarLib.Date.t";
   go_type_timestamp = "CalendarLib.Calendar.t";
+  go_raise_on_absent = false;
+  go_log_debug = Some "caqti-persist";
 }
 
 let convname_of_datatype = function
@@ -302,15 +307,24 @@ let emit_intf oc ti =
   emit_type_nonpk ~in_intf:true oc ti;
   fprintl oc "    type t";
   fprintl oc "    val key : t -> key";
-  fprintl oc "    val state : t -> state option";
-  if go.go_value then
-    fprintl oc "    val value : t -> value option";
+  fprintl oc "    val is_present : t -> bool";
+  if go.go_raise_on_absent then
+    fprintl oc "    val state : t -> state"
+  else
+    fprintl oc "    val state : t -> state option";
+  if go.go_value then begin
+    if go.go_raise_on_absent then
+      fprintl oc "    val value : t -> value"
+    else
+      fprintl oc "    val value : t -> value option"
+  end;
   if go.go_getters then begin
     List.iter
       (fun (cn, ct) ->
+	let is_opt = ct.ct_pk || go.go_raise_on_absent && not ct.ct_nullable in
 	fprintlf oc "    val get_%s : t -> %s%s"
 		 cn (string_of_datatype ct.ct_type)
-		 (if ct.ct_pk then "" else " option"))
+		 (if is_opt then "" else " option"))
       ti.ti_cts
   end;
   fprintl oc "    val fetch : key -> t Lwt.t";
@@ -424,6 +438,8 @@ let emit_impl oc ti =
     fprintf oc "DELETE FROM %s WHERE " (Episql.string_of_qname ti.ti_tqn);
     emit_pk_cond next_param in
 
+  Option.iter (fprintlf oc "  let section = Lwt_log.Section.make \"%s\"")
+	      go.go_log_debug;
 
   fprintf oc "  module %s = struct\n" (String.capitalize (snd ti.ti_tqn));
   fprintl oc "    module Q = struct";
@@ -453,8 +469,23 @@ let emit_impl oc ti =
   fprintl oc "    end)";
 
   fprintl oc "    let key {key} = key";
-  fprintl oc "    let state = \
-		    function {state = Present x} -> Some x | _ -> None";
+  if go.go_raise_on_absent then begin
+    fprintl oc "    let absent op o =";
+    if go.go_log_debug <> None then
+      fprintlf oc "      Lwt_log.ign_debug_f ~section \
+			    \"Called %%s on absent row of %s.\" op;"
+		  (snd ti.ti_tqn);
+    fprintl oc "      raise Not_present"
+  end;
+  fprintl oc "    let is_present = \
+		    function {state = Present _} -> true | _ -> false";
+  if go.go_raise_on_absent then
+    fprintl oc "    let state = \
+		      function {state = Present x} -> x \
+			     | o -> absent \"state\" o"
+  else
+    fprintl oc "    let state = \
+		      function {state = Present x} -> Some x | _ -> None";
   if go.go_getters then begin
     let n_pk = List.length ti.ti_pk_cts in
     List.iter
@@ -464,6 +495,10 @@ let emit_impl oc ti =
 	  fprintlf oc "o.key"
 	else if ct.ct_pk then
 	  fprintlf oc "o.key.%s%s" go.go_pk_prefix cn
+	else if go.go_raise_on_absent then
+	  fprintlf oc "match o.state with Present x -> x.%s%s \
+					| _ -> absent \"get_%s\" o"
+		   go.go_state_prefix cn cn
 	else if ct.ct_nullable then
 	  fprintlf oc "match o.state with Present x -> x.%s%s | _ -> None"
 		   go.go_state_prefix cn
@@ -731,8 +766,10 @@ let emit_impl oc ti =
     fprint  oc "    let update ";
     List.iter (fun (cn, ct) -> fprintf oc "?%s " cn) ti.ti_nonpk_cts;
     fprintl oc "o =";
-    fprintl oc "      match state o with";
-    fprintl oc "      | None ->";
+    fprintl oc "      match o.state with";
+    fprintl oc "      | Inserting _ -> Lwt.fail (Conflict `Update_insert)";
+    fprintl oc "      | Deleting _ -> Lwt.fail (Conflict `Update_delete)";
+    fprintl oc "      | Absent ->";
     if go.go_insert_upserts then begin
       List.iter
 	(fun (cn, ct) ->
@@ -768,7 +805,7 @@ let emit_impl oc ti =
       end
     end else
       fprintl oc "\tLwt.fail (Failure \"Update of absent row.\")";
-    fprint  oc "      | Some state -> ";
+    fprint  oc "      | Present state -> ";
     emit_use_C oc 0;
     fprintl  oc "\tlet module Ub = Update_buffer (C) in";
     fprintlf oc "\tlet ub = Ub.create C.backend_info \"%s\" in"
@@ -872,10 +909,16 @@ let emit_impl oc ti =
     fprintl oc "    let value o =";
     fprintl oc "      match o.state with";
     fprintl oc "      | Present state ->";
-    if ti.ti_nonpk_cts = [] then
-      fprintl oc "\tSome ()"
-    else begin
-      fprintl oc "\tSome {";
+    if ti.ti_nonpk_cts = [] then begin
+      if go.go_raise_on_absent then
+	fprintl oc "\t()"
+      else
+	fprintl oc "\tSome ()"
+    end else begin
+      if go.go_raise_on_absent then
+	fprintl oc "\t{"
+      else
+	fprintl oc "\tSome {";
       List.iter
 	(fun (cn, _) ->
 	  fprintlf oc "\t  %s%s = state.%s%s;"
@@ -883,7 +926,10 @@ let emit_impl oc ti =
 	ti.ti_nonpk_cts;
       fprintl oc "\t}"
     end;
-    fprintl oc "      | _ -> None"
+    if go.go_raise_on_absent then
+      fprintl oc "      | _ -> raise Not_present"
+    else
+      fprintl oc "      | _ -> None"
   end;
 
   fprintl oc "  end"
@@ -994,6 +1040,12 @@ let () =
 	     suitable definitions for missing classes.";
     "-open", Arg.String (fun m -> go.go_open <- m :: go.go_open),
       "M Open M at top of the generated files but after other open statements.";
+    "-raise-on-absent", Arg.Unit (fun () -> go.go_raise_on_absent <- true),
+      "Raise Not_present instead of returning options for state, value, and \
+       getters. The exception is also raised for getters of nullable fields \
+       for consistency, even though they return options.";
+    "-no-raise-on-absent", Arg.Unit (fun () -> go.go_raise_on_absent <- false),
+      "Inversion of -raise-on-absent and the default for now.";
     "-with-type-counit", Arg.String (fun s -> go.go_type_counit <- s),
       "T Use T as the Prime.counit type.";
     "-with-type-date", Arg.String (fun s -> go.go_type_date <- s),

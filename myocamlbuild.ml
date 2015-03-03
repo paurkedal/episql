@@ -11,6 +11,7 @@ let episql ?types gen sql ml env build =
     | Some types -> [A"-t"; P(String.capitalize (env types))] in
   let tags = Tags.union (tags_of_pathname sql) (tags_of_pathname ml) in
   Cmd (S [P episql_prog; T (tags ++ "episql"); A"-g"; A gen; S types;
+	  P "-raise-on-absent";
           P sql; A"-o"; Px ml])
 let () =
   rule ".sql -> _persist_types.mli" ~tags:["episql"]

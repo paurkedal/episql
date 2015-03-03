@@ -30,7 +30,8 @@ type ('value, 'change) persist_patch_out =
   | `Update of 'change list
   | `Delete ]
 
-exception Merge_conflict
+exception Not_present
+exception Conflict of [ `Insert_insert | `Update_insert | `Update_delete ]
 
 let (>>=) = Lwt.(>>=)
 let (>|=) = Lwt.(>|=)
@@ -123,7 +124,7 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
       | Deleting c -> Lwt_condition.wait c >|= fun () ->
 		      o.state <- Present state
       | Absent -> o.state <- Present state; Lwt.return_unit
-      | Inserting _ | Present _ -> Lwt.fail Merge_conflict
+      | Inserting _ | Present _ -> Lwt.fail (Conflict `Insert_insert)
       end >|= fun () -> o
     with Not_found ->
       let o =

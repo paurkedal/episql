@@ -62,10 +62,9 @@ let test_serial () =
     [ `Delete;
       `Insert (Cp_1d_1o1r1d.({r_v1 = "sixty-one"}, defaults));
       `Update [`Set_v0 (Some (Int32.of_int 61))] ] >>
-  begin match Cp_1d_1o1r1d.state e with
-  | None -> assert false
-  | Some nonpk ->
+  begin
     let open Cp_1d_1o1r1d in
+    let nonpk = state e in
     assert (nonpk.s_v0 = Some (Int32.of_int 61));
     assert (nonpk.s_v1 = "sixty-one");
     Lwt.return_unit

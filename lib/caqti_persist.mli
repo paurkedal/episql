@@ -30,7 +30,8 @@ type ('value, 'change) persist_patch_out =
   | `Update of 'change list
   | `Delete ]
 
-exception Merge_conflict
+exception Not_present
+exception Conflict of [ `Insert_insert | `Update_insert | `Update_delete ]
 
 val default_select_grade : int -> float
 val select_grade : (int -> float) ref
