@@ -754,7 +754,7 @@ let emit_impl oc ti =
     end;
     fprintl oc "\t  merge (key, Present state) :: acc in";
     if go.go_select_cache then begin
-      fprintl  oc "\tC.fold q decode p [] >|= fun r ->\n";
+      fprintl  oc "\tC.fold q decode p [] >|= fun r ->";
       fprintlf oc "\tlet g = !select_grade (List.length r * %d + %d) in"
 		  (List.length ti.ti_nonpk_cts) (List.length ti.ti_cts + 2);
       fprintl  oc "\tPrime_cache.replace select_cache g args r; r"

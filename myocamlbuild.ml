@@ -14,19 +14,19 @@ let episql ?types gen sql ml env build =
 	  P "-raise-on-absent";
           P sql; A"-o"; Px ml])
 let () =
-  rule ".sql -> _persist_types.mli" ~tags:["episql"]
+  rule ".sql -> _persist_types.mli"
        ~deps:["tests/%.sql"; episql_prog] ~prod:"tests/%_persist_types.mli"
        (episql "caqti-persist-types-mli" "tests/%.sql"
 	       "tests/%_persist_types.mli");
-  rule ".sql -> _persist_types.ml" ~tags:["episql"]
+  rule ".sql -> _persist_types.ml"
        ~deps:["tests/%.sql"; episql_prog] ~prod:"tests/%_persist_types.ml"
        (episql "caqti-persist-types-ml" "tests/%.sql"
 	       "tests/%_persist_types.ml");
-  rule ".sql -> _persist.mli" ~tags:["episql"]
+  rule ".sql -> _persist.mli"
        ~deps:["tests/%.sql"; episql_prog] ~prod:"tests/%_persist.mli"
        (episql ~types:"%_persist_types"
 	       "caqti-persist-mli" "tests/%.sql" "tests/%_persist.mli");
-  rule ".sql -> _persist.ml" ~tags:["episql"]
+  rule ".sql -> _persist.ml"
        ~deps:["tests/%.sql"; episql_prog] ~prod:"tests/%_persist.ml"
        (episql ~types:"%_persist_types"
 	       "caqti-persist-ml" "tests/%.sql" "tests/%_persist.ml")
