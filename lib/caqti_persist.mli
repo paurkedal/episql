@@ -33,6 +33,10 @@ type ('value, 'change) persist_patch_out =
 exception Not_present
 exception Conflict of [ `Insert_insert | `Update_insert | `Update_delete ]
 
+type 'a order_predicate =
+  [ `Eq of 'a | `Ne of 'a | `Lt of 'a | `Le of 'a | `Ge of 'a | `Gt of 'a
+  | `Between of 'a * 'a | `Not_between of 'a * 'a ]
+
 val default_select_grade : int -> float
 val select_grade : (int -> float) ref
 

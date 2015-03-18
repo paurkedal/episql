@@ -333,7 +333,9 @@ let emit_intf oc ti =
     List.iter
       (fun (cn, ct) ->
 	let tn = string_of_datatype ct.ct_type in
-	fprintf oc "\n      ?%s: [< `Eq of %s" cn tn;
+	fprintf oc "\n      ?%s: [< %s order_predicate" cn tn;
+	if ct.ct_type = `Text then
+	  fprintf oc " | `Like of %s | `Ilike of %s" tn tn;
 	if ct.ct_nullable then fprint oc " | `Null";
 	fprint oc "] ->")
       ti.ti_cts;
@@ -715,13 +717,26 @@ let emit_impl oc ti =
     List.iter emit_ret ti.ti_nonpk_cts;
     List.iter
       (fun (cn, ct) ->
+	let conv = convname_of_datatype ct.ct_type in
 	fprintlf oc "\tbegin match %s with" cn;
 	fprintl  oc "\t| None -> ()";
 	if ct.ct_nullable then
 	  fprintlf oc "\t| Some `Null -> Sb.(where sb [S\"%s IS NULL\"])" cn;
-	fprintlf oc "\t| Some (`Eq x) -> \
-			 Sb.(where sb [S\"%s = \"; P C.Param.(%s x)])"
-		    cn (convname_of_datatype ct.ct_type);
+	let mk_binary (on, op) =
+	  fprintlf oc "\t| Some (`%s x) -> \
+			   Sb.(where sb [S\"%s %s \"; P C.Param.(%s x)])"
+		      on cn op conv in
+	let mk_ternary (on, op) =
+	  fprintlf oc "\t| Some (`%s (x, y)) -> \
+			 Sb.(where sb [S\"%s %s \"; P C.Param.(%s x); \
+				       S\" AND \"; P C.Param.(%s y)])"
+		      on cn op conv conv in
+	List.iter mk_binary
+	  ["Eq", "="; "Ne", "<>"; "Lt", "<"; "Le", "<="; "Ge", ">="; "Gt", ">"];
+	List.iter mk_ternary
+	  ["Between", "BETWEEN"; "Not_between", "NOT BETWEEN"];
+	if ct.ct_type = `Text then
+	  List.iter mk_binary ["Like", "LIKE"; "Ilike", "ILIKE"];
 	fprintl  oc "\tend;")
       ti.ti_cts;
     fprintl  oc "\tlet q, p = Sb.contents sb in";
