@@ -106,12 +106,14 @@ let generate stmts oc =
 	List.iter emit_default_nul_workaround ccs
     | Constraint _ -> () in
   let emit_top = function
-    | Create_schema _ | Create_sequence (_, true, _) -> ()
-    | Create_sequence (sqn, false, attrs) ->
+    | Create_schema _
+    | Create_sequence {sequence_scope = `Temporary}
+    | Create_table {table_scope = `Temporary} -> ()
+    | Create_sequence {sequence_qname = sqn; sequence_attrs = attrs} ->
       (* CHECKME: Better to use bigserial? *)
       fprintf oc "let %s =\n  <:sequence< serial \"%s\" >>\n"
 		 (snd sqn) (string_of_qname sqn);
-    | Create_table (tqn, items) ->
+    | Create_table {table_qname = tqn; table_items = items} ->
       List.iter (emit_serial_seq tqn) items;
       fprintf oc "let %s =\n  <:table< %s (" (snd tqn) (string_of_qname tqn);
       List.iteri (emit_colspec tqn) items;

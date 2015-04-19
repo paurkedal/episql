@@ -60,6 +60,8 @@ type column_constraint =
   | `On_delete of [`Cascade | `Restrict]
   | `On_update of [`Cascade | `Restrict] ]
 
+type table_scope = [`Permanent | `Permanent_unlogged | `Temporary]
+
 type table_constraint =
   [ `Check of expression * [`No_inherit] list
   | `Unique of string list
@@ -70,17 +72,32 @@ type table_item =
   | Column of string * datatype * column_constraint list
   | Constraint of table_constraint
 
+type table = {
+  table_qname : qname;
+  table_scope : table_scope;
+  table_if_not_exists : bool;
+  table_items : table_item list;
+}
+
+type sequence_scope = [`Permanent | `Temporary]
+
 type sequence_attr =
   [ `Increment of int
   | `Minvalue of int | `Maxvalue of int | `Start of int (* FIXME: int64 *)
   | `Cache of int | `Cycle | `No_cycle | `Owner of qname ]
 
+type sequence = {
+  sequence_qname : qname;
+  sequence_scope : sequence_scope;
+  sequence_attrs : sequence_attr list;
+}
+
 type drop_option = [`If_exists | `Cascade | `Restrict]
 
 type statement =
   | Create_schema of string
-  | Create_sequence of qname * bool * sequence_attr list
-  | Create_table of qname * table_item list
+  | Create_sequence of sequence
+  | Create_table of table
   | Create_enum of qname * string list
   | Drop_schema of string list * drop_option list
   | Drop_table of qname list * drop_option list

@@ -952,8 +952,9 @@ let emit_impl oc ti =
 let generate emit stmts oc =
   let emit_top = function
     | Create_schema _ | Create_sequence _ | Create_enum _
-    | Drop_schema _ | Drop_table _ | Drop_sequence _ | Drop_type _ -> ()
-    | Create_table (ti_tqn, items) ->
+    | Drop_schema _ | Drop_table _ | Drop_sequence _ | Drop_type _
+    | Create_table {table_scope = `Temporary} -> ()
+    | Create_table {table_qname = ti_tqn; table_items = items} ->
       let pk_opt, cts = List.fold_right collect items (None, []) in
       begin match pk_opt with
       | None -> ()

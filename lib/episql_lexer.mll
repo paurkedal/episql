@@ -56,6 +56,7 @@
 	"TEMPORARY", (fun idr -> TEMPORARY idr);
 	"TIME", (fun idr -> TIME idr);
 	"TYPE", (fun idr -> TYPE idr);
+	"UNLOGGED", (fun idr -> UNLOGGED idr);
 	"UPDATE", (fun idr -> UPDATE idr);
 	"WITH", (fun idr -> WITH idr);
 	"ZONE", (fun idr -> ZONE idr);

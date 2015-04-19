@@ -29,7 +29,7 @@
 %token<string> IF INCREMENT INHERIT KEY
 %token<string> MINVALUE MAXVALUE NO NOT NULL ON WITH
 %token<string> PRIMARY REFERENCES RESTRICT UNIQUE UPDATE SCHEMA SEQUENCE START
-%token<string> TABLE TEMPORARY TYPE ZONE
+%token<string> TABLE TEMPORARY UNLOGGED TYPE ZONE
 
 /* Type-Forming Words */
 %token<string> BOOLEAN
@@ -57,10 +57,15 @@ statements:
 
 statement:
     CREATE SCHEMA tfname { Create_schema $3 }
-  | CREATE temporary SEQUENCE tfqname seq_attrs
-    { Create_sequence ($4, $2, List.rev $5) }
-  | CREATE TABLE tfqname LPAREN table_items RPAREN
-    { Create_table ($3, List.rev $5) }
+  | CREATE sequence_scope SEQUENCE tfqname seq_attrs
+    { Create_sequence {sequence_qname = $4; sequence_scope = $2;
+		       sequence_attrs = List.rev $5} }
+  | CREATE table_scope TABLE IF NOT EXISTS tfqname LPAREN table_items RPAREN
+    { Create_table {table_qname = $7; table_scope = $2;
+		    table_if_not_exists = true; table_items = List.rev $9} }
+  | CREATE table_scope TABLE tfqname LPAREN table_items RPAREN
+    { Create_table {table_qname = $4; table_scope = $2;
+		    table_if_not_exists = false; table_items = List.rev $6} }
   | CREATE TYPE tfqname AS ENUM LPAREN enum_cases RPAREN
     { Create_enum ($3, $7) }
   | DROP SCHEMA nonempty_tfnames_r drop_options_r
@@ -98,7 +103,11 @@ seq_attr:
   | NO CYCLE { `No_cycle }
   ;
 
-temporary: /* empty */ { false } | TEMPORARY { true };
+sequence_scope: /* empty */ { `Permanent } | TEMPORARY { `Temporary };
+table_scope:
+    /* empty */ { `Permanent }
+  | UNLOGGED { `Permanent_unlogged }
+  | TEMPORARY { `Temporary };
 by_opt: /* empty */ {()} | BY {()};
 with_opt: /* empty */ {()} | WITH {()};
 
@@ -230,6 +239,7 @@ identifier:
   | SEQUENCE { $1 }
   | TEMPORARY { $1 }
   | TYPE { $1 }
+  | UNLOGGED { $1 }
   | ZONE { $1 }
   ;
 
