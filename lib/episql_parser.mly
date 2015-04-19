@@ -41,7 +41,7 @@
 
 /* Literals */
 %token<string> IDENTIFIER
-%token<int> INT
+%token<int64> INT
 %token<string> STRING
 
 %type<Episql_types.statement list> schema
@@ -183,10 +183,10 @@ datatype:
     BOOLEAN { `Boolean }
   | REAL { `Real }
   | FLOAT { `Double_precision }
-  | FLOAT LPAREN INT RPAREN { if $3 <= 24 then `Real else `Double_precision }
+  | FLOAT LPAREN INT RPAREN { if $3 <= 24L then `Real else `Double_precision }
   | DOUBLE PRECISION { `Double_precision }
-  | VARCHAR LPAREN INT RPAREN { `Varchar $3 }
-  | CHAR LPAREN INT RPAREN { `Char $3 }
+  | VARCHAR LPAREN INT RPAREN { `Varchar (Int64.to_int $3) }
+  | CHAR LPAREN INT RPAREN { `Char (Int64.to_int $3) }
   | TEXT { `Text }
   | BYTEA { `Bytea }
   | SMALLINT { `Smallint }
@@ -195,8 +195,10 @@ datatype:
   | SMALLSERIAL { `Smallserial }
   | SERIAL { `Serial }
   | BIGSERIAL { `Bigserial }
-  | NUMERIC LPAREN INT COMMA INT RPAREN { `Numeric ($3, $5) }
-  | DECIMAL LPAREN INT COMMA INT RPAREN { `Decimal ($3, $5) }
+  | NUMERIC LPAREN INT COMMA INT RPAREN
+    { `Numeric (Int64.to_int $3, Int64.to_int $5) }
+  | DECIMAL LPAREN INT COMMA INT RPAREN
+    { `Decimal (Int64.to_int $3, Int64.to_int $5) }
   | TIME { `Time }
   | DATE { `Date }
   | TIMESTAMP { `Timestamp }

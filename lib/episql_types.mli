@@ -42,7 +42,7 @@ type datatype =
 type serialtype = [ `Smallserial | `Serial | `Bigserial ]
 
 type literal =
-  | Lit_integer of int
+  | Lit_integer of int64
   | Lit_text of string
 
 type expression =
@@ -82,9 +82,9 @@ type table = {
 type sequence_scope = [`Permanent | `Temporary]
 
 type sequence_attr =
-  [ `Increment of int
-  | `Minvalue of int | `Maxvalue of int | `Start of int (* FIXME: int64 *)
-  | `Cache of int | `Cycle | `No_cycle | `Owner of qname ]
+  [ `Start of int64 | `Increment of int64
+  | `Minvalue of int64 | `Maxvalue of int64
+  | `Cache of int64 | `Cycle | `No_cycle | `Owner of qname ]
 
 type sequence = {
   sequence_qname : qname;

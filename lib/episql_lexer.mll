@@ -102,7 +102,7 @@ rule lex_main = parse
     { try Hashtbl.find keywords (String.uppercase word) word
       with Not_found -> IDENTIFIER word }
   | "'" { lex_string (Buffer.create 64) lexbuf }
-  | digit+ as i { INT (int_of_string i) }
+  | digit+ as i { INT (Int64.of_string i) }
   | eof { EOF }
   | _ as c
     { let open Lexing in

@@ -64,7 +64,7 @@ let string_of_datatype : datatype -> string = function
   | `Custom qn -> string_of_qname qn
 
 let string_of_literal = function
-  | Lit_integer i -> string_of_int i
+  | Lit_integer i -> Int64.to_string i
   | Lit_text s -> sql_quote s
 
 let rec bprint_expression buf = function
