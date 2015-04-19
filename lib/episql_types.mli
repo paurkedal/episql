@@ -71,7 +71,7 @@ type table_item =
   | Constraint of table_constraint
 
 type sequence_attr =
-  [ `Temporary | `Increment of int
+  [ `Increment of int
   | `Minvalue of int | `Maxvalue of int | `Start of int (* FIXME: int64 *)
   | `Cache of int | `Cycle | `No_cycle | `Owner of qname ]
 

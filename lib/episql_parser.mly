@@ -89,8 +89,7 @@ drop_options_r:
 
 seq_attrs: /* empty */ { [] } | seq_attrs seq_attr { $2 :: $1 };
 seq_attr:
-    TEMPORARY { `Temporary }
-  | INCREMENT by_opt INT { `Increment $3 }
+    INCREMENT by_opt INT { `Increment $3 }
   | MINVALUE INT { `Minvalue $2 }
   | MAXVALUE INT { `Maxvalue $2 }
   | START with_opt INT { `Start $3 }
