@@ -55,7 +55,6 @@ let string_of_datatype : datatype -> string = function
   | `Char n -> sprintf "char(%d)" n
   | `Varchar n -> sprintf "varchar(%d)" n
   | `Numeric (p, d) -> sprintf "numeric(%d, %d)" p d
-  | `Decimal (p, d) -> sprintf "decimal(%d, %d)" p d
   | `Time -> "time"
   | `Date -> "date"
   | `Timestamp -> "timestamp"

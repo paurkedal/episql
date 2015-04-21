@@ -23,15 +23,14 @@ type datatype =
   | `Smallint
   | `Integer
   | `Bigint
-  | `Smallserial
-  | `Serial
-  | `Bigserial
-  | `Text
-  | `Bytea
+  | `Smallserial	(* Not SQL *)
+  | `Serial		(* Not SQL *)
+  | `Bigserial		(* Not SQL *)
+  | `Text		(* Not SQL *)
+  | `Bytea		(* Not SQL *)
   | `Char of int
   | `Varchar of int
   | `Numeric of int * int
-  | `Decimal of int * int
   | `Time
   | `Date
   | `Timestamp

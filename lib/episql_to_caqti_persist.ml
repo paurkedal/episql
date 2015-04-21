@@ -82,7 +82,7 @@ let convname_of_datatype = function
   | `Real | `Double_precision -> "float"
   | `Text | `Char _ | `Varchar _ -> "text"
   | `Bytea -> "octets"
-  | `Numeric _ | `Decimal _ -> "float" (* FIXME *)
+  | `Numeric _ -> "float" (* FIXME *)
   | `Time -> "float"
   | `Date -> "date"
   | `Timestamp -> "utc"
@@ -98,7 +98,7 @@ let string_of_datatype = function
   | `Real | `Double_precision -> "float"
   | `Text | `Char _ | `Varchar _ -> "string"
   | `Bytea -> "string"
-  | `Numeric _ | `Decimal _ -> "float" (* FIXME *)
+  | `Numeric _ -> "float" (* FIXME *)
   | `Time -> "float"
   | `Date -> go.go_type_date
   | `Timestamp -> go.go_type_timestamp

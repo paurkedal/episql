@@ -198,7 +198,7 @@ datatype:
   | NUMERIC LPAREN INT COMMA INT RPAREN
     { `Numeric (Int64.to_int $3, Int64.to_int $5) }
   | DECIMAL LPAREN INT COMMA INT RPAREN
-    { `Decimal (Int64.to_int $3, Int64.to_int $5) }
+    { `Numeric (Int64.to_int $3, Int64.to_int $5) }
   | TIME { `Time }
   | DATE { `Date }
   | TIMESTAMP { `Timestamp }
