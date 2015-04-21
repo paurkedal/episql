@@ -195,6 +195,10 @@ datatype:
   | SMALLSERIAL { `Smallserial }
   | SERIAL { `Serial }
   | BIGSERIAL { `Bigserial }
+  | NUMERIC { `Numeric_auto }
+  | DECIMAL { `Numeric_auto }
+  | NUMERIC LPAREN INT RPAREN { `Numeric (Int64.to_int $3, 0) }
+  | DECIMAL LPAREN INT RPAREN { `Numeric (Int64.to_int $3, 0) }
   | NUMERIC LPAREN INT COMMA INT RPAREN
     { `Numeric (Int64.to_int $3, Int64.to_int $5) }
   | DECIMAL LPAREN INT COMMA INT RPAREN

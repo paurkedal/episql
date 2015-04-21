@@ -30,6 +30,7 @@ type datatype =
   | `Bytea		(* Not SQL *)
   | `Char of int
   | `Varchar of int
+  | `Numeric_auto	(* Not SQL, for PostgrSQL's auto-scaled NUMERIC. *)
   | `Numeric of int * int
   | `Time
   | `Date

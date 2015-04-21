@@ -54,6 +54,8 @@ let string_of_datatype : datatype -> string = function
   | `Bytea -> "bytea"
   | `Char n -> sprintf "char(%d)" n
   | `Varchar n -> sprintf "varchar(%d)" n
+  | `Numeric_auto -> sprintf "numeric"
+  | `Numeric (p, 0) -> sprintf "numeric(%d)" p
   | `Numeric (p, d) -> sprintf "numeric(%d, %d)" p d
   | `Time -> "time"
   | `Date -> "date"

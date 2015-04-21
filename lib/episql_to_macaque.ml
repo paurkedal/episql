@@ -28,7 +28,7 @@ let string_of_datatype = function
   | `Real | `Double_precision -> "double"
   | `Text | `Char _ | `Varchar _ -> "text"
   | `Bytea -> "bytea"
-  | `Numeric _ -> "double" (* FIXME *)
+  | `Numeric_auto | `Numeric _ -> "double" (* FIXME *)
   | `Time -> "time"
   | `Date -> "date"
   | `Timestamp -> "timestamp"
