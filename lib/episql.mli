@@ -26,6 +26,8 @@ val string_of_expression : expression -> string
 
 val string_of_column_constraint : column_constraint -> string
 
+val string_of_interval_fields : interval_fields -> string
+
 val autorec : (expression -> expression) -> expression -> expression
 
 type generator = statement list -> out_channel -> unit
