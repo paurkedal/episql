@@ -33,7 +33,7 @@ let string_of_datatype = function
   | `Date -> "date"
   | `Timestamp (_, false) -> "timestamp"
   | `Timestamp (_, true) -> "timestamptz"
-  | `Interval -> "interval"
+  | `Interval (_, _) -> "interval"
   | `Custom _ -> "text" (* FIXME *)
 
 let string_of_serialtype = function

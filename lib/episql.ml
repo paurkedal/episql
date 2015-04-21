@@ -40,6 +40,22 @@ let sql_quote s =
   Buffer.add_char buf '\'';
   Buffer.contents buf
 
+let string_of_interval_fields = function
+  | `Default -> ""
+  | `Year -> "year"
+  | `Month -> "month"
+  | `Day -> "day"
+  | `Hour -> "hour"
+  | `Minute -> "minute"
+  | `Second -> "second"
+  | `Year_to_month -> "year to month"
+  | `Day_to_hour -> "day to hour"
+  | `Day_to_minute -> "day to minute"
+  | `Day_to_second -> "day to second"
+  | `Hour_to_minute -> "hour to minute"
+  | `Hour_to_second -> "hour to second"
+  | `Minute_to_second -> "minute to second"
+
 let string_of_datatype : datatype -> string = function
   | `Boolean -> "boolean"
   | `Real -> "real"
@@ -66,7 +82,11 @@ let string_of_datatype : datatype -> string = function
   | `Timestamp (None, true) -> "timestamp with timezone"
   | `Timestamp (Some n, false) -> sprintf "timestamp(%d)" n
   | `Timestamp (Some n, true) -> sprintf "timestamp(%d) with timezone" n
-  | `Interval -> "interval"
+  | `Interval (`Default, None) -> "interval"
+  | `Interval (`Default, Some p) -> sprintf "interval(%d)" p
+  | `Interval (ivlf, None) -> "interval " ^ string_of_interval_fields ivlf
+  | `Interval (ivlf, Some p) ->
+    sprintf "interval %s (%d)" (string_of_interval_fields ivlf) p
   | `Custom qn -> string_of_qname qn
 
 let string_of_literal = function

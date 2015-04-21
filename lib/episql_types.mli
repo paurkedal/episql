@@ -16,6 +16,22 @@
 
 type qname = string option * string
 
+type interval_fields =
+  [ `Default
+  | `Year
+  | `Month
+  | `Day
+  | `Hour
+  | `Minute
+  | `Second
+  | `Year_to_month
+  | `Day_to_hour
+  | `Day_to_minute
+  | `Day_to_second
+  | `Hour_to_minute
+  | `Hour_to_second
+  | `Minute_to_second ]
+
 type datatype =
   [ `Boolean
   | `Real
@@ -35,7 +51,7 @@ type datatype =
   | `Time of int option * bool
   | `Date
   | `Timestamp of int option * bool
-  | `Interval
+  | `Interval of interval_fields * int option
   | `Custom of qname ]
 
 type serialtype = [ `Smallserial | `Serial | `Bigserial ]

@@ -86,7 +86,7 @@ let convname_of_datatype = function
   | `Time (_, _) -> "float"
   | `Date -> "date"
   | `Timestamp (_, _) -> "utc"
-  | `Interval -> "string" (* FIXME *)
+  | `Interval (_, _) -> "string" (* FIXME *)
   | `Custom _ -> "string"
 
 let string_of_datatype = function
@@ -101,7 +101,7 @@ let string_of_datatype = function
   | `Time (_, _) -> "float"
   | `Date -> go.go_type_date
   | `Timestamp (_, _) -> go.go_type_timestamp
-  | `Interval -> "string" (* FIXME *)
+  | `Interval (_, _) -> "string" (* FIXME *)
   | `Custom _ -> "string"
 
 type coltype = {

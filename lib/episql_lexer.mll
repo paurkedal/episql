@@ -60,6 +60,13 @@
 	"UPDATE", (fun idr -> UPDATE idr);
 	"WITH", (fun idr -> WITH idr);
 	"ZONE", (fun idr -> ZONE idr);
+	"YEAR", (fun idr -> YEAR idr);
+	"MONTH", (fun idr -> MONTH idr);
+	"DAY", (fun idr -> DAY idr);
+	"HOUR", (fun idr -> HOUR idr);
+	"MINUTE", (fun idr -> MINUTE idr);
+	"SECOND", (fun idr -> SECOND idr);
+	"TO", (fun idr -> TO idr);
 
 	(* Type-forming keywords *)
 	"BOOLEAN", (fun idr -> BOOLEAN idr);

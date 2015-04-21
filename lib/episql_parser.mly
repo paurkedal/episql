@@ -30,6 +30,7 @@
 %token<string> MINVALUE MAXVALUE NO NOT NULL ON WITH
 %token<string> PRIMARY REFERENCES RESTRICT UNIQUE UPDATE SCHEMA SEQUENCE START
 %token<string> TABLE TEMPORARY UNLOGGED TYPE ZONE
+%token<string> YEAR MONTH DAY HOUR MINUTE SECOND TO
 
 /* Type-Forming Words */
 %token<string> BOOLEAN
@@ -214,8 +215,27 @@ datatype:
   | TIMESTAMP LPAREN INT RPAREN { `Timestamp (Some (Int64.to_int $3), false) }
   | TIMESTAMP LPAREN INT RPAREN WITH TIMEZONE
     { `Timestamp (Some (Int64.to_int $3), true) }
-  | INTERVAL { `Interval }
+  | INTERVAL interval_fields { `Interval ($2, None) }
+  | INTERVAL interval_fields LPAREN INT RPAREN
+    { `Interval ($2, Some (Int64.to_int $4)) }
   | qname { `Custom $1 }
+  ;
+
+interval_fields:
+    /* empty */ { `Default }
+  | YEAR { `Year }
+  | MONTH { `Month }
+  | DAY { `Day }
+  | HOUR { `Hour }
+  | MINUTE { `Minute }
+  | SECOND { `Second }
+  | YEAR TO MONTH { `Year_to_month }
+  | DAY TO HOUR { `Day_to_hour }
+  | DAY TO MINUTE { `Day_to_minute }
+  | DAY TO SECOND { `Day_to_second }
+  | HOUR TO MINUTE { `Hour_to_minute }
+  | HOUR TO SECOND { `Hour_to_second }
+  | MINUTE TO SECOND { `Minute_to_second }
   ;
 
 expr:
@@ -254,6 +274,13 @@ identifier:
   | TYPE { $1 }
   | UNLOGGED { $1 }
   | ZONE { $1 }
+  | YEAR { $1 }
+  | MONTH { $1 }
+  | DAY { $1 }
+  | HOUR { $1 }
+  | MINUTE { $1 }
+  | SECOND { $1 }
+  | TO { $1 }
   ;
 
 tfname:
