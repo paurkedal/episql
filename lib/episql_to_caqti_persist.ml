@@ -83,10 +83,9 @@ let convname_of_datatype = function
   | `Text | `Char _ | `Varchar _ -> "text"
   | `Bytea -> "octets"
   | `Numeric_auto | `Numeric _ -> "float" (* FIXME *)
-  | `Time -> "float"
+  | `Time (_, _) -> "float"
   | `Date -> "date"
-  | `Timestamp -> "utc"
-  | `Timestamp_with_timezone -> "utc"
+  | `Timestamp (_, _) -> "utc"
   | `Interval -> "string" (* FIXME *)
   | `Custom _ -> "string"
 
@@ -99,10 +98,9 @@ let string_of_datatype = function
   | `Text | `Char _ | `Varchar _ -> "string"
   | `Bytea -> "string"
   | `Numeric_auto | `Numeric _ -> "float" (* FIXME *)
-  | `Time -> "float"
+  | `Time (_, _) -> "float"
   | `Date -> go.go_type_date
-  | `Timestamp -> go.go_type_timestamp
-  | `Timestamp_with_timezone -> go.go_type_timestamp
+  | `Timestamp (_, _) -> go.go_type_timestamp
   | `Interval -> "string" (* FIXME *)
   | `Custom _ -> "string"
 

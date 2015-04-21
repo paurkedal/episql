@@ -203,10 +203,17 @@ datatype:
     { `Numeric (Int64.to_int $3, Int64.to_int $5) }
   | DECIMAL LPAREN INT COMMA INT RPAREN
     { `Numeric (Int64.to_int $3, Int64.to_int $5) }
-  | TIME { `Time }
+  | TIME { `Time (None, false) }
+  | TIME LPAREN INT RPAREN { `Time (Some (Int64.to_int $3), false) }
+  | TIME WITH TIMEZONE { `Time (None, true) }
+  | TIME LPAREN INT RPAREN WITH TIMEZONE
+    { `Time (Some (Int64.to_int $3), true) }
   | DATE { `Date }
-  | TIMESTAMP { `Timestamp }
-  | TIMESTAMP WITH TIMEZONE { `Timestamp_with_timezone }
+  | TIMESTAMP { `Timestamp (None, false) }
+  | TIMESTAMP WITH TIMEZONE { `Timestamp (None, true) }
+  | TIMESTAMP LPAREN INT RPAREN { `Timestamp (Some (Int64.to_int $3), false) }
+  | TIMESTAMP LPAREN INT RPAREN WITH TIMEZONE
+    { `Timestamp (Some (Int64.to_int $3), true) }
   | INTERVAL { `Interval }
   | qname { `Custom $1 }
   ;

@@ -32,10 +32,9 @@ type datatype =
   | `Varchar of int
   | `Numeric_auto	(* Not SQL, for PostgrSQL's auto-scaled NUMERIC. *)
   | `Numeric of int * int
-  | `Time
+  | `Time of int option * bool
   | `Date
-  | `Timestamp
-  | `Timestamp_with_timezone
+  | `Timestamp of int option * bool
   | `Interval
   | `Custom of qname ]
 

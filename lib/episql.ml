@@ -57,10 +57,15 @@ let string_of_datatype : datatype -> string = function
   | `Numeric_auto -> sprintf "numeric"
   | `Numeric (p, 0) -> sprintf "numeric(%d)" p
   | `Numeric (p, d) -> sprintf "numeric(%d, %d)" p d
-  | `Time -> "time"
+  | `Time (None, false) -> "time"
+  | `Time (None, true) -> "time with timezone"
+  | `Time (Some n, false) -> sprintf "time(%d)" n
+  | `Time (Some n, true) -> sprintf "time(%d) with timezone" n
   | `Date -> "date"
-  | `Timestamp -> "timestamp"
-  | `Timestamp_with_timezone -> "timestamp with timezone"
+  | `Timestamp (None, false) -> "timestamp"
+  | `Timestamp (None, true) -> "timestamp with timezone"
+  | `Timestamp (Some n, false) -> sprintf "timestamp(%d)" n
+  | `Timestamp (Some n, true) -> sprintf "timestamp(%d) with timezone" n
   | `Interval -> "interval"
   | `Custom qn -> string_of_qname qn
 

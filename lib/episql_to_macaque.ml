@@ -29,10 +29,10 @@ let string_of_datatype = function
   | `Text | `Char _ | `Varchar _ -> "text"
   | `Bytea -> "bytea"
   | `Numeric_auto | `Numeric _ -> "double" (* FIXME *)
-  | `Time -> "time"
+  | `Time (_, _) -> "time"
   | `Date -> "date"
-  | `Timestamp -> "timestamp"
-  | `Timestamp_with_timezone -> "timestamptz"
+  | `Timestamp (_, false) -> "timestamp"
+  | `Timestamp (_, true) -> "timestamptz"
   | `Interval -> "interval"
   | `Custom _ -> "text" (* FIXME *)
 
