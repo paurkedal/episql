@@ -17,6 +17,7 @@
 open Episql
 open Episql_types
 
+let use_compact_lists = ref false
 let tag name = ("", name)
 
 module Attr = struct
@@ -101,6 +102,8 @@ let xmlattrs_of_coltype ct =
   | `Interval (fields, Some p) -> mk_ip fields p
   | `Custom qn		-> mk (string_of_qname qn)
 
+let write_column o name = output_leaf o "column" [Attr.string "name" name]
+
 let write_item o = function
   | Column (cn, ct, constrs) ->
     let ctn, ct_attrs = xmlattrs_of_coltype ct in
@@ -120,25 +123,46 @@ let write_item o = function
       | _ -> assert false in
     output_leaf o "check" attrs
   | Constraint (`Unique cols) ->
-    output_leaf o "unique" [Attr.(string_list "columns") cols]
+    if !use_compact_lists then
+      output_leaf o "unique" [Attr.string_list "columns" cols]
+    else begin
+      Xmlm.output o (`El_start (tag "unique", []));
+      List.iter (write_column o) cols;
+      Xmlm.output o `El_end
+    end
   | Constraint (`Primary_key cols) ->
-    output_leaf o "primary-key" [Attr.(string_list "columns") cols]
+    if !use_compact_lists then
+      output_leaf o "primary-key" [Attr.string_list "columns" cols]
+    else begin
+      Xmlm.output o (`El_start (tag "primary-key", []));
+      List.iter (write_column o) cols;
+      Xmlm.output o `El_end
+    end
   | Constraint (`Foreign_key (cols, reftable, refcols)) ->
-    let attrs = [
-      Attr.(string_list "columns") cols;
-      Attr.qname "ref-table" reftable;
-      Attr.(string_list "ref-columns" refcols)
-    ] in
-    output_leaf o "foreign-key" attrs
+    if !use_compact_lists then
+      let attrs = [
+	Attr.(string_list "columns") cols;
+	Attr.qname "ref-table" reftable;
+	Attr.(string_list "ref-columns" refcols)
+      ] in
+      output_leaf o "foreign-key" attrs
+    else begin
+      Xmlm.output o (`El_start (tag "foreign-key", []));
+      List.iter (write_column o) cols;
+      Xmlm.output o (`El_start (tag "references",
+				[Attr.qname "table" reftable]));
+      List.iter (write_column o) refcols;
+      Xmlm.output o `El_end;
+      Xmlm.output o `El_end
+    end
 
 let xmlattr_of_drop_option = function
   | `If_exists -> Attr.flag "if-exists"
   | `Cascade -> Attr.flag "cascade"
   | `Restrict -> Attr.flag "restrict"
 
-let write_qn_item o qn =
-  Xmlm.output o (`El_start (tag "item", []));
-  Xmlm.output o (`Data (string_of_qname qn));
+let write_qn_item o tn qn =
+  Xmlm.output o (`El_start (tag tn, [Attr.qname "name" qn]));
   Xmlm.output o `El_end
 
 let write_statement o = function
@@ -178,25 +202,24 @@ let write_statement o = function
     Xmlm.output o (`El_start (tag "drop-schemas", attrs));
     List.iter
       (fun sn ->
-	Xmlm.output o (`El_start (tag "item", []));
-	Xmlm.output o (`Data sn);
+	Xmlm.output o (`El_start (tag "schema", [Attr.string "name" sn]));
 	Xmlm.output o `El_end)
       names;
     Xmlm.output o `El_end
   | Drop_table (qns, opts) ->
     let attrs = List.map xmlattr_of_drop_option opts in
     Xmlm.output o (`El_start (tag "drop-tables", attrs));
-    List.iter (write_qn_item o) qns;
+    List.iter (write_qn_item o "table") qns;
     Xmlm.output o `El_end
   | Drop_sequence (qns, opts) ->
     let attrs = List.map xmlattr_of_drop_option opts in
     Xmlm.output o (`El_start (tag "drop-sequences", attrs));
-    List.iter (write_qn_item o) qns;
+    List.iter (write_qn_item o "sequence") qns;
     Xmlm.output o `El_end
   | Drop_type (qns, opts) ->
     let attrs = List.map xmlattr_of_drop_option opts in
     Xmlm.output o (`El_start (tag "drop-types", attrs));
-    List.iter (write_qn_item o) qns;
+    List.iter (write_qn_item o "type") qns;
     Xmlm.output o `El_end
 
 let generate_xml stmts oc =
