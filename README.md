@@ -22,43 +22,71 @@ primary key.  The primary key is used to address objects.
 
 It is recommended to generate four separate files, e.g.
 
-    episql -g caqti-persist-types-mli -o foo_types.mli foo.sql
-    episql -g caqti-persist-types-ml  -o foo_types.ml  foo.sql
-    episql -g caqti-persist-mli -t Foo_types -o foo_functor.mli foo.sql
-    episql -g caqti-persist-ml  -t Foo_types -o foo_functor.ml  foo.sql
+``` sh
+episql -g caqti-persist-types-mli -o foo_types.mli foo.sql
+episql -g caqti-persist-types-ml  -o foo_types.ml  foo.sql
+episql -g caqti-persist-mli -t Foo_types -o foo_functor.mli foo.sql
+episql -g caqti-persist-ml  -t Foo_types -o foo_functor.ml  foo.sql
+```
 
 The `Foo_types` module will contain pure types and related functions, which
 supports deriving annotations (see `-deriving`).  The `Foo_functor` module
 contains a functor which can be instantiated with caching and database
 traits.  For more details see
 
-    episql -g caqti-persist-ml -help
-
+``` sh
+episql -g caqti-persist-ml -help
+```
 
 ## Macaque Output
 
 Use the command line switch `-g macaque`.  An table definition like
 
-    CREATE TABLE testarea.note (note_id SERIAL PRIMARY KEY, note text NOT NULL);
+``` sql
+CREATE TABLE testarea.note (note_id SERIAL PRIMARY KEY, note text NOT NULL);
+```
 
 translates to
 
-    let note_note_id_seq =
-      <:sequence< serial "testarea.note_note_id_seq" >>
-    let note =
-      <:table< testarea.note (
-            note_id integer NOT NULL,
-            note text NOT NULL ) >>
+``` ocaml
+let note_note_id_seq =
+  <:sequence< serial "testarea.note_note_id_seq" >>
+let note =
+  <:table< testarea.note (
+        note_id integer NOT NULL,
+        note text NOT NULL ) >>
+```
+
+## XML Output
+
+The switch `-g xml` produces an XML dump of the database schema, making it
+possible for external software to extract information from the schema
+without parsing SQL.  E.g. this could be used to implement an alternative
+code generator using an XSLT.
+
+The above example translates to
+
+``` xml
+<?xml version="1.0" encoding="UTF-8"?>
+<episql>
+  <create-table name="testarea.note">
+    <column name="note_id" type="serial" primary-key="true"/>
+    <column name="note" type="text" nullable="false"/>
+  </create-table>
+</episql>
+```
 
 ## Shell Output
 
 Use `-g shell` to create a sequence of command invocations corresponding to
 the table definitions.  E.g. the above example produce
 
-    enter_create_table testarea.note
-    add_column testarea.note note_id 'serial' "PRIMARY KEY"
-    add_column testarea.note note 'text' "NOT NULL"
-    leave_create_table testarea.note
+``` sh
+enter_create_table testarea.note
+add_column testarea.note note_id 'serial' "PRIMARY KEY"
+add_column testarea.note note 'text' "NOT NULL"
+leave_create_table testarea.note
+```
 
 This is not meant as a permanent solution, but may provide a quick way to
 inspect or generate unsupported code.
