@@ -5,7 +5,8 @@ supports a subset of SQL `CREATE`-statements with focus on PostgreSQL.  It
 contains generators for
 
   * [Caqti][], providing a persistence-style API with caching,
-  * [Macaque][], providing `<:table< >>` and `<:sequence< >>` definitions, and
+  * [Macaque][], providing `<:table< >>` and `<:sequence< >>` definitions,
+  * XML, providing easy access for external applications to the schema, and
   * Unix shells, providing a series of function calls for general ad-hoc use.
 
 ## Caqti Persistence
@@ -88,8 +89,10 @@ add_column testarea.note note 'text' "NOT NULL"
 leave_create_table testarea.note
 ```
 
-This is not meant as a permanent solution, but may provide a quick way to
-inspect or generate unsupported code.
+This is not meant as a permanent solution, but provides a quick way to
+inspect or generate unsupported code.  The XML generator described above
+provides a more faithful representation and is more appropriate for external
+applications.
 
 
 [Caqti]: https://github.com/paurkedal/ocaml-caqti
