@@ -41,38 +41,70 @@ let string_of_serialtype = function
   | `Serial -> "serial"
   | `Bigserial -> "bigserial"
 
-let identifier_info =
+let int_conversion_of_datatype = function
+  | `Smallint | `Smallserial -> "int16", ""
+  | `Integer | `Serial -> "int32", "l"
+  | `Bigint | `Bigserial -> "int64", "L"
+  | _ -> failwith "Found integer literal in DEFAULT value of non-integer."
+
+let qname_info =
   let ht = Hashtbl.create 13 in
   Array.iter (fun (idr, info) -> Hashtbl.add ht idr info)
     [|"current_timestamp", `Convert_to_function;
       "localtimestamp", `Convert_to_function;
       "__at_time_zone", `Unsupported|];
-  fun idr -> try Hashtbl.find ht idr with Not_found -> `Noop
+  function
+  | (None, idr) -> (try Hashtbl.find ht idr with Not_found -> `Unsupported)
+  | (Some _, _) -> `Unsupported
 
-let translate = autorec @@ function
-  | Expr_qname (None, idr) as e ->
-    begin match identifier_info idr with
-    | `Convert_to_function -> Expr_app ((None, idr), [])
+let rec translate_inner = function
+  | Expr_qname qn as e ->
+    begin match qname_info qn with
+    | `Convert_to_function -> Expr_app (qn, [])
     | `Unsupported -> raise Unsupported
-    | _ -> e
+    | `Noop -> e
     end
-  | Expr_app ((None, idr), _) as e ->
-    begin match identifier_info idr with
+  | Expr_literal (Lit_integer _) -> raise Unsupported
+  | Expr_literal (Lit_text _) as e -> e
+  | Expr_app (qn, es) ->
+    begin match qname_info qn with
     | `Unsupported -> raise Unsupported
-    | _ -> e
+    | `Noop | `Convert_to_function -> Expr_app (qn, List.map translate_inner es)
     end
-  | e -> e
+
+let translate dt = function
+  | Expr_literal _ as e -> e
+  | Expr_app ((None, "nextval"), _) as e when dt = `Integer -> e
+  | e -> translate_inner e
 
 let generate stmts oc =
   let emit_type dt = output_string oc (string_of_datatype dt) in
-  let emit_expr e = output_string oc (string_of_expression e) in
-  let emit_column_constraint = function
+  let rec emit_expr = function
+    | Expr_qname (_, name) -> fprintf oc "$%s$" name
+    | Expr_literal (Lit_integer _) -> assert false
+    | Expr_literal (Lit_text s) ->
+      fprintf oc "$string:\"%s\"$" (String.escaped s)
+    | Expr_app (f, []) ->
+      output_string oc (string_of_qname f);
+      output_string oc "()"
+    | Expr_app (f, e :: es) ->
+      output_string oc (string_of_qname f);
+      output_char oc '(';
+      emit_expr e;
+      List.iter (fun e -> output_string oc ", "; emit_expr e) es;
+      output_char oc ')' in
+  let emit_typed_expr dt = function
+    | Expr_literal (Lit_integer i) ->
+      let conv, suffix = int_conversion_of_datatype dt in
+      fprintf oc "$%s:%Ld%s$" conv i suffix
+    | e -> emit_expr e in
+  let emit_column_constraint dt = function
     | `Not_null | `Primary_key -> output_string oc " NOT NULL"
     | `Null | `Unique | `References _ | `On_delete _ | `On_update _ -> ()
     | `Default e ->
       try
-	let e = translate e in
-	output_string oc " DEFAULT("; emit_expr e; output_char oc ')'
+	let e = translate dt e in
+	output_string oc " DEFAULT("; emit_typed_expr dt e; output_char oc ')'
       with Unsupported -> () in
   let emit_serial_seq tqn = function
     | Column (cn, (#serialtype as dt), _) ->
@@ -86,7 +118,7 @@ let generate stmts oc =
       output_string oc (if i > 0 then ",\n\t" else "\n\t");
       output_string oc cn; output_char oc ' ';
       emit_type dt;
-      List.iter emit_column_constraint ccs;
+      List.iter (emit_column_constraint dt) ccs;
       begin match dt with
       | #serialtype -> fprintf oc " DEFAULT(nextval $%s_%s_seq$)" (snd tqn) cn
       | _ -> ()
@@ -97,7 +129,7 @@ let generate stmts oc =
       let emit_default_nul_workaround = function
 	| `Default e ->
 	  (try
-	    ignore (translate e);
+	    ignore (translate dt e);
 	    fprintf oc "let () = ignore <:value< nullable $%s$?%s >>\n"
 		       (snd tqn) cn
 	   with Unsupported -> ())

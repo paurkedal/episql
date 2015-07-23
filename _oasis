@@ -12,6 +12,10 @@ Flag caqti_persist
   Description: Build caqti-persist library and code generator.
   Default: true
 
+Flag macaque
+  Description: Add test for Macaque.
+  Default: true
+
 Library "episql"
   Path: lib
   InternalModules: Episql_lexer, Episql_parser
@@ -49,7 +53,14 @@ Executable "test_caqti_persist"
   BuildDepends: caqti.lwt, episql.caqti-persist, prime.unstable, react
   ByteOpt: -thread
   NativeOpt: -thread
-  Build$: flag(caqti_persist)
+  Build$: flag(tests) && flag(caqti_persist)
+  Install: false
+
+Executable "test_macaque"
+  Path: tests
+  MainIs: schema_one_macaque.ml
+  BuildDepends: macaque
+  Build$: flag(tests) && flag(macaque)
   Install: false
 
 Document api

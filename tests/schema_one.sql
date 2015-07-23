@@ -43,3 +43,14 @@ CREATE TABLE episql_tests.tensor3c (
   note text,
   PRIMARY KEY (i, j, k)
 );
+
+CREATE SEQUENCE episql_tests.defaulted_seq;
+
+CREATE TABLE episql_tests.defaulted (
+  i16 smallint NOT NULL DEFAULT 0,
+  i32 integer NOT NULL DEFAULT 0,
+  i64 bigint NOT NULL DEFAULT 0,
+  s16 smallint NOT NULL DEFAULT nextval(episql_tests.defaulted_seq),
+  s32 integer NOT NULL DEFAULT nextval(episql_tests.defaulted_seq),
+  s64 bigint NOT NULL DEFAULT nextval(episql_tests.defaulted_seq)
+);

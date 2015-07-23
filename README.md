@@ -58,6 +58,10 @@ let note =
         note text NOT NULL ) >>
 ```
 
+Only a limited selection of default expression forms are supported.  If the
+generator does not know how to handle a certain expression, it the default
+specification is omitted from the Macaque description.
+
 ## XML Output
 
 The switch `-g xml` produces an XML dump of the database schema, making it

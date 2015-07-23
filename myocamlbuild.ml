@@ -13,7 +13,15 @@ let episql ?types gen sql ml env build =
   Cmd (S [P episql_prog; T (tags ++ "episql"); A"-g"; A gen; S types;
 	  P "-raise-on-absent";
           P sql; A"-o"; Px ml])
+
+let episql_macaque sql ml env build =
+  let sql = env sql and ml = env ml in
+  let tags = Tags.union (tags_of_pathname sql) (tags_of_pathname ml) in
+  Cmd (S [P episql_prog; T (tags ++ "episql"); A"-g"; A "macaque";
+          P sql; A"-o"; Px ml])
+
 let () =
+  mark_tag_used "tests";
   rule ".sql -> _persist_types.mli"
        ~deps:["tests/%.sql"; episql_prog] ~prod:"tests/%_persist_types.mli"
        (episql "caqti-persist-types-mli" "tests/%.sql"
@@ -29,7 +37,10 @@ let () =
   rule ".sql -> _persist.ml"
        ~deps:["tests/%.sql"; episql_prog] ~prod:"tests/%_persist.ml"
        (episql ~types:"%_persist_types"
-	       "caqti-persist-ml" "tests/%.sql" "tests/%_persist.ml")
+	       "caqti-persist-ml" "tests/%.sql" "tests/%_persist.ml");
+  rule ".sql -> _macaque.ml"
+       ~deps:["tests/%.sql"; episql_prog] ~prod:"tests/%_macaque.ml"
+       (episql_macaque "tests/%.sql" "tests/%_macaque.ml")
 
 let () = dispatch begin function
 
