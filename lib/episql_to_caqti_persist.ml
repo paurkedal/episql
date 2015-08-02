@@ -1,4 +1,4 @@
-(* Copyright (C) 2014  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2015  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -337,7 +337,14 @@ let emit_intf oc ti =
 	if ct.ct_nullable then fprint oc " | `Null";
 	fprint oc "] ->")
       ti.ti_cts;
-      fprintl oc "\n      unit -> t list Lwt.t"
+    fprint  oc "\n      ?order_by: [";
+    List.iteri
+      (fun i (cn, _) ->
+	if i > 0 then fprint oc " | ";
+	fprintf oc "`%s" (String.capitalize cn))
+      ti.ti_cts;
+    fprint oc "] list -> ?limit: int ->";
+    fprintl oc "\n      unit -> t list Lwt.t"
   end;
   if go.go_create then begin
     fprint oc "    val create :";
@@ -694,7 +701,7 @@ let emit_impl oc ti =
   if go.go_select then begin
     fprint  oc "    let select";
     List.iter (fun (cn, ct) -> fprint oc " ?"; fprint oc cn) ti.ti_cts;
-    fprintl oc " () =";
+    fprintl oc " ?(order_by = []) ?limit () =";
     if go.go_select_cache then begin
       fprint oc "      let args = ";
       List.iteri
@@ -737,6 +744,13 @@ let emit_impl oc ti =
 	  List.iter mk_binary ["Like", "LIKE"; "Ilike", "ILIKE"];
 	fprintl  oc "\tend;")
       ti.ti_cts;
+    fprint   oc "\tList.iter (fun col -> Sb.order_by sb (match col with ";
+    List.iteri
+      (fun i (cn, _) -> if i > 0 then fprint oc " | ";
+			fprintf oc "`%s -> \"%s\"" (String.capitalize cn) cn)
+      ti.ti_cts;
+    fprintl  oc ")) order_by;";
+    fprintl  oc "\t(match limit with None -> () | Some n -> Sb.limit sb n);";
     fprintl  oc "\tlet q, p = Sb.contents sb in";
     fprintl  oc "\tlet decode t acc =";
     if go.go_collapse_pk && List.length ti.ti_pk_cts = 1 then

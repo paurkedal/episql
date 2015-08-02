@@ -1,4 +1,4 @@
-(* Copyright (C) 2014  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2015  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -13,6 +13,8 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *)
+
+open Printf
 
 type 'a presence =
   | Absent
@@ -264,7 +266,7 @@ module Select_buffer (C : Caqti_lwt.CONNECTION) = struct
 
   type query_fragment = S of string | P of C.param
 
-  type state = Init | Ret | Where
+  type state = Init | Ret | Where | Order_by | Final
 
   type t = {
     make_param : int -> string;
@@ -285,14 +287,17 @@ module Select_buffer (C : Caqti_lwt.CONNECTION) = struct
     match sb.state with
     | Init -> sb.state <- Ret; Buffer.add_string sb.buf pn
     | Ret -> Buffer.add_string sb.buf ", "; Buffer.add_string sb.buf pn
-    | Where -> assert false
+    | Where | Order_by | Final -> assert false
+
+  let emit_from sb =
+    Buffer.add_string sb.buf " FROM ";
+    Buffer.add_string sb.buf sb.table_name
 
   let where sb qfs =
     begin match sb.state with
-    | Init -> assert false
+    | Init | Order_by | Final -> assert false
     | Ret ->
-      Buffer.add_string sb.buf " FROM ";
-      Buffer.add_string sb.buf sb.table_name;
+      emit_from sb;
       Buffer.add_string sb.buf " WHERE ";
       sb.state <- Where
     | Where ->
@@ -307,13 +312,32 @@ module Select_buffer (C : Caqti_lwt.CONNECTION) = struct
 	  sb.param_count <- sb.param_count + 1)
       qfs
 
+  let order_by sb cn =
+    match sb.state with
+    | Init | Final -> assert false
+    | Ret | Where ->
+      if sb.state = Ret then emit_from sb;
+      bprintf sb.buf " ORDER BY %s" cn;
+      sb.state <- Order_by
+    | Order_by ->
+      bprintf sb.buf ", %s" cn
+
+  let limit sb n =
+    begin match sb.state with
+    | Init -> assert false
+    | Ret -> emit_from sb
+    | Where | Order_by -> ()
+    end;
+    bprintf sb.buf "LIMIT %d" n;
+    sb.state <- Final
+
   let contents sb =
     begin match sb.state with
     | Init -> assert false
     | Ret ->
       Buffer.add_string sb.buf " FROM ";
       Buffer.add_string sb.buf sb.table_name
-    | Where -> ()
+    | Where | Order_by | Final -> ()
     end;
     let qs = Buffer.contents sb.buf in
     Caqti_query.Oneshot (fun _ -> qs), Array.of_list (List.rev sb.params)

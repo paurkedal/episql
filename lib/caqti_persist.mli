@@ -1,4 +1,4 @@
-(* Copyright (C) 2014  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2015  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -97,5 +97,7 @@ module Select_buffer (C : Caqti_lwt.CONNECTION) : sig
   val create : Caqti_metadata.backend_info -> string -> t
   val ret : t -> string -> unit
   val where : t -> query_fragment list -> unit
+  val order_by : t -> string -> unit
+  val limit : t -> int -> unit
   val contents : t -> Caqti_query.query * C.param array
 end
