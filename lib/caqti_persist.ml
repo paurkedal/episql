@@ -324,7 +324,7 @@ module Select_buffer (C : Caqti_lwt.CONNECTION) = struct
 
   let limit sb n =
     begin match sb.state with
-    | Init -> assert false
+    | Init | Final -> assert false
     | Ret -> emit_from sb
     | Where | Order_by -> ()
     end;
