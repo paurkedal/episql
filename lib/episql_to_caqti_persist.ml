@@ -45,6 +45,7 @@ type genopts = {
   mutable go_type_timestamp : string;
   mutable go_raise_on_absent : bool;
   mutable go_log_debug : string option;
+  mutable go_connection_arg : string option;
 }
 let go = {
   go_types_module = None;
@@ -72,6 +73,7 @@ let go = {
   go_type_timestamp = "CalendarLib.Calendar.t";
   go_raise_on_absent = false;
   go_log_debug = Some "caqti-persist";
+  go_connection_arg = None;
 }
 
 let convname_of_datatype = function
@@ -325,9 +327,13 @@ let emit_intf oc ti =
 		 (if is_opt then "" else " option"))
       ti.ti_cts
   end;
+  let start_query_val fn =
+    fprint oc "    val "; fprint oc fn; fprint oc " :";
+    Option.iter (fprintf oc " ?%s: (module Caqti_lwt.CONNECTION) ->")
+		go.go_connection_arg in
   fprintl oc "    val fetch : key -> t Lwt.t";
   if go.go_select then begin
-    fprint oc "    val select :";
+    start_query_val "select";
     List.iter
       (fun (cn, ct) ->
 	let tn = string_of_datatype ct.ct_type in
@@ -347,7 +353,7 @@ let emit_intf oc ti =
     fprintl oc "\n      unit -> t list Lwt.t"
   end;
   if go.go_create then begin
-    fprint oc "    val create :";
+    start_query_val "create";
     List.iter
       (fun (cn, ct) ->
 	fprintf oc "\n      %s%s: %s ->"
@@ -357,7 +363,7 @@ let emit_intf oc ti =
     fprintl oc "\n      unit -> t Lwt.t"
   end;
   if go.go_insert then begin
-    fprint oc "    val insert :";
+    start_query_val "insert";
     List.iter
       (fun (cn, ct) ->
 	fprintf oc "\n      %s%s: %s ->"
@@ -367,7 +373,7 @@ let emit_intf oc ti =
     fprintl oc "\n      t -> unit Lwt.t"
   end;
   if go.go_update && ti.ti_nonpk_cts <> [] then begin
-    fprint  oc "    val update :";
+    start_query_val "update";
     List.iter
       (fun (cn, {ct_type = dt; ct_nullable = dn}) ->
 	fprintf oc "\n      ?%s: %s%s ->" cn (string_of_datatype dt)
@@ -375,10 +381,14 @@ let emit_intf oc ti =
       ti.ti_nonpk_cts;
     fprintl oc "\n      t -> unit Lwt.t"
   end;
-  if go.go_delete then
-    fprintl oc "    val delete : t -> unit Lwt.t";
-  if go.go_patch then
-    fprintl oc "    val patch : t -> patch_in -> unit Lwt.t";
+  if go.go_delete then begin
+    start_query_val "delete";
+    fprintl oc " t -> unit Lwt.t"
+  end;
+  if go.go_patch then begin
+    start_query_val "patch";
+    fprintl oc " t -> patch_in -> unit Lwt.t"
+  end;
   if go.go_event then
     fprintl oc "    val patches : t -> patch_out React.E.t";
   fprintl oc "  end\n"
@@ -392,8 +402,19 @@ let emit_query oc name emit =
   fprint   oc "\t| `Sqlite -> \""; emit sqliteparam; fprintl oc "\"";
   fprintl  oc "\t| _ -> raise Caqti_query.Missing_query_string"
 
-let use_C = "P.use_db @@ fun (module C : Caqti_lwt.CONNECTION) ->\n"
-let emit_use_C oc n = findent oc n; output_string oc use_C
+let emit_use_C_noarg oc n =
+  findent oc n;
+  fprintl oc "P.use_db @@ fun (module C : Caqti_lwt.CONNECTION) ->"
+
+let emit_use_C oc n =
+  match go.go_connection_arg with
+  | None ->
+    emit_use_C_noarg oc n
+  | Some s ->
+    findent oc n;
+    fprintlf oc "(match %s with None -> P.use_db | Some db -> fun f -> f db)" s;
+    findent oc (n + 4);
+    fprintl oc "@@ fun (module C : Caqti_lwt.CONNECTION) ->"
 
 let emit_param oc ti pk cts =
   let n_pk = List.length ti.ti_pk_cts in
@@ -469,7 +490,7 @@ let emit_impl oc ti =
   fprintlf oc "      let key_size = %d" (List.length ti.ti_pk_cts);
   fprintlf oc "      let state_size = %d" (List.length ti.ti_nonpk_cts);
   fprintl oc "      let fetch key =";
-  emit_use_C oc 8;
+  emit_use_C_noarg oc 8;
   fprint  oc "\tC.find_opt Q.fetch ";
   emit_detuple oc ti.ti_nonpk_cts; fprint oc " ";
   emit_param oc ti "key" ti.ti_pk_cts; fprintl oc "";
@@ -515,6 +536,10 @@ let emit_impl oc ti =
       ti.ti_cts
   end;
 
+  let start_query_let fn =
+    fprint oc "    let "; fprint oc fn;
+    Option.iter (fprintf oc " ?%s") go.go_connection_arg in
+
   if go.go_select_cache then begin
     fprintl oc "    let select_cache = \
 		      Prime_cache.create P.Beacon.cache_metric 19";
@@ -522,7 +547,7 @@ let emit_impl oc ti =
   end;
 
   if go.go_insert || go.go_patch then begin
-    fprint  oc "    let insert";
+    start_query_let "insert";
     List.iter
       (fun (cn, ct) ->
 	fprintf oc " %c%s"
@@ -532,8 +557,8 @@ let emit_impl oc ti =
     fprintl  oc "      let rec retry () =";
     fprintl  oc "\tmatch o.state with";
     fprintl  oc "\t| Absent ->";
-    fprintl  oc "\t  let c = Lwt_condition.create () in";
-    fprintl  oc "\t  o.state <- Inserting c;";
+    fprintl  oc "\t  let _c = Lwt_condition.create () in";
+    fprintl  oc "\t  o.state <- Inserting _c;";
     emit_use_C oc 10;
     fprintl  oc "\t    let module Ib = Insert_buffer (C) in";
     fprintlf oc "\t    let ib = Ib.create C.backend_info \"%s\" in"
@@ -604,7 +629,7 @@ let emit_impl oc ti =
       end
     end;
     fprintl  oc "\t    o.state <- Present state;";
-    fprint   oc "\t    Lwt_condition.broadcast c state";
+    fprint   oc "\t    Lwt_condition.broadcast _c state";
     if go.go_event then begin
       fprintl oc ";";
       if ti.ti_nonpk_cts = [] then
@@ -620,14 +645,14 @@ let emit_impl oc ti =
       end
     end else
       fprintl oc "";
-    fprintl  oc "\t| Inserting c -> Lwt_condition.wait c >|= fun _ -> ()";
+    fprintl  oc "\t| Inserting _c -> Lwt_condition.wait _c >|= fun _ -> ()";
     fprintl  oc "\t| Present x -> Lwt.return_unit";
-    fprintl  oc "\t| Deleting c -> Lwt_condition.wait c >>= retry in";
+    fprintl  oc "\t| Deleting _c -> Lwt_condition.wait _c >>= retry in";
     fprintl  oc "      retry ()"
   end;
 
   if go.go_create then begin
-    fprint  oc "    let create";
+    start_query_let "create";
     List.iter
       (fun (cn, ct) ->
 	fprintf oc " %c%s"
@@ -699,7 +724,7 @@ let emit_impl oc ti =
   end;
 
   if go.go_select then begin
-    fprint  oc "    let select";
+    start_query_let "select";
     List.iter (fun (cn, ct) -> fprint oc " ?"; fprint oc cn) ti.ti_cts;
     fprintl oc " ?(order_by = []) ?limit () =";
     if go.go_select_cache then begin
@@ -790,9 +815,9 @@ let emit_impl oc ti =
   end;
 
   if (go.go_update || go.go_patch) && ti.ti_nonpk_cts <> [] then begin
-    fprint  oc "    let update ";
-    List.iter (fun (cn, ct) -> fprintf oc "?%s " cn) ti.ti_nonpk_cts;
-    fprintl oc "o =";
+    start_query_let "update";
+    List.iter (fun (cn, ct) -> fprintf oc " ?%s" cn) ti.ti_nonpk_cts;
+    fprintl oc " o =";
     fprintl oc "      match o.state with";
     fprintl oc "      | Inserting _ -> Lwt.fail (Conflict `Update_insert)";
     fprintl oc "      | Deleting _ -> Lwt.fail (Conflict `Update_delete)";
@@ -877,7 +902,8 @@ let emit_impl oc ti =
   end;
 
   if go.go_delete || go.go_patch then begin
-    fprintl oc "    let delete ({key} as o) =";
+    start_query_let "delete";
+    fprintl oc " ({key} as o) =";
     emit_use_C oc 6;
     fprintl oc "      let rec retry () =";
     fprintl oc "\tmatch o.state with";
@@ -895,7 +921,8 @@ let emit_impl oc ti =
   end;
 
   if go.go_patch then begin
-    fprintl oc "    let patch o p =";
+    start_query_let "patch";
+    fprintl oc " o p =";
     fprintl oc "      match p with";
     if ti.ti_nonpk_cts = [] then begin
       fprintl oc "      | `Insert ((), ()) -> insert o";
@@ -1074,6 +1101,11 @@ let () =
        for consistency, even though they return options.";
     "-no-raise-on-absent", Arg.Unit (fun () -> go.go_raise_on_absent <- false),
       "Inversion of -raise-on-absent and the default for now.";
+    "-connection-arg", Arg.String (fun s -> go.go_connection_arg <- Some s),
+      "NAME If passed, each query function accepts an optional argument ?NAME \
+       which will be used in place of calling P.use_db. If you use pooled \
+       connections, you will need this to use the query functions within \
+       a transaciton.";
     "-with-type-counit", Arg.String (fun s -> go.go_type_counit <- s),
       "T Use T as the Prime.counit type.";
     "-with-type-date", Arg.String (fun s -> go.go_type_date <- s),
