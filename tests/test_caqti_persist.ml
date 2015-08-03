@@ -55,7 +55,7 @@ let test_serial () =
   let now = CalendarLib.Calendar.now () in
   lwt e = Cp_1d_1o1r1d.create ~v1:"zap" ~v2:now () in
   begin match_lwt
-    Cp_1d_1o1r1d.select ~v2:(`Eq now) ~order_by:[`V2; `V1] ~limit:2 ()
+    Cp_1d_1o1r1d.select ~v2:(`Eq now) ~order_by:[`v2; `v1] ~limit:2 ()
   with
   | [e'] -> assert (e == e'); Lwt.return_unit
   | _ -> assert false

@@ -135,6 +135,8 @@ type table_info = {
   ti_pk_has_default : bool;
 }
 
+let variant_of_colname cn = cn
+
 let collect = function
   | Column (cn, ct_type, ccs) ->
     let is_serial = function #serialtype -> true | _ -> false in
@@ -343,11 +345,11 @@ let emit_intf oc ti =
 	if ct.ct_nullable then fprint oc " | `Null";
 	fprint oc "] ->")
       ti.ti_cts;
-    fprint  oc "\n      ?order_by: [";
+    fprint  oc "\n      ?order_by: [< ";
     List.iteri
       (fun i (cn, _) ->
 	if i > 0 then fprint oc " | ";
-	fprintf oc "`%s" (String.capitalize cn))
+	fprintf oc "`%s" (variant_of_colname cn))
       ti.ti_cts;
     fprint oc "] list -> ?limit: int ->";
     fprintl oc "\n      unit -> t list Lwt.t"
@@ -771,8 +773,9 @@ let emit_impl oc ti =
       ti.ti_cts;
     fprint   oc "\tList.iter (fun col -> Sb.order_by sb (match col with ";
     List.iteri
-      (fun i (cn, _) -> if i > 0 then fprint oc " | ";
-			fprintf oc "`%s -> \"%s\"" (String.capitalize cn) cn)
+      (fun i (cn, _) ->
+	if i > 0 then fprint oc " | ";
+	fprintf oc "`%s -> \"%s\"" (variant_of_colname cn) cn)
       ti.ti_cts;
     fprintl  oc ")) order_by;";
     fprintl  oc "\t(match limit with None -> () | Some n -> Sb.limit sb n);";
