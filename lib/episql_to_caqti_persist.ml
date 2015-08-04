@@ -82,8 +82,8 @@ let convname_of_datatype = function
   | `Integer | `Serial -> "int32"
   | `Bigint | `Bigserial -> "int64"
   | `Real | `Double_precision -> "float"
-  | `Text | `Char _ | `Varchar _ -> "text"
-  | `Bytea -> "octets"
+  | `Text | `Char _ | `Varchar _ -> "string"
+  | `Bytea -> "bytes"
   | `Numeric_auto | `Numeric _ -> "float" (* FIXME *)
   | `Time (_, _) -> "float"
   | `Date -> "date"
