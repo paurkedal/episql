@@ -40,7 +40,7 @@ CREATE TABLE episql_tests.tensor3c (
   k integer NOT NULL,
   re double precision NOT NULL,
   im double precision NOT NULL,
-  note text,
+  "note'" text,
   PRIMARY KEY (i, j, k)
 );
 

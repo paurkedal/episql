@@ -1,4 +1,4 @@
-(* Copyright (C) 2014  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2015  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -109,6 +109,7 @@ rule lex_main = parse
     { try Hashtbl.find keywords (String.uppercase word) word
       with Not_found -> IDENTIFIER word }
   | "'" { lex_string (Buffer.create 64) lexbuf }
+  | '"' { lex_identifier (Buffer.create 32) lexbuf }
   | digit+ as i { INT (Int64.of_string i) }
   | eof { EOF }
   | _ as c
@@ -120,6 +121,10 @@ and lex_string buf = parse
   | "''" { Buffer.add_char buf '\''; lex_string buf lexbuf }
   | "'" { STRING (Buffer.contents buf) }
   | [^'\'']+ as s { Buffer.add_string buf s; lex_string buf lexbuf }
+and lex_identifier buf = parse
+  | "\"\"" { Buffer.add_char buf '"'; lex_identifier buf lexbuf }
+  | '"' { IDENTIFIER (Buffer.contents buf) }
+  | [^'"']+ as s { Buffer.add_string buf s; lex_identifier buf lexbuf }
 
 {
   open Lexing
