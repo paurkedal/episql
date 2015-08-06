@@ -138,7 +138,8 @@ type table_info = {
 let variant_of_colname cn = cn
 
 let collect = function
-  | Column (cn, ct_type, ccs) ->
+  | Column { column_name = cn; column_type = ct_type;
+	     column_constraints = ccs } ->
     let is_serial = function #serialtype -> true | _ -> false in
     let is_default = function `Default _ -> true | _ -> false in
     let ct_defaultable = is_serial ct_type || List.exists is_default ccs in

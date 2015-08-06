@@ -27,6 +27,7 @@
 	"BY", (fun idr -> BY idr);
 	"CACHE", (fun idr -> CACHE idr);
 	"CASCADE", (fun idr -> CASCADE idr);
+	"COLLATE", (fun idr -> COLLATE idr);
 	"CREATE", (fun idr -> CREATE idr);
 	"CYCLE", (fun idr -> CYCLE idr);
 	"DEFAULT", (fun idr -> DEFAULT idr);

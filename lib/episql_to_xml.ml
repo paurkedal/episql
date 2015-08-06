@@ -16,6 +16,9 @@
 
 open Episql
 open Episql_types
+open Unprime
+open Unprime_option
+open Unprime_list
 
 let use_compact_lists = ref false
 let tag name = ("", name)
@@ -105,13 +108,14 @@ let xmlattrs_of_coltype ct =
 let write_column o name = output_leaf o "column" [Attr.string "name" name]
 
 let write_item o = function
-  | Column (cn, ct, constrs) ->
+  | Column { column_name = cn; column_type = ct;
+	     column_collate = cc; column_constraints = constrs } ->
     let ctn, ct_attrs = xmlattrs_of_coltype ct in
     let attrs =
-      Attr.string "name" cn ::
-      Attr.string "type" ctn ::
-      ( ct_attrs
-      @ List.flatten (List.map xmlattrs_of_column_constraint constrs) ) in
+      ct_attrs @ List.flatten (List.map xmlattrs_of_column_constraint constrs)
+      |> Option.fold (List.push *< Attr.string "collate") cc
+      |> List.push (Attr.string "type" ctn)
+      |> List.push (Attr.string "name" cn) in
     Xmlm.output o (`El_start (tag "column", attrs));
     Xmlm.output o `El_end
   | Constraint (`Check (expr, constr_attrs)) ->

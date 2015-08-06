@@ -1,4 +1,4 @@
-(* Copyright (C) 2014  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2015  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -75,6 +75,13 @@ type column_constraint =
   | `On_delete of [`Cascade | `Restrict]
   | `On_update of [`Cascade | `Restrict] ]
 
+type column = {
+  column_name : string;
+  column_type : datatype;
+  column_collate : string option;
+  column_constraints : column_constraint list;
+}
+
 type table_scope = [`Permanent | `Permanent_unlogged | `Temporary]
 
 type table_constraint =
@@ -84,7 +91,7 @@ type table_constraint =
   | `Foreign_key of string list * qname * string list ]
 
 type table_item =
-  | Column of string * datatype * column_constraint list
+  | Column of column
   | Constraint of table_constraint
 
 type table = {

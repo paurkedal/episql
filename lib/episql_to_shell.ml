@@ -1,4 +1,4 @@
-(* Copyright (C) 2014  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2015  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -31,7 +31,7 @@ let generate stmts oc =
     output_string oc (String.escaped (string_of_column_constraint cc));
     output_char oc '"' in
   let emit_colspec tqn = function
-    | Column (cn, dt, ccs) ->
+    | Column {column_name = cn; column_type = dt; column_constraints = ccs} ->
       fprintf oc "add_column %s %s '%s'"
 		 (string_of_qname tqn) cn (string_of_datatype dt);
       List.iter emit_column_constraint ccs;

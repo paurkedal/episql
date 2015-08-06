@@ -1,4 +1,4 @@
-(* Copyright (C) 2014  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2015  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -107,14 +107,14 @@ let generate stmts oc =
 	output_string oc " DEFAULT("; emit_typed_expr dt e; output_char oc ')'
       with Unsupported -> () in
   let emit_serial_seq tqn = function
-    | Column (cn, (#serialtype as dt), _) ->
+    | Column {column_name = cn; column_type = #serialtype as dt} ->
       fprintf oc "let %s_%s_seq =\n  <:sequence< %s \"%s_%s_seq\" >>\n"
 		 (snd tqn) cn
 		 (string_of_serialtype dt)
 		 (string_of_qname tqn) cn
     | _ -> () in
   let emit_colspec tqn i = function
-    | Column (cn, dt, ccs) ->
+    | Column {column_name = cn; column_type = dt; column_constraints = ccs} ->
       output_string oc (if i > 0 then ",\n\t" else "\n\t");
       output_string oc cn; output_char oc ' ';
       emit_type dt;
@@ -125,7 +125,7 @@ let generate stmts oc =
       end
     | Constraint _ -> () in
   let emit_table_post tqn = function
-    | Column (cn, dt, ccs) ->
+    | Column {column_name = cn; column_type = dt; column_constraints = ccs} ->
       let emit_default_nul_workaround = function
 	| `Default e ->
 	  (try

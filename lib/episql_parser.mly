@@ -1,4 +1,4 @@
-/* Copyright (C) 2014  Petter Urkedal <paurkedal@gmail.com>
+/* Copyright (C) 2014--2015  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -24,7 +24,7 @@
 %token COMMA DOT EOF SEMICOLON LPAREN RPAREN
 
 /* Keywords */
-%token<string> AS AT BY CACHE CASCADE CHECK CREATE CYCLE
+%token<string> AS AT BY CACHE CASCADE COLLATE CHECK CREATE CYCLE
 %token<string> DEFAULT DELETE DROP ENUM EXISTS FOREIGN
 %token<string> IF INCREMENT INHERIT KEY
 %token<string> MINVALUE MAXVALUE NO NOT NULL ON WITH
@@ -118,8 +118,14 @@ nonempty_table_items:
   | table_items COMMA table_item { $3 :: $1 }
   ;
 table_item:
-    tfname datatype column_constraints { Column ($1, $2, List.rev $3) }
+    tfname datatype collate column_constraints
+    { Column { column_name = $1; column_type = $2;
+	       column_collate = $3; column_constraints = List.rev $4 } }
   | table_constraint { Constraint $1 }
+  ;
+collate:
+    /* empty */ { None }
+  | COLLATE identifier { Some $2; }
   ;
 column_constraints:
     /* empty */ { [] }
