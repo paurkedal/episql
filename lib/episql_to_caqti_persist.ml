@@ -919,7 +919,9 @@ let emit_impl oc ti =
     fprint  oc "\t  C.exec Q.delete ";
     emit_param oc ti "key" ti.ti_pk_cts; fprintl oc " >|= fun () ->";
     if go.go_select_cache then fprintl oc "\t  clear_select_cache ();";
-    fprintl oc "\t  o.state <- Absent; o.notify `Delete";
+    fprintl oc "\t  o.state <- Absent;";
+    fprintl oc "\t  Lwt_condition.broadcast _c ();";
+    fprintl oc "\t  o.notify `Delete";
     fprintl oc "\t| Deleting _c -> Lwt_condition.wait _c in";
     fprintl oc "      retry ()"
   end;
