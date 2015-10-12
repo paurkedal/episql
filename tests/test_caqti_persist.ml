@@ -35,30 +35,31 @@ module M = Schema_one_persist.Make (P)
 open M
 
 let test_serial () =
-  lwt a = Cp_1d_0.create () in
+  let%lwt a = Cp_1d_0.create () in
   Cp_1d_0.delete a >>
 
-  lwt b = Cp_1d_1o.create () in
+  let%lwt b = Cp_1d_1o.create () in
   Cp_1d_1o.update ~v0:(Some "updated") b >>
   Cp_1d_1o.patch b `Delete >>
 
-  lwt c = Cp_1d_1o.create ~v0:"created" () in
+  let%lwt c = Cp_1d_1o.create ~v0:"created" () in
   Cp_1d_1o.delete c >>
   Cp_1d_1o.insert c >>
   Cp_1d_1o.patch c `Delete >>
 
-  lwt d = Cp_1d_1r.create ~v0:1.0 () in
+  let%lwt d = Cp_1d_1r.create ~v0:1.0 () in
   Cp_1d_1r.patch d `Delete >>
   Cp_1d_1r.(patch d (`Insert ({r_v0 = 5.25}, defaults))) >>
   Cp_1d_1r.delete d >>
 
   let now = CalendarLib.Calendar.now () in
-  lwt e = Cp_1d_1o1r1d.create ~v1:"zap" ~v2:now () in
-  begin match_lwt
-    Cp_1d_1o1r1d.select ~v2:(`Eq now) ~order_by:[`v2; `v1] ~limit:2 ()
-  with
-  | [e'] -> assert (e == e'); Lwt.return_unit
-  | _ -> assert false
+  let%lwt e = Cp_1d_1o1r1d.create ~v1:"zap" ~v2:now () in
+  begin
+    match%lwt
+      Cp_1d_1o1r1d.select ~v2:(`Eq now) ~order_by:[`v2; `v1] ~limit:2 ()
+    with
+    | [e'] -> assert (e == e'); Lwt.return_unit
+    | _ -> assert false
   end >>
   Lwt_list.iter_s (Cp_1d_1o1r1d.patch e)
     [ `Delete;

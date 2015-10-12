@@ -1,2 +1,2 @@
-<test_caqti_persist.ml>: syntax(camlp4o), package(lwt.syntax)
+<test_caqti_persist.ml>: package(lwt.ppx)
 <schema_one_macaque.ml>: syntax(camlp4o), package(macaque.syntax)
