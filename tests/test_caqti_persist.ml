@@ -15,6 +15,9 @@
  *)
 
 open Caqti_persist
+open Unprime_list
+
+let section = Lwt_log.Section.make "Test_caqti_persist"
 
 module P = struct
   module Cm = struct
@@ -74,8 +77,25 @@ let test_serial () =
   end >>
   Cp_1d_1o1r1d.delete e
 
+let test_parallel_inner a j =
+  if Tensor1.is_present a then
+    if Random.bool () then
+      Lwt_log.debug ~section "Tensor1.update" >>
+      Tensor1.update ~x:(float_of_int j) a
+    else
+      Lwt_log.debug ~section "Tensor1.delete" >>
+      Tensor1.delete a
+  else
+    Lwt_log.debug ~section "Tensor1.insert" >>
+    Tensor1.insert ~x:(float_of_int j) a
+
+let test_parallel i =
+  let%lwt a = Tensor1.create ~i:(Int32.of_int i) ~x:0.0 () in
+  Lwt.join (List.sample (test_parallel_inner a) 100) >>
+  Tensor1.delete a
+
 let main =
   test_serial () >>
-  Lwt.return_unit
+  Lwt.join (List.sample test_parallel 100)
 
 let () = Lwt_main.run main

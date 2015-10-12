@@ -51,6 +51,7 @@ Executable "test_caqti_persist"
   Path: tests
   MainIs: test_caqti_persist.ml
   BuildDepends: caqti.lwt, episql.caqti-persist, prime.unstable, react
+  CompiledObject: best
   ByteOpt: -thread
   NativeOpt: -thread
   Build$: flag(tests) && flag(caqti_persist)
@@ -60,6 +61,7 @@ Executable "test_macaque"
   Path: tests
   MainIs: schema_one_macaque.ml
   BuildDepends: macaque
+  CompiledObject: best
   Build$: flag(tests) && flag(macaque)
   Install: false
 
