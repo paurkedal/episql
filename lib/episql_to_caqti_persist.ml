@@ -861,8 +861,8 @@ let emit_impl oc ti =
       end
     end else
       fprintl oc "\tLwt.fail (Failure \"Update of absent row.\")";
-    fprint  oc "      | Present state -> ";
-    emit_use_C oc 0;
+    fprintl oc "      | Present state -> ";
+    emit_use_C oc 8;
     fprintl  oc "\tlet module Ub = Update_buffer (C) in";
     fprintlf oc "\tlet ub = Ub.create C.backend_info \"%s\" in"
 	     (Episql.string_of_qname ti.ti_tqn);
@@ -912,15 +912,15 @@ let emit_impl oc ti =
     fprintl oc "      let rec retry () =";
     fprintl oc "\tmatch o.state with";
     fprintl oc "\t| Absent -> Lwt.return_unit";
-    fprintl oc "\t| Inserting c -> Lwt_condition.wait c >>= fun _ -> retry ()";
+    fprintl oc "\t| Inserting _c -> Lwt_condition.wait _c >>= fun _ -> retry ()";
     fprintl oc "\t| Present _ ->";
-    fprintl oc "\t  let c = Lwt_condition.create () in";
-    fprintl oc "\t  o.state <- Deleting c;";
+    fprintl oc "\t  let _c = Lwt_condition.create () in";
+    fprintl oc "\t  o.state <- Deleting _c;";
     fprint  oc "\t  C.exec Q.delete ";
     emit_param oc ti "key" ti.ti_pk_cts; fprintl oc " >|= fun () ->";
     if go.go_select_cache then fprintl oc "\t  clear_select_cache ();";
     fprintl oc "\t  o.state <- Absent; o.notify `Delete";
-    fprintl oc "\t| Deleting c -> Lwt_condition.wait c in";
+    fprintl oc "\t| Deleting _c -> Lwt_condition.wait _c in";
     fprintl oc "      retry ()"
   end;
 
