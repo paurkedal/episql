@@ -328,7 +328,7 @@ module Select_buffer (C : Caqti_lwt.CONNECTION) = struct
     | Ret -> emit_from sb
     | Where | Order_by -> ()
     end;
-    bprintf sb.buf "LIMIT %d" n;
+    bprintf sb.buf " LIMIT %d" n;
     sb.state <- Final
 
   let contents sb =
