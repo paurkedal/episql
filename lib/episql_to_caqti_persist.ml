@@ -353,8 +353,10 @@ let emit_intf oc ti =
 	fprintf oc "`%s" (variant_of_colname cn))
       ti.ti_cts;
     fprint oc "] list -> ?limit: int ->";
-    fprintl oc "\n      unit -> t list Lwt.t"
+    fprintl oc "\n      unit -> t list Lwt.t";
   end;
+  if go.go_select_cache then
+    fprintl oc "    val clear_select_cache : unit -> unit";
   if go.go_create then begin
     start_query_val "create";
     List.iter
