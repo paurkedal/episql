@@ -35,6 +35,7 @@
 	"DROP", (fun idr -> DROP idr);
 	"ENUM", (fun idr -> ENUM idr);
 	"EXISTS", (fun idr -> EXISTS idr);
+	"FOREIGN", (fun idr -> FOREIGN idr);
 	"IF", (fun idr -> IF idr);
 	"INCREMENT", (fun idr -> INCREMENT idr);
 	"INHERIT", (fun idr -> INHERIT idr);
