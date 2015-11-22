@@ -19,6 +19,13 @@
   open Episql_types
   open Printf
 
+  type dialect_traits = {
+    dt_has_nested_comments : bool;
+  }
+  let dialect_traits_of_dialect = function
+    | `Pgsql -> { dt_has_nested_comments = true }
+    | _ -> { dt_has_nested_comments = false }
+
   let keywords = Hashtbl.create 31
   let () =
     List.iter (fun (kw, token) -> Hashtbl.add keywords kw token)
@@ -99,9 +106,11 @@ let digit = ['0'-'9']
 let wordfst = ['a'-'z' 'A'-'Z' '_']
 let wordcnt = ['a'-'z' 'A'-'Z' '_' '0'-'9']
 
-rule lex_main = parse
-  | "--" [^ '\n']* | [' ' '\t']+ { lex_main lexbuf }
-  | '\n' { Lexing.new_line lexbuf; lex_main lexbuf }
+rule lex_main dt = parse
+  | "--" [^ '\n']* | [' ' '\t']+ { lex_main dt lexbuf }
+  | "/*" { lex_cstyle_comment dt (Lexing.lexeme_start_p lexbuf) lexbuf;
+	   lex_main dt lexbuf; }
+  | '\n' { Lexing.new_line lexbuf; lex_main dt lexbuf }
   | '(' { LPAREN }
   | ')' { RPAREN }
   | ',' { COMMA }
@@ -127,18 +136,32 @@ and lex_identifier buf = parse
   | "\"\"" { Buffer.add_char buf '"'; lex_identifier buf lexbuf }
   | '"' { IDENTIFIER (Buffer.contents buf) }
   | [^'"']+ as s { Buffer.add_string buf s; lex_identifier buf lexbuf }
+and lex_cstyle_comment dt lxm = parse
+  | "/*"
+    { lex_cstyle_comment dt lxm lexbuf;
+      if dt.dt_has_nested_comments then
+	lex_cstyle_comment dt lxm lexbuf; }
+  | "*/" { () }
+  | '\n' { Lexing.new_line lexbuf; lex_cstyle_comment dt lxm lexbuf; }
+  | [^'/' '*' '\n']+ { lex_cstyle_comment dt lxm lexbuf; }
+  | '/' | '*' { lex_cstyle_comment dt lxm lexbuf; }
+  | eof
+    { let open Lexing in
+      ksprintf failwith "%s:%d,%d: Unmatched \"/*\"."
+	       lxm.pos_fname lxm.pos_lnum (lxm.pos_cnum - lxm.pos_bol); }
 
 {
   open Lexing
 
-  let parse_lexbuf lexbuf = schema lex_main lexbuf
+  let parse_lexbuf ?(dialect = `Sql) lexbuf =
+    schema (lex_main (dialect_traits_of_dialect dialect)) lexbuf
 
   let report_error lexbuf msg =
     let lxm = lexeme_start_p lexbuf in
     Printf.ksprintf failwith "%s:%d,%d: %s" lxm.pos_fname
 		    lxm.pos_lnum (lxm.pos_cnum - lxm.pos_bol) msg
 
-  let parse_file path =
+  let parse_file ?dialect path =
     let ic = open_in path in
     let lexbuf = from_channel ic in
     lexbuf.lex_curr_p <- {
@@ -147,7 +170,7 @@ and lex_identifier buf = parse
       pos_bol = 0;
       pos_cnum = 0
     };
-    try parse_lexbuf lexbuf with
+    try parse_lexbuf ?dialect lexbuf with
     | Parsing.Parse_error -> close_in ic; report_error lexbuf "Syntax error."
     | xc -> close_in ic; raise xc
 }

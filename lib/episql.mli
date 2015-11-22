@@ -1,4 +1,4 @@
-(* Copyright (C) 2014  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2015  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -16,7 +16,11 @@
 
 open Episql_types
 
-val parse_file : string -> statement list
+type dialect_tag = private [> `Mysql | `Pgsql | `Sqlite]
+(** A type indicating how to interpret certain SQL code when implementations
+    conflict.  This is the same as {!Caqti_metadata.dialect_tag}. *)
+
+val parse_file : ?dialect: dialect_tag -> string -> statement list
 
 val string_of_datatype : datatype -> string
 
