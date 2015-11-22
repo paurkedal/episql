@@ -77,27 +77,27 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) :
 module Insert_buffer (C : Caqti_lwt.CONNECTION) : sig
   type t
   val create : Caqti_metadata.backend_info -> string -> t
-  val set : t -> string -> C.param -> unit
+  val set : t -> string -> C.Param.t -> unit
   val ret : t -> string -> unit
   val have_ret : t -> bool
-  val contents : t -> Caqti_query.query * C.param array
+  val contents : t -> Caqti_query.query * C.Param.t array
 end
 
 module Update_buffer (C : Caqti_lwt.CONNECTION) : sig
   type t
   val create : Caqti_metadata.backend_info -> string -> t
-  val set : t -> string -> C.param -> unit
-  val where : t -> string -> C.param -> unit
-  val contents : t -> (Caqti_query.query * C.param array) option
+  val set : t -> string -> C.Param.t -> unit
+  val where : t -> string -> C.Param.t -> unit
+  val contents : t -> (Caqti_query.query * C.Param.t array) option
 end
 
 module Select_buffer (C : Caqti_lwt.CONNECTION) : sig
   type t
-  type query_fragment = S of string | P of C.param
+  type query_fragment = S of string | P of C.Param.t
   val create : Caqti_metadata.backend_info -> string -> t
   val ret : t -> string -> unit
   val where : t -> query_fragment list -> unit
   val order_by : t -> string -> unit
   val limit : t -> int -> unit
-  val contents : t -> Caqti_query.query * C.param array
+  val contents : t -> Caqti_query.query * C.Param.t array
 end

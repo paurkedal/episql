@@ -150,7 +150,7 @@ module Insert_buffer (C : Caqti_lwt.CONNECTION) = struct
     backend_info : backend_info;
     buf : Buffer.t;
     mutable param_count : int;
-    mutable params : C.param list;
+    mutable params : C.Param.t list;
     mutable returning : string list;
   }
 
@@ -218,7 +218,7 @@ module Update_buffer (C : Caqti_lwt.CONNECTION) = struct
     make_param : int -> string;
     buf : Buffer.t;
     mutable param_count : int;
-    mutable params : C.param list;
+    mutable params : C.Param.t list;
     mutable state : state;
   }
 
@@ -264,7 +264,7 @@ end
 
 module Select_buffer (C : Caqti_lwt.CONNECTION) = struct
 
-  type query_fragment = S of string | P of C.param
+  type query_fragment = S of string | P of C.Param.t
 
   type state = Init | Ret | Where | Order_by | Final
 
@@ -272,7 +272,7 @@ module Select_buffer (C : Caqti_lwt.CONNECTION) = struct
     make_param : int -> string;
     buf : Buffer.t;
     table_name : string;
-    mutable params : C.param list;
+    mutable params : C.Param.t list;
     mutable param_count : int;
     mutable state : state;
   }
