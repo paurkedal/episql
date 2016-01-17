@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2015  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2016  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -45,6 +45,7 @@ let int_conversion_of_datatype = function
   | `Smallint | `Smallserial -> "int16", ""
   | `Integer | `Serial -> "int32", "l"
   | `Bigint | `Bigserial -> "int64", "L"
+  | `Real | `Double_precision -> "float", "e0"
   | _ -> failwith "Found integer literal in DEFAULT value of non-integer."
 
 let qname_info =
