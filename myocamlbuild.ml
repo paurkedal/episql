@@ -12,6 +12,7 @@ let episql ?types gen sql ml env build =
   let tags = Tags.union (tags_of_pathname sql) (tags_of_pathname ml) in
   Cmd (S [P episql_prog; T (tags ++ "episql"); A"-g"; A gen; S types;
 	  A "-raise-on-absent"; A "-connection-arg"; A "c";
+	  A "-ppx-deriving"; A "show";
           P sql; A"-o"; Px ml])
 
 let episql_macaque sql ml env build =

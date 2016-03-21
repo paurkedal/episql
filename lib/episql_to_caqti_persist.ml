@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2015  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2016  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -38,6 +38,7 @@ type genopts = {
   mutable go_value_prefix : string;
   mutable go_value_r_prefix : string;
   mutable go_value_d_prefix : string;
+  mutable go_use_ppx : bool;
   mutable go_deriving : string list;
   mutable go_open : string list;
   mutable go_type_counit : string;
@@ -66,6 +67,7 @@ let go = {
   go_value_prefix = "v_";
   go_value_r_prefix = "r_";
   go_value_d_prefix = "d_";
+  go_use_ppx = true;
   go_deriving = [];
   go_open = [];
   go_type_counit = "Prime.counit";
@@ -174,10 +176,13 @@ let emit_custom_open oc =
   output_char oc '\n'
 
 let emit_deriving_nl oc =
-  if go.go_deriving = [] then
-    fprintl oc "\n"
-  else
-    fprintlf oc " deriving (%s)\n" (String.concat ", " go.go_deriving)
+  if go.go_deriving <> [] then begin
+    let modules_str = String.concat ", " go.go_deriving in
+    if go.go_use_ppx
+      then fprintlf oc " [@@deriving %s]" modules_str
+      else fprintlf oc " deriving (%s)" modules_str
+  end;
+  output_char oc '\n'
 
 let emit_type_pk oc ti =
   if go.go_collapse_pk && List.length ti.ti_pk_cts = 1 then begin
@@ -1096,11 +1101,17 @@ let () =
 			       then Filename.chop_suffix mn ".mli"
 			       else mn)) in
   let common_arg_specs = [
-    "-deriving", Arg.String (fun c -> go.go_deriving <- c :: go.go_deriving),
-      "CLASS Add deriving (CLASS) to type definitions. \
+    "-ppx-deriving",
+      Arg.String (fun c -> go.go_use_ppx <- true;
+			   go.go_deriving <- c :: go.go_deriving),
+      "CLASS Add [@@deriving CLASS] to type definitions. \
 	     Only supported with separate types module. \
 	     The -use-type* and -open flags are useful for supplementing \
 	     suitable definitions for missing classes.";
+    "-deriving",
+      Arg.String (fun c -> go.go_use_ppx <- false;
+			   go.go_deriving <- c :: go.go_deriving),
+      "Deprecated.";
     "-open", Arg.String (fun m -> go.go_open <- m :: go.go_open),
       "M Open M at top of the generated files but after other open statements.";
     "-raise-on-absent", Arg.Unit (fun () -> go.go_raise_on_absent <- true),
