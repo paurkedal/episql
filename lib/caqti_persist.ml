@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2015  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2016  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -48,7 +48,7 @@ let query_overhead = ref (1e-3 *. cache_second)
 let transfer_grade = ref (1e-8 *. cache_second)
 
 let default_select_grade n = !query_overhead /. float_of_int n
-			  +. !transfer_grade
+                          +. !transfer_grade
 let select_grade = ref default_select_grade
 
 module type PK_CACHABLE = sig
@@ -128,15 +128,15 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
       let o = W.find cache (mk_key key) in
       begin match o.state with
       | Deleting c -> Lwt_condition.wait c >|= fun () ->
-		      o.state <- Present state
+                      o.state <- Present state
       | Absent -> o.state <- Present state; Lwt.return_unit
       | Inserting _ | Present _ -> Lwt.fail (Conflict `Insert_insert)
       end >|= fun () -> o
     with Not_found ->
       let o =
-	let patches, notify = React.E.create () in
-	Beacon.embed fetch_grade
-	  (fun beacon -> {key; state=Present state; beacon; patches; notify}) in
+        let patches, notify = React.E.create () in
+        Beacon.embed fetch_grade
+          (fun beacon -> {key; state=Present state; beacon; patches; notify}) in
       W.add cache o;
       Lwt.return o
 
@@ -177,17 +177,17 @@ module Insert_buffer (C : Caqti_lwt.CONNECTION) = struct
       Buffer.add_string ib.buf ") VALUES (";
       begin match ib.backend_info.bi_parameter_style with
       | `Linear s ->
-	Buffer.add_string ib.buf s;
-	for i = 1 to ib.param_count - 1 do
-	  Buffer.add_string ib.buf ", ";
-	  Buffer.add_string ib.buf s
-	done
+        Buffer.add_string ib.buf s;
+        for i = 1 to ib.param_count - 1 do
+          Buffer.add_string ib.buf ", ";
+          Buffer.add_string ib.buf s
+        done
       | `Indexed sf ->
-	Buffer.add_string ib.buf (sf 0);
-	for i = 1 to ib.param_count - 1 do
-	  Buffer.add_string ib.buf ", ";
-	  Buffer.add_string ib.buf (sf i)
-	done
+        Buffer.add_string ib.buf (sf 0);
+        for i = 1 to ib.param_count - 1 do
+          Buffer.add_string ib.buf ", ";
+          Buffer.add_string ib.buf (sf i)
+        done
       | _ -> raise Missing_query_string
       end;
       Buffer.add_char ib.buf ')'
@@ -198,7 +198,7 @@ module Insert_buffer (C : Caqti_lwt.CONNECTION) = struct
       Buffer.add_string ib.buf " RETURNING ";
       Buffer.add_string ib.buf r;
       List.iter (fun r -> Buffer.add_string ib.buf ", ";
-			  Buffer.add_string ib.buf r) rs
+                          Buffer.add_string ib.buf r) rs
     end;
     let qs = Buffer.contents ib.buf in
     (Oneshot (fun _ -> qs), Array.of_list (List.rev ib.params))
@@ -259,7 +259,7 @@ module Update_buffer (C : Caqti_lwt.CONNECTION) = struct
     | Init | Noop -> None
     | Set -> assert false (* Precaution, we don't need unconditional update. *)
     | Where -> Some (Caqti_query.Oneshot (fun _ -> qs),
-		     Array.of_list (List.rev ub.params))
+                     Array.of_list (List.rev ub.params))
 end
 
 module Select_buffer (C : Caqti_lwt.CONNECTION) = struct
@@ -305,11 +305,11 @@ module Select_buffer (C : Caqti_lwt.CONNECTION) = struct
     end;
     List.iter
       (function
-	| S s -> Buffer.add_string sb.buf s
-	| P pv ->
-	  Buffer.add_string sb.buf (sb.make_param sb.param_count);
-	  sb.params <- pv :: sb.params;
-	  sb.param_count <- sb.param_count + 1)
+        | S s -> Buffer.add_string sb.buf s
+        | P pv ->
+          Buffer.add_string sb.buf (sb.make_param sb.param_count);
+          sb.params <- pv :: sb.params;
+          sb.param_count <- sb.param_count + 1)
       qfs
 
   let order_by sb cn =

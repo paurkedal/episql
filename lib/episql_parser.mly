@@ -1,4 +1,4 @@
-/* Copyright (C) 2014--2015  Petter A. Urkedal <paurkedal@gmail.com>
+/* Copyright (C) 2014--2016  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -60,13 +60,13 @@ statement:
     CREATE SCHEMA tfname { Create_schema $3 }
   | CREATE sequence_scope SEQUENCE tfqname seq_attrs
     { Create_sequence {sequence_qname = $4; sequence_scope = $2;
-		       sequence_attrs = List.rev $5} }
+                       sequence_attrs = List.rev $5} }
   | CREATE table_scope TABLE IF NOT EXISTS tfqname LPAREN table_items RPAREN
     { Create_table {table_qname = $7; table_scope = $2;
-		    table_if_not_exists = true; table_items = List.rev $9} }
+                    table_if_not_exists = true; table_items = List.rev $9} }
   | CREATE table_scope TABLE tfqname LPAREN table_items RPAREN
     { Create_table {table_qname = $4; table_scope = $2;
-		    table_if_not_exists = false; table_items = List.rev $6} }
+                    table_if_not_exists = false; table_items = List.rev $6} }
   | CREATE TYPE tfqname AS ENUM LPAREN enum_cases RPAREN
     { Create_enum ($3, $7) }
   | DROP SCHEMA nonempty_tfnames_r drop_options_r
@@ -120,7 +120,7 @@ nonempty_table_items:
 table_item:
     tfname datatype collate column_constraints
     { Column { column_name = $1; column_type = $2;
-	       column_collate = $3; column_constraints = List.rev $4 } }
+               column_collate = $3; column_constraints = List.rev $4 } }
   | table_constraint { Constraint $1 }
   ;
 collate:

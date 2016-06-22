@@ -1,4 +1,4 @@
-(* Copyright (C) 2014  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2016  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -40,14 +40,14 @@ let () =
     with Not_found -> raise (Arg.Bad (gn ^ " is not a supported generator")) in
   arg_specs := Arg.align
     [ "-g", Arg.String set_generator,
-	"GENERATOR Select generator among: " ^ gens;
+        "GENERATOR Select generator among: " ^ gens;
       "-o", Arg.Set_string arg_output,
-	"PATH Output path.";
+        "PATH Output path.";
       "-disable-keywords", Arg.String disable_keywords,
-	"KW,...,KW Disable the given keywords, in case they clash with \
-		   column, table, or other names in your schema." ];
+        "KW,...,KW Disable the given keywords, in case they clash with \
+                   column, table, or other names in your schema." ];
   Arg.parse_dynamic arg_specs (fun fp -> arg_inputs := fp :: !arg_inputs)
-		    Sys.argv.(0);
+                    Sys.argv.(0);
   let generator =
     match !arg_generator with
     | None -> fprintf stderr "The -g option is mandatory.\n"; exit 64

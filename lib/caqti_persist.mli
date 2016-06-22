@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2015  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2016  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -70,9 +70,9 @@ module type PK_CACHED = sig
 end
 
 module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) :
-	PK_CACHED with type key := P.key and type state := P.state
-		   and type value := P.value and type change := P.change
-		   and type beacon := Beacon.t
+        PK_CACHED with type key := P.key and type state := P.state
+                   and type value := P.value and type change := P.change
+                   and type beacon := Beacon.t
 
 module Insert_buffer (C : Caqti_lwt.CONNECTION) : sig
   type t

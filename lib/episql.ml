@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2015  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2016  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -26,7 +26,7 @@ let with_buffer f = let buf = Buffer.create 128 in f buf; Buffer.contents buf
 let bprint_qname buf = function
   | (None, name) -> Buffer.add_string buf name
   | (Some ns, name) -> Buffer.add_string buf ns; Buffer.add_char buf '.';
-		       Buffer.add_string buf name
+                       Buffer.add_string buf name
 
 let string_of_qname = function
   | (None, name) -> name

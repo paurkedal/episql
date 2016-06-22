@@ -1,4 +1,4 @@
-(* Copyright (C) 2015  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2015--2016  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -76,7 +76,7 @@ let xmlattrs_of_coltype ct =
     "interval", [Attr.string "fields" (string_of_interval_fields fields)] in
   let mk_ip fields p =
     "interval", [Attr.string "fields" (string_of_interval_fields fields);
-		 Attr.int "precision" p] in
+                 Attr.int "precision" p] in
   match ct with
   | `Boolean		-> mk "boolean"
   | `Smallint		-> mk "smallint"
@@ -109,7 +109,7 @@ let write_column o name = output_leaf o "column" [Attr.string "name" name]
 
 let write_item o = function
   | Column { column_name = cn; column_type = ct;
-	     column_collate = cc; column_constraints = constrs } ->
+             column_collate = cc; column_constraints = constrs } ->
     let ctn, ct_attrs = xmlattrs_of_coltype ct in
     let attrs =
       ct_attrs @ List.flatten (List.map xmlattrs_of_column_constraint constrs)
@@ -145,16 +145,16 @@ let write_item o = function
   | Constraint (`Foreign_key (cols, reftable, refcols)) ->
     if !use_compact_lists then
       let attrs = [
-	Attr.(string_list "columns") cols;
-	Attr.qname "ref-table" reftable;
-	Attr.(string_list "ref-columns" refcols)
+        Attr.(string_list "columns") cols;
+        Attr.qname "ref-table" reftable;
+        Attr.(string_list "ref-columns" refcols)
       ] in
       output_leaf o "foreign-key" attrs
     else begin
       Xmlm.output o (`El_start (tag "foreign-key", []));
       List.iter (write_column o) cols;
       Xmlm.output o (`El_start (tag "references",
-				[Attr.qname "table" reftable]));
+                                [Attr.qname "table" reftable]));
       List.iter (write_column o) refcols;
       Xmlm.output o `El_end;
       Xmlm.output o `El_end
@@ -196,9 +196,9 @@ let write_statement o = function
     Xmlm.output o (`El_start (tag "create-enum", [Attr.qname "name" qn]));
     List.iter
       (fun label ->
-	Xmlm.output o (`El_start (tag "item", []));
-	Xmlm.output o (`Data label);
-	Xmlm.output o `El_end)
+        Xmlm.output o (`El_start (tag "item", []));
+        Xmlm.output o (`Data label);
+        Xmlm.output o `El_end)
       labels;
     Xmlm.output o `El_end
   | Drop_schema (names, opts) ->
@@ -206,8 +206,8 @@ let write_statement o = function
     Xmlm.output o (`El_start (tag "drop-schemas", attrs));
     List.iter
       (fun sn ->
-	Xmlm.output o (`El_start (tag "schema", [Attr.string "name" sn]));
-	Xmlm.output o `El_end)
+        Xmlm.output o (`El_start (tag "schema", [Attr.string "name" sn]));
+        Xmlm.output o `El_end)
       names;
     Xmlm.output o `El_end
   | Drop_table (qns, opts) ->

@@ -104,15 +104,15 @@ let generate stmts oc =
     | `Null | `Unique | `References _ | `On_delete _ | `On_update _ -> ()
     | `Default e ->
       try
-	let e = translate dt e in
-	output_string oc " DEFAULT("; emit_typed_expr dt e; output_char oc ')'
+        let e = translate dt e in
+        output_string oc " DEFAULT("; emit_typed_expr dt e; output_char oc ')'
       with Unsupported -> () in
   let emit_serial_seq tqn = function
     | Column {column_name = cn; column_type = #serialtype as dt} ->
       fprintf oc "let %s_%s_seq =\n  <:sequence< %s \"%s_%s_seq\" >>\n"
-		 (snd tqn) cn
-		 (string_of_serialtype dt)
-		 (string_of_qname tqn) cn
+                 (snd tqn) cn
+                 (string_of_serialtype dt)
+                 (string_of_qname tqn) cn
     | _ -> () in
   let emit_colspec tqn i = function
     | Column {column_name = cn; column_type = dt; column_constraints = ccs} ->
@@ -128,15 +128,15 @@ let generate stmts oc =
   let emit_table_post tqn = function
     | Column {column_name = cn; column_type = dt; column_constraints = ccs} ->
       let emit_default_nul_workaround = function
-	| `Default e ->
-	  (try
-	    ignore (translate dt e);
-	    fprintf oc "let () = ignore <:value< nullable $%s$?%s >>\n"
-		       (snd tqn) cn
-	   with Unsupported -> ())
-	| _ -> () in
+        | `Default e ->
+          (try
+            ignore (translate dt e);
+            fprintf oc "let () = ignore <:value< nullable $%s$?%s >>\n"
+                       (snd tqn) cn
+           with Unsupported -> ())
+        | _ -> () in
       if List.mem `Not_null ccs then
-	List.iter emit_default_nul_workaround ccs
+        List.iter emit_default_nul_workaround ccs
     | Constraint _ -> () in
   let emit_top = function
     | Create_schema _
@@ -145,7 +145,7 @@ let generate stmts oc =
     | Create_sequence {sequence_qname = sqn; sequence_attrs = attrs} ->
       (* CHECKME: Better to use bigserial? *)
       fprintf oc "let %s =\n  <:sequence< serial \"%s\" >>\n"
-		 (snd sqn) (string_of_qname sqn);
+                 (snd sqn) (string_of_qname sqn);
     | Create_table {table_qname = tqn; table_items = items} ->
       List.iter (emit_serial_seq tqn) items;
       fprintf oc "let %s =\n  <:table< %s (" (snd tqn) (string_of_qname tqn);
