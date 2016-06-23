@@ -18,9 +18,43 @@ open Episql_types
 open Format
 open Unprime_list
 open Unprime_option
+open Unprime_string
+
+module Filter = struct
+  type instr =
+    | Incl of Re.re
+    | Excl of Re.re
+
+  type t = instr list
+
+  let instr_of_string s =
+    let s = String.trim s in
+    if String.length s = 0 then invalid_arg "Filter.instr_of_string";
+    match s.[0] with
+    | '+' -> Incl (Re.compile (Re_glob.glob (String.(trim (slice_from 1 s)))))
+    | '-' -> Excl (Re.compile (Re_glob.glob (String.(trim (slice_from 1 s)))))
+    | _ ->   Incl (Re.compile (Re_glob.glob s))
+
+  let of_string s = String.chop_affix "," s |> List.map instr_of_string
+
+  let rec test flt s =
+    match flt with
+    | [] -> None
+    | Incl re :: flt when Re.execp re s -> Some true
+    | Excl re :: flt when Re.execp re s -> Some false
+    | _ :: flt -> test flt s
+
+  let test_qname ?(default = true) flt = function
+    | (None, s) ->
+      test flt s |> Option.get_or default
+    | (Some ns, s) ->
+      test flt (ns ^ "." ^ s) |> Option.get_else @@ fun () ->
+      test flt s |> Option.get_or default
+end
 
 type genopts = {
   mutable go_types_module : string option;
+  mutable go_filter_tables : Filter.t;
   mutable go_event : bool;
   mutable go_patch : bool;
   mutable go_value : bool;
@@ -50,6 +84,7 @@ type genopts = {
 }
 let go = {
   go_types_module = None;
+  go_filter_tables = [];
   go_event = true;
   go_patch = true;
   go_value = true;
@@ -1014,6 +1049,7 @@ let generate emit stmts oc =
     | Drop_schema _ | Drop_table _ | Drop_sequence _ | Drop_type _
     | Create_table {table_scope = `Temporary} -> ()
     | Create_table {table_qname = ti_tqn; table_items = items} ->
+      if not (Filter.test_qname go.go_filter_tables ti_tqn) then () else
       let pk_opt, cts = List.fold_right collect items (None, []) in
       begin match pk_opt with
       | None -> ()
@@ -1118,6 +1154,9 @@ let () =
       Some (String.capitalize (if Filename.check_suffix mn ".mli"
                                then Filename.chop_suffix mn ".mli"
                                else mn)) in
+  let stack_filter s =
+    go.go_filter_tables <- go.go_filter_tables @ Filter.of_string s in
+  let stack_filters s = List.iter stack_filter (String.chop_affix "," s) in
   let common_arg_specs = [
     "-ppx-deriving",
       Arg.String (fun c -> go.go_use_ppx <- true;
@@ -1143,6 +1182,8 @@ let () =
        which will be used in place of calling P.use_db. If you use pooled \
        connections, you will need this to use the query functions within \
        a transaciton.";
+    "-filter-tables", Arg.String stack_filters,
+      "TN,...,TN Comma-separated list of patterns of tables to include.";
     "-with-type-counit", Arg.String (fun s -> go.go_type_counit <- s),
       "T Use T as the Prime.counit type.";
     "-with-type-date", Arg.String (fun s -> go.go_type_date <- s),

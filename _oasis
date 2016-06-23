@@ -42,7 +42,7 @@ Library "caqti-persist"
 Executable "episql"
   Path: bin
   MainIs: episql_main.ml
-  BuildDepends: episql, prime
+  BuildDepends: episql, prime, re, re.glob
   CompiledObject: best
   ByteOpt: -linkall
   NativeOpt: -linkall
