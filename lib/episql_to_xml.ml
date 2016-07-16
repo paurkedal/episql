@@ -113,7 +113,7 @@ let write_item o = function
     let ctn, ct_attrs = xmlattrs_of_coltype ct in
     let attrs =
       ct_attrs @ List.flatten (List.map xmlattrs_of_column_constraint constrs)
-      |> Option.fold (List.push *< Attr.string "collate") cc
+      |> Option.fold (List.push <@ Attr.string "collate") cc
       |> List.push (Attr.string "type" ctn)
       |> List.push (Attr.string "name" cn) in
     Xmlm.output o (`El_start (tag "column", attrs));
