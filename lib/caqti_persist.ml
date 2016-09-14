@@ -14,6 +14,7 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
+open Lwt.Infix
 open Printf
 
 type 'a presence =
@@ -38,9 +39,6 @@ exception Conflict of [ `Insert_insert | `Update_insert | `Update_delete ]
 type 'a order_predicate =
   [ `Eq of 'a | `Ne of 'a | `Lt of 'a | `Le of 'a | `Ge of 'a | `Gt of 'a
   | `Between of 'a * 'a | `Not_between of 'a * 'a ]
-
-let (>>=) = Lwt.(>>=)
-let (>|=) = Lwt.(>|=)
 
 let cache_hertz = Int64.to_float ExtUnixSpecific.(sysconf CLK_TCK)
 let cache_second = 1.0 /. cache_hertz
