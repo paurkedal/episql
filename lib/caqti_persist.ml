@@ -40,6 +40,12 @@ type 'a order_predicate =
   [ `Eq of 'a | `Ne of 'a | `Lt of 'a | `Le of 'a | `Ge of 'a | `Gt of 'a
   | `Between of 'a * 'a | `Not_between of 'a * 'a ]
 
+type 'a order_item =
+  | Asc of 'a
+  | Desc of 'a
+  | Asc_sql of string
+  | Desc_sql of string
+
 let cache_hertz = Int64.to_float ExtUnixSpecific.(sysconf CLK_TCK)
 let cache_second = 1.0 /. cache_hertz
 let query_overhead = ref (1e-3 *. cache_second)
@@ -310,7 +316,7 @@ module Select_buffer (C : Caqti_lwt.CONNECTION) = struct
           sb.param_count <- sb.param_count + 1)
       qfs
 
-  let order_by sb cn =
+  let obsolete_order_by sb cn =
     match sb.state with
     | Init | Final -> assert false
     | Ret | Where ->
@@ -319,6 +325,21 @@ module Select_buffer (C : Caqti_lwt.CONNECTION) = struct
       sb.state <- Order_by
     | Order_by ->
       bprintf sb.buf ", %s" cn
+
+  let order_by sb f order_item =
+    (match sb.state with
+     | Init | Final -> assert false
+     | Ret | Where ->
+        if sb.state = Ret then emit_from sb;
+        sb.state <- Order_by;
+        Buffer.add_string sb.buf " ORDER BY "
+     | Order_by ->
+        Buffer.add_string sb.buf ", ");
+    (match order_item with
+     | Asc col -> bprintf sb.buf "\"%s\" DESC" (f col)
+     | Desc col -> bprintf sb.buf "\"%s\"" (f col)
+     | Asc_sql sql -> bprintf sb.buf "%s DESC" sql
+     | Desc_sql sql -> Buffer.add_string sb.buf sql)
 
   let limit sb n =
     begin match sb.state with

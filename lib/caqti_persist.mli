@@ -37,6 +37,12 @@ type 'a order_predicate =
   [ `Eq of 'a | `Ne of 'a | `Lt of 'a | `Le of 'a | `Ge of 'a | `Gt of 'a
   | `Between of 'a * 'a | `Not_between of 'a * 'a ]
 
+type 'a order_item =
+  | Asc of 'a
+  | Desc of 'a
+  | Asc_sql of string
+  | Desc_sql of string
+
 val default_select_grade : int -> float
 val select_grade : (int -> float) ref
 
@@ -97,7 +103,8 @@ module Select_buffer (C : Caqti_lwt.CONNECTION) : sig
   val create : Caqti_metadata.backend_info -> string -> t
   val ret : t -> string -> unit
   val where : t -> query_fragment list -> unit
-  val order_by : t -> string -> unit
+  val obsolete_order_by : t -> string -> unit
+  val order_by : t -> ('a -> string) -> 'a order_item -> unit
   val limit : t -> int -> unit
   val contents : t -> Caqti_query.query * C.Param.t array
 end

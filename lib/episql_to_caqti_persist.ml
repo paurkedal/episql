@@ -81,6 +81,7 @@ type genopts = {
   mutable go_raise_on_absent : bool;
   mutable go_log_debug : string option;
   mutable go_connection_arg : string option;
+  mutable go_obsolete_order_by : bool;
 }
 let go = {
   go_types_module = None;
@@ -111,6 +112,7 @@ let go = {
   go_raise_on_absent = false;
   go_log_debug = Some "caqti-persist";
   go_connection_arg = None;
+  go_obsolete_order_by = true;
 }
 
 let convname_of_datatype = function
@@ -395,8 +397,12 @@ let emit_intf oc ti =
         if i > 0 then pp oc "@ | ";
         pp oc "`%s" (variant_of_colname cn))
       ti.ti_cts;
-    pp oc "@]] list -> ?limit: int ->";
-    pp oc "@ unit -> t list Lwt.t";
+    if go.go_obsolete_order_by then
+      pp oc "@]] list ->"
+    else
+      pp oc "@]] order_item list ->";
+    pp oc "@ ?limit: int ->";
+    pp oc "@ unit ->@ t list Lwt.t";
     close_query_val ()
   end;
   if go.go_select_cache then
@@ -814,13 +820,23 @@ let emit_impl oc ti =
           List.iter mk_binary ["Like", "LIKE"; "Ilike", "ILIKE"];
         pp oc "@ end;")
       ti.ti_cts;
-    pp oc "@ List.iter (fun col -> Sb.order_by sb (match col with ";
-    List.iteri
-      (fun i (cn, _) ->
-        if i > 0 then fprint oc " | ";
-        fprintf oc "`%s -> \"%s\"" (variant_of_colname cn) cn)
-      ti.ti_cts;
-    pp oc ")) order_by;";
+    if go.go_obsolete_order_by then begin
+      pp oc "@ List.iter (fun col -> Sb.obsolete_order_by sb (match col with ";
+      List.iteri
+        (fun i (cn, _) ->
+          if i > 0 then fprint oc " | ";
+          fprintf oc "`%s -> \"%s\"" (variant_of_colname cn) cn)
+        ti.ti_cts;
+      pp oc ")) order_by;"
+    end else begin
+      pp oc "@ List.iter (Sb.order_by sb (function ";
+      List.iteri
+        (fun i (cn, _) ->
+          if i > 0 then fprint oc " | ";
+          fprintf oc "`%s -> \"%s\"" (variant_of_colname cn) cn)
+        ti.ti_cts;
+      pp oc ")) order_by;"
+    end;
     pp oc "@ (match limit with None -> () | Some n -> Sb.limit sb n);";
     pp oc "@ let q, p = Sb.contents sb in";
     pp oc "@ @[<v 2>let decode t acc =";
@@ -1142,6 +1158,9 @@ let generate_types ~in_intf stmts oc =
   pp oc "@."
 
 let generate_intf' stmts oc =
+  if go.go_obsolete_order_by then
+    printf "warning: Please adapt to -new-order-by, \
+            it will become the default.\n";
   generate_intf stmts (formatter_of_out_channel oc)
 let generate_impl' stmts oc =
   generate_impl stmts (formatter_of_out_channel oc)
@@ -1196,6 +1215,8 @@ let () =
                            go.go_type_timestamp <- m ^ ".timestamp"),
       "M Shortcut for passing M.counit, M.date, and M.timestamp to the other \
          -with-type-* options.";
+    "-new-order-by", Arg.Unit (fun () -> go.go_obsolete_order_by <- false),
+      " Adapt the new ?order_by specification for generated select statements.";
   ] in
   let arg_specs = [
     "-t", Arg.String set_types_module,

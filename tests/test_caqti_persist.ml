@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2015  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2016  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -56,14 +56,20 @@ let test_serial () =
   Cp_1d_1r.delete d >>
 
   let now = CalendarLib.Calendar.now () in
-  let%lwt e = Cp_1d_1o1r1d.create ~v1:"zap" ~v2:now () in
+  let%lwt e1 = Cp_1d_1o1r1d.create ~v1:"zap" ~v2:now () in
+  let%lwt e2 = Cp_1d_1o1r1d.create ~v1:"paz" ~v2:now () in
+  let%lwt e3 = Cp_1d_1o1r1d.create ~v1:"zzz" ~v2:now () in
   begin
-    match%lwt
-      Cp_1d_1o1r1d.select ~v2:(`Eq now) ~order_by:[`v2; `v1] ~limit:2 ()
-    with
-    | [e'] -> assert (e == e'); Lwt.return_unit
+    match%lwt Cp_1d_1o1r1d.select ~v2:(`Eq now) ~order_by:[Asc `v2; Desc `v1]
+                                  ~limit:3 () with
+    | [e1'; e2'; e3'] ->
+      assert (e1' == e3);
+      assert (e2' == e1);
+      assert (e3' == e2);
+      Lwt.return_unit
     | _ -> assert false
   end >>
+  let e = e1 in
   Lwt_list.iter_s (Cp_1d_1o1r1d.patch e)
     [ `Delete;
       `Insert (Cp_1d_1o1r1d.({r_v1 = "sixty-one"}, defaults));
