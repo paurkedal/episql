@@ -401,7 +401,7 @@ let emit_intf oc ti =
       pp oc "@]] list ->"
     else
       pp oc "@]] order_item list ->";
-    pp oc "@ ?limit: int ->";
+    pp oc "@ ?limit: int ->@ ?offset: int ->";
     pp oc "@ unit ->@ t list Lwt.t";
     close_query_val ()
   end;
@@ -777,7 +777,7 @@ let emit_impl oc ti =
   if go.go_select then begin
     open_query_let "select";
     List.iter (fun (cn, ct) -> fprint oc " ?"; fprint oc cn) ti.ti_cts;
-    fprint oc " ?(order_by = []) ?limit () =";
+    fprint oc " ?(order_by = []) ?limit ?offset () =";
     if go.go_select_cache then begin
       pp oc "@ let args = ";
       List.iteri
@@ -838,6 +838,7 @@ let emit_impl oc ti =
       pp oc ")) order_by;"
     end;
     pp oc "@ (match limit with None -> () | Some n -> Sb.limit sb n);";
+    pp oc "@ (match offset with None -> () | Some n -> Sb.offset sb n);";
     pp oc "@ let q, p = Sb.contents sb in";
     pp oc "@ @[<v 2>let decode t acc =";
     if go.go_collapse_pk && List.length ti.ti_pk_cts = 1 then
@@ -869,7 +870,8 @@ let emit_impl oc ti =
     pp oc "@ merge (key, Present state) :: acc in";
     pp oc "@]";
     if go.go_select_cache then begin
-      pp oc "@ C.fold q decode p [] >|= fun r ->";
+      pp oc "@ C.fold q decode p [] >|= fun r_rev ->";
+      pp oc "@ let r = List.rev r_rev in";
       pp oc "@ let g = !select_grade (List.length r * %d + %d) in"
          (List.length ti.ti_nonpk_cts) (List.length ti.ti_cts + 2);
       pp oc "@ Prime_cache.replace select_cache g args r; r"

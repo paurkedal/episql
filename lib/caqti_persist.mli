@@ -106,5 +106,6 @@ module Select_buffer (C : Caqti_lwt.CONNECTION) : sig
   val obsolete_order_by : t -> string -> unit
   val order_by : t -> ('a -> string) -> 'a order_item -> unit
   val limit : t -> int -> unit
+  val offset : t -> int -> unit
   val contents : t -> Caqti_query.query * C.Param.t array
 end

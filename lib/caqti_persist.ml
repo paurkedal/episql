@@ -336,18 +336,25 @@ module Select_buffer (C : Caqti_lwt.CONNECTION) = struct
      | Order_by ->
         Buffer.add_string sb.buf ", ");
     (match order_item with
-     | Asc col -> bprintf sb.buf "\"%s\" DESC" (f col)
-     | Desc col -> bprintf sb.buf "\"%s\"" (f col)
-     | Asc_sql sql -> bprintf sb.buf "%s DESC" sql
-     | Desc_sql sql -> Buffer.add_string sb.buf sql)
+     | Asc col -> bprintf sb.buf "\"%s\"" (f col)
+     | Desc col -> bprintf sb.buf "\"%s\" DESC" (f col)
+     | Asc_sql sql -> Buffer.add_string sb.buf sql
+     | Desc_sql sql -> bprintf sb.buf "%s DESC" sql)
 
   let limit sb n =
-    begin match sb.state with
-    | Init | Final -> assert false
-    | Ret -> emit_from sb
-    | Where | Order_by -> ()
-    end;
+    (match sb.state with
+     | Init -> assert false
+     | Ret -> emit_from sb
+     | Where | Order_by | Final -> ());
     bprintf sb.buf " LIMIT %d" n;
+    sb.state <- Final
+
+  let offset sb n =
+    (match sb.state with
+     | Init -> assert false
+     | Ret -> emit_from sb
+     | Where | Order_by | Final -> ());
+    bprintf sb.buf " OFFSET %d" n;
     sb.state <- Final
 
   let contents sb =

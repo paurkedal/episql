@@ -56,12 +56,13 @@ let test_serial () =
   Cp_1d_1r.delete d >>
 
   let now = CalendarLib.Calendar.now () in
+  let%lwt e0 = Cp_1d_1o1r1d.create ~v1:"zzzz" ~v2:now () in
   let%lwt e1 = Cp_1d_1o1r1d.create ~v1:"zap" ~v2:now () in
   let%lwt e2 = Cp_1d_1o1r1d.create ~v1:"paz" ~v2:now () in
   let%lwt e3 = Cp_1d_1o1r1d.create ~v1:"zzz" ~v2:now () in
   begin
     match%lwt Cp_1d_1o1r1d.select ~v2:(`Eq now) ~order_by:[Asc `v2; Desc `v1]
-                                  ~limit:3 () with
+                                  ~limit:3 ~offset:1 () with
     | [e1'; e2'; e3'] ->
       assert (e1' == e3);
       assert (e2' == e1);
