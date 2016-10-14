@@ -1,3 +1,5 @@
+# epiSQL - SQL schema parser and code generator
+
 ## Synopsis
 
 epiSQL /ˈɛpɪˈsiːkwəl/ is an SQL schema parser and code generator.  It

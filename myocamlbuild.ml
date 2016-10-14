@@ -1,5 +1,4 @@
-(* OASIS_START *)
-(* OASIS_STOP *)
+open Ocamlbuild_plugin
 
 let episql_prog = "bin/episql_main.native"
 
@@ -24,6 +23,9 @@ let episql_macaque sql ml env build =
 
 let () =
   mark_tag_used "tests";
+  rule "%.mli & %.idem -> %.ml"
+    ~deps:["%.mli"; "%.idem"] ~prod:"%.ml"
+    (fun env _ -> cp (env "%.mli") (env "%.ml"));
   rule ".sql -> _persist_types.mli"
        ~deps:["tests/%.sql"; episql_prog] ~prod:"tests/%_persist_types.mli"
        (episql "caqti-persist-types-mli" "tests/%.sql"
@@ -45,17 +47,11 @@ let () =
        (episql_macaque "tests/%.sql" "tests/%_macaque.ml")
 
 let () = dispatch begin function
-
   | Before_options ->
     Options.use_ocamlfind := true
-
-  | After_rules as e ->
+  | After_rules ->
     flag ["ocamlyacc"] & S[A"-v"];
     flag ["doc"; "ocaml"; "extension:html"] &
-      S[A"-charset"; A"utf8"; A"-t"; A"Tool to derive code from SQL schemas"];
-    dispatch_default e
-
-  | e ->
-    dispatch_default e
-
+      S[A"-charset"; A"utf8"; A"-t"; A"Tool to derive code from SQL schemas"]
+  | _ -> ()
 end

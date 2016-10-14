@@ -1,0 +1,29 @@
+opam-version: "1.2"
+name: "episql"
+authors: ["Petter A. Urkedal"]
+maintainer: "paurkedal@gmail.com"
+homepage: "https://github.com/paurkedal/episql/"
+bug-reports: "https://github.com/paurkedal/episql/issues"
+dev-repo: "https://github.com/paurkedal/episql.git"
+license: "LGPL-3 with OCaml linking exception"
+
+build: [[
+  "ocaml" "pkg/pkg.ml" "build"
+    "--pinned" "%{pinned}%"
+    "--with-caqti" caqti:installed
+    "--with-extunix" extunix:installed
+    "--with-react" react:installed
+]]
+depends: [
+  "lwt"
+  "ocamlbuild" {build}
+  "prime"
+  "re"
+  "topkg" {build}
+  "xmlm"
+]
+depopts: [
+  "caqti"
+  "extunix"
+  "react"
+]

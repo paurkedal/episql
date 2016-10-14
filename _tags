@@ -1,0 +1,11 @@
+"lib": include
+<{bin,lib}/*>: \
+    package(prime), \
+    package(re), \
+    package(xmlm)
+<lib/caqti_persist.*>: thread, \
+    package(caqti.lwt), \
+    package(extunix), \
+    package(lwt), \
+    package(prime), package(prime.unstable), \
+    package(react)
