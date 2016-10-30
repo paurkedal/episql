@@ -52,6 +52,8 @@ let () = dispatch begin function
   | After_rules ->
     flag ["ocamlyacc"] & S[A"-v"];
     flag ["doc"; "ocaml"; "extension:html"] &
-      S[A"-charset"; A"utf8"; A"-t"; A"Tool to derive code from SQL schemas"]
+      S[A"-charset"; A"utf8"; A"-t"; A"Tool to derive code from SQL schemas"];
+    ocaml_lib ~dir:"lib" "lib/episql";
+    ocaml_lib ~dir:"lib" "lib/caqti-persist"
   | _ -> ()
 end
