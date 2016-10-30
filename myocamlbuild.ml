@@ -13,6 +13,7 @@ let episql ?types gen sql ml env build =
           A "-new-order-by";
           A "-raise-on-absent"; A "-connection-arg"; A "c";
           A "-ppx-deriving"; A "show";
+          A "-pk-module"; A"Key";
           P sql; A"-o"; Px ml])
 
 let episql_macaque sql ml env build =

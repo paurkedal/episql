@@ -67,6 +67,7 @@ type genopts = {
   mutable go_select : bool;
   mutable go_select_cache : bool;
   mutable go_collapse_pk : bool;
+  mutable go_pk_module : string option;
   mutable go_pk_prefix : string;
   mutable go_state_prefix : string;
   mutable go_value_prefix : string;
@@ -98,6 +99,7 @@ let go = {
   go_select = true;
   go_select_cache = true;
   go_collapse_pk = true;
+  go_pk_module = None;
   go_pk_prefix = "k_";
   go_state_prefix = "s_";
   go_value_prefix = "v_";
@@ -219,20 +221,34 @@ let emit_deriving oc =
       else fprintf oc " deriving (%s)" modules_str
   end
 
-let emit_type_pk oc ti =
-  if go.go_collapse_pk && List.length ti.ti_pk_cts = 1 then begin
-    pp oc "@ type key = %s"
-       (string_of_coltype (snd (List.hd ti.ti_pk_cts)));
+let emit_type_pk ~in_intf oc ti =
+  match go.go_pk_module with
+  | Some pkm ->
+    pp oc "@ @[<v 2>module %s %s" pkm (if in_intf then ": sig" else "= struct");
+    if go.go_collapse_pk && List.length ti.ti_pk_cts = 1 then
+      pp oc "@ type t = %s"
+         (string_of_coltype (snd (List.hd ti.ti_pk_cts)))
+    else begin
+      pp oc "@ @[<v 2>type t = {";
+      List.iter (fun (cn, ct) -> pp oc "@ %s : %s;" cn (string_of_coltype ct))
+                ti.ti_pk_cts;
+      pp oc "@]@ }";
+    end;
+    emit_deriving oc;
+    pp oc "@]@ end"
+  | None ->
+    if go.go_collapse_pk && List.length ti.ti_pk_cts = 1 then
+      pp oc "@ type key = %s"
+         (string_of_coltype (snd (List.hd ti.ti_pk_cts)))
+    else begin
+      pp oc "@ @[<v 2>type key = {";
+      List.iter
+        (fun (cn, ct) ->
+          pp oc "@ %s%s : %s;" go.go_pk_prefix cn (string_of_coltype ct))
+        ti.ti_pk_cts;
+      pp oc "@]@ }"
+    end;
     emit_deriving oc
-  end else begin
-    pp oc "@ @[<v 2>type key = {";
-    List.iter
-      (fun (cn, ct) ->
-        pp oc "@ %s%s : %s;" go.go_pk_prefix cn (string_of_coltype ct))
-      ti.ti_pk_cts;
-    pp oc "@]@ }";
-    emit_deriving oc
-  end
 
 let emit_type_nonpk ~in_intf oc ti =
   if ti.ti_nonpk_cts = [] then
@@ -310,7 +326,7 @@ let emit_types ~in_intf oc ti =
     pp oc "@ @[<v 2>module %s : sig" (String.capitalize (snd ti.ti_tqn))
   else
     pp oc "@ @[<v 2>module %s = struct" (String.capitalize (snd ti.ti_tqn));
-  emit_type_pk oc ti;
+  emit_type_pk ~in_intf oc ti;
   emit_type_patch_etc oc ti;
   if in_intf then begin
     pp oc "@ val defaults : value_d"
@@ -335,15 +351,19 @@ let emit_types ~in_intf oc ti =
   pp oc "@]@ end"
 
 let emit_intf oc ti =
+  let pk_type =
+    match go.go_pk_module with
+    | None -> "key"
+    | Some pkm -> sprintf "%s.t" pkm in
   pp oc "@ @[<v 2>module %s : sig" (String.capitalize (snd ti.ti_tqn));
   begin match go.go_types_module with
   | None ->
-    emit_type_pk oc ti;
+    emit_type_pk ~in_intf:true oc ti;
     emit_type_patch_etc oc ti
   | Some types_module ->
     let mn = types_module ^ "." ^ String.capitalize (snd ti.ti_tqn) in
     pp oc "@ @[<v 2>include module type of %s" mn;
-    pp oc "@ @[<v 1>with type key = %s.key" mn;
+    pp oc "@ @[<v 1>with type %s = %s.%s" pk_type mn pk_type;
     pp oc "@ and type value = %s.value" mn;
     pp oc "@ and type value_r = %s.value_r" mn;
     pp oc "@ and type value_d = %s.value_d" mn;
@@ -354,7 +374,7 @@ let emit_intf oc ti =
   end;
   emit_type_nonpk ~in_intf:true oc ti;
   pp oc "@ type t";
-  pp oc "@ val key : t -> key";
+  pp oc "@ val key : t -> %s" pk_type;
   pp oc "@ val is_present : t -> bool";
   if go.go_raise_on_absent then
     pp oc "@ val state : t -> state"
@@ -379,7 +399,7 @@ let emit_intf oc ti =
     Option.iter (pp oc "@ ?%s: (module Caqti_lwt.CONNECTION) ->")
                 go.go_connection_arg in
   let close_query_val () = pp oc "@]" in
-  pp oc "@ val fetch : key -> t Lwt.t";
+  pp oc "@ val fetch : %s -> t Lwt.t" pk_type;
   if go.go_select then begin
     open_query_val "select";
     List.iter
@@ -530,14 +550,17 @@ let emit_impl oc ti =
   pp oc "@]@ end";
   begin match go.go_types_module with
   | None ->
-    emit_type_pk oc ti;
+    emit_type_pk ~in_intf:false oc ti;
     emit_type_patch_etc oc ti
   | Some tm ->
     pp oc "@ include %s.%s" tm (String.capitalize (snd ti.ti_tqn))
   end;
   emit_type_nonpk ~in_intf:false oc ti;
   pp oc "@ @[<v 2>include Cache (struct";
-  pp oc "@ type _t0 = key\ttype key = _t0";
+  begin match go.go_pk_module with
+  | None -> pp oc "@ type _t0 = key\ttype key = _t0"
+  | Some pkm -> pp oc "@ type key = %s.t" pkm
+  end;
   pp oc "@ type _t1 = state\ttype state = _t1";
   pp oc "@ type _t2 = value\ttype value = _t2";
   pp oc "@ type _t3 = change\ttype change = _t3";
@@ -1219,6 +1242,10 @@ let () =
          -with-type-* options.";
     "-new-order-by", Arg.Unit (fun () -> go.go_obsolete_order_by <- false),
       " Adapt the new ?order_by specification for generated select statements.";
+    "-pk-module",
+      Arg.String (fun arg -> go.go_pk_module <- Some arg;
+                             go.go_pk_prefix <- arg ^ "."),
+      "M Put key record into a sub-module M instead of prefixing.";
   ] in
   let arg_specs = [
     "-t", Arg.String set_types_module,
