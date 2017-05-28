@@ -1,0 +1,63 @@
+(executables
+ ((names (test_caqti_persist))
+  (modules (test_caqti_persist schema_one_persist schema_one_persist_types))
+  (flags (-ppx ppx_lwt))
+  (libraries (caqti_persist))))
+
+(executables
+ ((names (schema_one_macaque))
+  (modules (schema_one_macaque))
+  (preprocess (action
+    (bash "camlp4o -I `ocamlfind query macaque` -filter syntax.cma ${<}")))
+  (libraries (macaque))))
+
+(rule
+ ((targets (schema_one_macaque.ml))
+  (deps (schema_one.sql ../bin/episql_main.exe))
+  (action (run ../bin/episql_main.exe -g macaque ${<} -o ${@}))))
+
+(rule
+ ((targets (schema_one_persist_types.mli))
+  (deps (schema_one.sql))
+  (action
+    (run ../bin/episql_main.exe
+      -g caqti-persist-types-mli
+      -new-order-by -raise-on-absent -connection-arg c
+      -ppx-deriving show -pk-module Key ${<} -o ${@}))))
+
+(rule
+ ((targets (schema_one_persist_types.ml))
+  (deps (schema_one.sql))
+  (action
+    (run ../bin/episql_main.exe
+      -g caqti-persist-types-ml
+      -new-order-by -raise-on-absent -connection-arg c
+      -ppx-deriving show -pk-module Key ${<} -o ${@}))))
+
+(rule
+ ((targets (schema_one_persist.mli))
+  (deps (schema_one.sql))
+  (action
+    (run ../bin/episql_main.exe
+      -g caqti-persist-mli -t schema_one_persist_types
+      -new-order-by -raise-on-absent -connection-arg c
+      -ppx-deriving show -pk-module Key ${<} -o ${@}))))
+
+(rule
+ ((targets (schema_one_persist.ml))
+  (deps (schema_one.sql))
+  (action
+    (run ../bin/episql_main.exe
+      -g caqti-persist-ml -t schema_one_persist_types
+      -new-order-by -raise-on-absent -connection-arg c
+      -ppx-deriving show -pk-module Key ${<} -o ${@}))))
+
+(alias
+ ((name runtest)
+  (deps (test_caqti_persist.exe))
+  (action (run ${<}))))
+
+(alias
+ ((name runtest)
+  (deps (schema_one_macaque.exe))
+  (action (run ${<}))))

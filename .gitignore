@@ -1,5 +1,4 @@
-*.byte
-*.docdir
-*.native
+.merlin
 /_build
+/caqti-persist.install
 /episql.install

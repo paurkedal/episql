@@ -7,23 +7,15 @@ bug-reports: "https://github.com/paurkedal/episql/issues"
 dev-repo: "https://github.com/paurkedal/episql.git"
 license: "LGPL-3 with OCaml linking exception"
 
-build: [[
-  "ocaml" "pkg/pkg.ml" "build"
-    "--pinned" "%{pinned}%"
-    "--with-caqti" caqti:installed
-    "--with-extunix" extunix:installed
-    "--with-react" react:installed
-]]
+build: [["jbuilder" "build" "-p" name "-j" jobs]]
+build-test: [["jbuilder" "runtest" "-p" name "-j" jobs]]
+
 depends: [
+  "jbuilder" {build}
+  "topkg" {build}
+  "topkg-jbuilder" {build}
   "lwt"
-  "ocamlbuild" {build}
   "prime"
   "re"
-  "topkg" {build}
   "xmlm"
-]
-depopts: [
-  "caqti"
-  "extunix"
-  "react"
 ]

@@ -1,0 +1,23 @@
+(jbuild_version 1)
+
+(library
+ ((name episql)
+  (public_name episql)
+  (wrapped false)
+  (modules (:standard \ Caqti_persist))
+  (libraries (prime re re.glob xmlm))))
+
+(ocamllex (episql_lexer))
+(ocamlyacc (episql_parser))
+
+(library
+ ((name caqti_persist)
+  (public_name caqti-persist)
+  (wrapped false)
+  (modules (Caqti_persist))
+  (libraries (caqti caqti.lwt extunix lwt prime prime.unstable react))))
+
+(rule
+ ((targets (episql_types.ml))
+  (deps (episql_types.mli))
+  (action (copy ${<} ${@}))))
