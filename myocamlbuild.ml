@@ -7,7 +7,7 @@ let episql ?types gen sql ml env build =
   let types =
     match types with
     | None -> []
-    | Some types -> [A"-t"; P(String.capitalize (env types))] in
+    | Some types -> [A"-t"; P(String.capitalize_ascii (env types))] in
   let tags = Tags.union (tags_of_pathname sql) (tags_of_pathname ml) in
   Cmd (S [P episql_prog; T (tags ++ "episql"); A"-g"; A gen; S types;
           A "-new-order-by";

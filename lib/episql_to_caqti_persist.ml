@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2016  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2017  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -323,9 +323,9 @@ let emit_type_patch_etc oc ti =
 
 let emit_types ~in_intf oc ti =
   if in_intf then
-    pp oc "@ @[<v 2>module %s : sig" (String.capitalize (snd ti.ti_tqn))
+    pp oc "@ @[<v 2>module %s : sig" (String.capitalize_ascii (snd ti.ti_tqn))
   else
-    pp oc "@ @[<v 2>module %s = struct" (String.capitalize (snd ti.ti_tqn));
+    pp oc "@ @[<v 2>module %s = struct" (String.capitalize_ascii (snd ti.ti_tqn));
   emit_type_pk ~in_intf oc ti;
   emit_type_patch_etc oc ti;
   if in_intf then begin
@@ -355,13 +355,13 @@ let emit_intf oc ti =
     match go.go_pk_module with
     | None -> "key"
     | Some pkm -> sprintf "%s.t" pkm in
-  pp oc "@ @[<v 2>module %s : sig" (String.capitalize (snd ti.ti_tqn));
+  pp oc "@ @[<v 2>module %s : sig" (String.capitalize_ascii (snd ti.ti_tqn));
   begin match go.go_types_module with
   | None ->
     emit_type_pk ~in_intf:true oc ti;
     emit_type_patch_etc oc ti
   | Some types_module ->
-    let mn = types_module ^ "." ^ String.capitalize (snd ti.ti_tqn) in
+    let mn = types_module ^ "." ^ String.capitalize_ascii (snd ti.ti_tqn) in
     pp oc "@ @[<v 2>include module type of %s" mn;
     pp oc "@ @[<v 1>with type %s = %s.%s" pk_type mn pk_type;
     pp oc "@ and type value = %s.value" mn;
@@ -543,7 +543,7 @@ let emit_impl oc ti =
     fprintf oc "DELETE FROM %s WHERE " (Episql.string_of_qname ti.ti_tqn);
     emit_pk_cond next_param in
 
-  pp oc "@ @[<v 2>module %s = struct" (String.capitalize (snd ti.ti_tqn));
+  pp oc "@ @[<v 2>module %s = struct" (String.capitalize_ascii (snd ti.ti_tqn));
   pp oc "@ @[<v 2>module Q = struct";
   emit_query oc "fetch" emit_fetch;
   emit_query oc "delete" emit_delete;
@@ -553,7 +553,7 @@ let emit_impl oc ti =
     emit_type_pk ~in_intf:false oc ti;
     emit_type_patch_etc oc ti
   | Some tm ->
-    pp oc "@ include %s.%s" tm (String.capitalize (snd ti.ti_tqn))
+    pp oc "@ include %s.%s" tm (String.capitalize_ascii (snd ti.ti_tqn))
   end;
   emit_type_nonpk ~in_intf:false oc ti;
   pp oc "@ @[<v 2>include Cache (struct";
@@ -1195,7 +1195,7 @@ let generate_types' ~in_intf stmts oc =
 let () =
   let set_types_module mn =
     go.go_types_module <-
-      Some (String.capitalize (if Filename.check_suffix mn ".mli"
+      Some (String.capitalize_ascii (if Filename.check_suffix mn ".mli"
                                then Filename.chop_suffix mn ".mli"
                                else mn)) in
   let stack_filter s =

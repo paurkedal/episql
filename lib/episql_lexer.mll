@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2016  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2017  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -117,7 +117,7 @@ rule lex_main dt = parse
   | ';' { SEMICOLON }
   | '.' { DOT }
   | wordfst wordcnt* as word
-    { try Hashtbl.find keywords (String.uppercase word) word
+    { try Hashtbl.find keywords (String.uppercase_ascii word) word
       with Not_found -> IDENTIFIER word }
   | "'" { lex_string (Buffer.create 64) lexbuf }
   | '"' { lex_identifier (Buffer.create 32) lexbuf }

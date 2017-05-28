@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2016  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2017  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -20,7 +20,7 @@ open Unprime_list
 open Unprime
 
 let disable_keyword kw =
-  let kw = String.uppercase kw in
+  let kw = String.uppercase_ascii kw in
   if not (Hashtbl.mem Episql_lexer.keywords kw)
   then eprintf "warning: %s is not a keyword.\n" kw
   else Hashtbl.remove Episql_lexer.keywords kw
