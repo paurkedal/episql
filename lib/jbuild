@@ -15,7 +15,7 @@
   (public_name caqti-persist)
   (wrapped false)
   (modules (Caqti_persist))
-  (libraries (caqti caqti.lwt extunix lwt prime prime.unstable react))))
+  (libraries (caqti caqti-lwt extunix lwt prime prime.unstable react))))
 
 (rule
  ((targets (episql_types.ml))
