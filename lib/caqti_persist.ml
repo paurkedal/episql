@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2016  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2017  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -147,22 +147,21 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
 end
 
 module Insert_buffer (C : Caqti_lwt.CONNECTION) = struct
-  open Caqti_metadata
   open Caqti_query
 
   type t = {
-    backend_info : backend_info;
+    driver_info : Caqti_driver_info.t;
     buf : Buffer.t;
     mutable param_count : int;
     mutable params : C.Param.t list;
     mutable returning : string list;
   }
 
-  let create backend_info table_name =
+  let create driver_info table_name =
     let buf = Buffer.create 256 in
     Buffer.add_string buf "INSERT INTO ";
     Buffer.add_string buf table_name;
-    {backend_info; buf; param_count = 0; params = []; returning = []}
+    {driver_info; buf; param_count = 0; params = []; returning = []}
 
   let set ib pn pv =
     Buffer.add_string ib.buf (if ib.param_count = 0 then " (" else ", ");
@@ -179,7 +178,7 @@ module Insert_buffer (C : Caqti_lwt.CONNECTION) = struct
       Buffer.add_string ib.buf " DEFAULT VALUES"
     else begin
       Buffer.add_string ib.buf ") VALUES (";
-      begin match ib.backend_info.bi_parameter_style with
+      begin match ib.driver_info.bi_parameter_style with
       | `Linear s ->
         Buffer.add_string ib.buf s;
         for i = 1 to ib.param_count - 1 do
@@ -208,11 +207,11 @@ module Insert_buffer (C : Caqti_lwt.CONNECTION) = struct
     (Oneshot (fun _ -> qs), Array.of_list (List.rev ib.params))
 end
 
-let make_param_for backend_info =
-  match backend_info.Caqti_metadata.bi_parameter_style with
-  | `Linear s -> fun _ -> s
-  | `Indexed sf -> sf
-  | _ -> raise Caqti_query.Missing_query_string
+let make_param_for driver_info =
+  (match Caqti_driver_info.parameter_style driver_info with
+   | `Linear s -> fun _ -> s
+   | `Indexed sf -> sf
+   | _ -> raise Caqti_query.Missing_query_string)
 
 module Update_buffer (C : Caqti_lwt.CONNECTION) = struct
 
@@ -226,12 +225,12 @@ module Update_buffer (C : Caqti_lwt.CONNECTION) = struct
     mutable state : state;
   }
 
-  let create backend_info table_name =
+  let create driver_info table_name =
     let buf = Buffer.create 256 in
     Buffer.add_string buf "UPDATE ";
     Buffer.add_string buf table_name;
     Buffer.add_string buf " SET ";
-    { make_param = make_param_for backend_info; buf;
+    { make_param = make_param_for driver_info; buf;
       param_count = 0; params = []; state = Init }
 
   let assign ub pn pv =
@@ -281,10 +280,10 @@ module Select_buffer (C : Caqti_lwt.CONNECTION) = struct
     mutable state : state;
   }
 
-  let create backend_info table_name =
+  let create driver_info table_name =
     let buf = Buffer.create 256 in
     Buffer.add_string buf "SELECT ";
-    { make_param = make_param_for backend_info; buf; table_name;
+    { make_param = make_param_for driver_info; buf; table_name;
       params = []; param_count = 0; state = Init; }
 
   let ret sb pn =

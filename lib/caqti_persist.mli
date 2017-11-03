@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2016  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2017  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -82,7 +82,7 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) :
 
 module Insert_buffer (C : Caqti_lwt.CONNECTION) : sig
   type t
-  val create : Caqti_metadata.backend_info -> string -> t
+  val create : Caqti_driver_info.t -> string -> t
   val set : t -> string -> C.Param.t -> unit
   val ret : t -> string -> unit
   val have_ret : t -> bool
@@ -91,7 +91,7 @@ end
 
 module Update_buffer (C : Caqti_lwt.CONNECTION) : sig
   type t
-  val create : Caqti_metadata.backend_info -> string -> t
+  val create : Caqti_driver_info.t -> string -> t
   val set : t -> string -> C.Param.t -> unit
   val where : t -> string -> C.Param.t -> unit
   val contents : t -> (Caqti_query.query * C.Param.t array) option
@@ -100,7 +100,7 @@ end
 module Select_buffer (C : Caqti_lwt.CONNECTION) : sig
   type t
   type query_fragment = S of string | P of C.Param.t
-  val create : Caqti_metadata.backend_info -> string -> t
+  val create : Caqti_driver_info.t -> string -> t
   val ret : t -> string -> unit
   val where : t -> query_fragment list -> unit
   val obsolete_order_by : t -> string -> unit

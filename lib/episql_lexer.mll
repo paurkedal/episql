@@ -16,7 +16,6 @@
 
 {
   open Episql_parser
-  open Episql_types
   open Printf
 
   type dialect_traits = {
