@@ -1,7 +1,6 @@
 (executables
  ((names (test_caqti_persist))
   (modules (test_caqti_persist schema_one_persist schema_one_persist_types))
-  (flags (-ppx ppx_lwt))
   (libraries (caqti_persist))))
 
 (executables

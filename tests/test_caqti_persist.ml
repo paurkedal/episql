@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2016  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2017  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -15,6 +15,7 @@
  *)
 
 open Caqti_persist
+open Lwt.Infix
 open Unprime_list
 
 let section = Lwt_log.Section.make "Test_caqti_persist"
@@ -38,71 +39,71 @@ module M = Schema_one_persist.Make (P)
 open M
 
 let test_serial () =
-  let%lwt a = Cp_1d_0.create () in
-  Cp_1d_0.delete a >>
+  Cp_1d_0.create () >>= fun a ->
+  Cp_1d_0.delete a >>= fun () ->
 
-  let%lwt b = Cp_1d_1o.create () in
-  Cp_1d_1o.update ~v0:(Some "updated") b >>
-  Cp_1d_1o.patch b `Delete >>
+  Cp_1d_1o.create () >>= fun b ->
+  Cp_1d_1o.update ~v0:(Some "updated") b >>= fun () ->
+  Cp_1d_1o.patch b `Delete >>= fun () ->
 
-  let%lwt c = Cp_1d_1o.create ~v0:"created" () in
-  Cp_1d_1o.delete c >>
-  Cp_1d_1o.insert c >>
-  Cp_1d_1o.patch c `Delete >>
+  Cp_1d_1o.create ~v0:"created" () >>= fun c ->
+  Cp_1d_1o.delete c >>= fun () ->
+  Cp_1d_1o.insert c >>= fun () ->
+  Cp_1d_1o.patch c `Delete >>= fun () ->
 
-  let%lwt d = Cp_1d_1r.create ~v0:1.0 () in
-  Cp_1d_1r.patch d `Delete >>
-  Cp_1d_1r.(patch d (`Insert ({r_v0 = 5.25}, defaults))) >>
-  Cp_1d_1r.delete d >>
+  Cp_1d_1r.create ~v0:1.0 () >>= fun d ->
+  Cp_1d_1r.patch d `Delete >>= fun () ->
+  Cp_1d_1r.(patch d (`Insert ({r_v0 = 5.25}, defaults))) >>= fun () ->
+  Cp_1d_1r.delete d >>= fun () ->
 
   let now = CalendarLib.Calendar.now () in
-  let%lwt e0 = Cp_1d_1o1r1d.create ~v1:"zzzz" ~v2:now () in
-  let%lwt e1 = Cp_1d_1o1r1d.create ~v1:"zap" ~v2:now () in
-  let%lwt e2 = Cp_1d_1o1r1d.create ~v1:"paz" ~v2:now () in
-  let%lwt e3 = Cp_1d_1o1r1d.create ~v1:"zzz" ~v2:now () in
+  Cp_1d_1o1r1d.create ~v1:"zzzz" ~v2:now () >>= fun e0 ->
+  Cp_1d_1o1r1d.create ~v1:"zap" ~v2:now () >>= fun e1 ->
+  Cp_1d_1o1r1d.create ~v1:"paz" ~v2:now () >>= fun e2 ->
+  Cp_1d_1o1r1d.create ~v1:"zzz" ~v2:now () >>= fun e3 ->
   begin
-    match%lwt Cp_1d_1o1r1d.select ~v2:(`Eq now) ~order_by:[Asc `v2; Desc `v1]
-                                  ~limit:3 ~offset:1 () with
-    | [e1'; e2'; e3'] ->
-      assert (e1' == e3);
-      assert (e2' == e1);
-      assert (e3' == e2);
-      Lwt.return_unit
-    | _ -> assert false
-  end >>
+    Cp_1d_1o1r1d.select ~v2:(`Eq now) ~order_by:[Asc `v2; Desc `v1]
+                                  ~limit:3 ~offset:1 () >>= function
+     | [e1'; e2'; e3'] ->
+        assert (e1' == e3);
+        assert (e2' == e1);
+        assert (e3' == e2);
+        Lwt.return_unit
+     | _ -> assert false
+  end >>= fun () ->
   let e = e1 in
   Lwt_list.iter_s (Cp_1d_1o1r1d.patch e)
     [ `Delete;
       `Insert (Cp_1d_1o1r1d.({r_v1 = "sixty-one"}, defaults));
-      `Update [`Set_v0 (Some (Int32.of_int 61))] ] >>
+      `Update [`Set_v0 (Some (Int32.of_int 61))] ] >>= fun () ->
   begin
     let open Cp_1d_1o1r1d in
     let nonpk = state e in
     assert (nonpk.s_v0 = Some (Int32.of_int 61));
     assert (nonpk.s_v1 = "sixty-one");
     Lwt.return_unit
-  end >>
+  end >>= fun () ->
   Cp_1d_1o1r1d.delete e
 
 let test_parallel_inner a j =
   if Tensor1.is_present a then
     if Random.bool () then
-      Lwt_log.debug ~section "Tensor1.update" >>
+      Lwt_log.debug ~section "Tensor1.update" >>= fun () ->
       Tensor1.update ~x:(float_of_int j) a
     else
-      Lwt_log.debug ~section "Tensor1.delete" >>
+      Lwt_log.debug ~section "Tensor1.delete" >>= fun () ->
       Tensor1.delete a
   else
-    Lwt_log.debug ~section "Tensor1.insert" >>
+    Lwt_log.debug ~section "Tensor1.insert" >>= fun () ->
     Tensor1.insert ~x:(float_of_int j) a
 
 let test_parallel i =
-  let%lwt a = Tensor1.create ~i:(Int32.of_int i) ~x:0.0 () in
-  Lwt.join (List.sample (test_parallel_inner a) 100) >>
+  Tensor1.create ~i:(Int32.of_int i) ~x:0.0 () >>= fun a ->
+  Lwt.join (List.sample (test_parallel_inner a) 100) >>= fun () ->
   Tensor1.delete a
 
 let main =
-  test_serial () >>
+  test_serial () >>= fun () ->
   Lwt.join (List.sample test_parallel 100)
 
 let () = Lwt_main.run main
