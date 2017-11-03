@@ -786,12 +786,12 @@ let emit_impl oc ti =
     end;
     pp oc "@]";
     if have_default then begin
-      pp oc "@ C.find q decode p >>= fun (key, state) ->\n\t";
-      if go.go_select_cache then fprint oc "clear_select_cache (); ";
+      pp oc "@ C.find q decode p >>= fun (key, state) ->";
+      if go.go_select_cache then pp oc "@ clear_select_cache (); ";
       fprint oc "merge_created (key, state)"
     end else begin
-      pp oc "@ C.exec q p >>= fun () -> ";
-      if go.go_select_cache then fprint oc "clear_select_cache (); ";
+      pp oc "@ C.exec q p >>= fun () ->";
+      if go.go_select_cache then pp oc "@ clear_select_cache (); ";
       fprint oc "merge_created (decode ())"
     end;
     close_query_let ()
