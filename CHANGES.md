@@ -3,6 +3,7 @@
 ## [0.9.1] - 2017-11-03
 
 - Fix findlib name caqti.lwt to caqti-lwt.
+- Adjust for caqti 0.7.0 and some tweaks.
 
 ## [0.9.0] - 2017-06-05
 
