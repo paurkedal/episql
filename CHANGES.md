@@ -1,5 +1,9 @@
 # Change Log
 
+## [0.9.1] - 2017-11-03
+
+- Fix findlib name caqti.lwt to caqti-lwt.
+
 ## [0.9.0] - 2017-06-05
 
 - Move caqti-persist into a separate package to avoid depopts.
