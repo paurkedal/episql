@@ -30,24 +30,24 @@ module Filter = struct
   let instr_of_string s =
     let s = String.trim s in
     if String.length s = 0 then invalid_arg "Filter.instr_of_string";
-    match s.[0] with
-    | '+' -> Incl (Re.compile (Re_glob.glob (String.(trim (slice_from 1 s)))))
-    | '-' -> Excl (Re.compile (Re_glob.glob (String.(trim (slice_from 1 s)))))
-    | _ ->   Incl (Re.compile (Re_glob.glob s))
+    (match s.[0] with
+     | '+' -> Incl (Re.compile (Re_glob.glob (String.(trim (slice_from 1 s)))))
+     | '-' -> Excl (Re.compile (Re_glob.glob (String.(trim (slice_from 1 s)))))
+     | _ ->   Incl (Re.compile (Re_glob.glob s)))
 
   let of_string s = String.chop_affix "," s |> List.map instr_of_string
 
   let rec test flt s =
-    match flt with
-    | [] -> None
-    | Incl re :: flt when Re.execp re s -> Some true
-    | Excl re :: flt when Re.execp re s -> Some false
-    | _ :: flt -> test flt s
+    (match flt with
+     | [] -> None
+     | Incl re :: _ when Re.execp re s -> Some true
+     | Excl re :: _ when Re.execp re s -> Some false
+     | _ :: flt -> test flt s)
 
   let test_qname ?(default = true) flt = function
-    | (None, s) ->
+   | (None, s) ->
       test flt s |> Option.get_or default
-    | (Some ns, s) ->
+   | (Some ns, s) ->
       test flt (ns ^ "." ^ s) |> Option.get_else @@ fun () ->
       test flt s |> Option.get_or default
 end
@@ -127,8 +127,8 @@ let convname_of_datatype = function
   | `Bytea -> "bytes"
   | `Numeric_auto | `Numeric _ -> "float" (* FIXME *)
   | `Time (_, _) -> "float"
-  | `Date -> "date"
-  | `Timestamp (_, _) -> "utc"
+  | `Date -> "date_cl"
+  | `Timestamp (_, _) -> "utc_cl"
   | `Interval (_, _) -> "string" (* FIXME *)
   | `Custom _ -> "string"
 
@@ -180,7 +180,7 @@ let variant_of_colname cn = cn
 
 let collect = function
   | Column { column_name = cn; column_type = ct_type;
-             column_constraints = ccs } ->
+             column_constraints = ccs; _ } ->
     let is_serial = function #serialtype -> true | _ -> false in
     let is_default = function `Default _ -> true | _ -> false in
     let ct_defaultable = is_serial ct_type || List.exists is_default ccs in
@@ -352,26 +352,25 @@ let emit_types ~in_intf oc ti =
 
 let emit_intf oc ti =
   let pk_type =
-    match go.go_pk_module with
-    | None -> "key"
-    | Some pkm -> sprintf "%s.t" pkm in
+    (match go.go_pk_module with
+     | None -> "key"
+     | Some pkm -> sprintf "%s.t" pkm) in
   pp oc "@ @[<v 2>module %s : sig" (String.capitalize_ascii (snd ti.ti_tqn));
-  begin match go.go_types_module with
-  | None ->
-    emit_type_pk ~in_intf:true oc ti;
-    emit_type_patch_etc oc ti
-  | Some types_module ->
-    let mn = types_module ^ "." ^ String.capitalize_ascii (snd ti.ti_tqn) in
-    pp oc "@ @[<v 2>include module type of %s" mn;
-    pp oc "@ @[<v 1>with type %s = %s.%s" pk_type mn pk_type;
-    pp oc "@ and type value = %s.value" mn;
-    pp oc "@ and type value_r = %s.value_r" mn;
-    pp oc "@ and type value_d = %s.value_d" mn;
-    pp oc "@ and type change = %s.change" mn;
-    pp oc "@ and type patch_in = %s.patch_in" mn;
-    pp oc "@ and type patch_out = %s.patch_out" mn;
-    pp oc "@]@]"
-  end;
+  (match go.go_types_module with
+   | None ->
+      emit_type_pk ~in_intf:true oc ti;
+      emit_type_patch_etc oc ti
+   | Some types_module ->
+      let mn = types_module ^ "." ^ String.capitalize_ascii (snd ti.ti_tqn) in
+      pp oc "@ @[<v 2>include module type of %s" mn;
+      pp oc "@ @[<v 1>with type %s = %s.%s" pk_type mn pk_type;
+      pp oc "@ and type value = %s.value" mn;
+      pp oc "@ and type value_r = %s.value_r" mn;
+      pp oc "@ and type value_d = %s.value_d" mn;
+      pp oc "@ and type change = %s.change" mn;
+      pp oc "@ and type patch_in = %s.patch_in" mn;
+      pp oc "@ and type patch_out = %s.patch_out" mn;
+      pp oc "@]@]");
   emit_type_nonpk ~in_intf:true oc ti;
   pp oc "@ type t";
   pp oc "@ val key : t -> %s" pk_type;
@@ -452,7 +451,7 @@ let emit_intf oc ti =
   if go.go_update && ti.ti_nonpk_cts <> [] then begin
     open_query_val "update";
     List.iter
-      (fun (cn, {ct_type = dt; ct_nullable = dn}) ->
+      (fun (cn, {ct_type = dt; ct_nullable = dn; _}) ->
         pp oc "@ ?%s: %s%s ->" cn (string_of_datatype dt)
            (if dn then " option" else ""))
       ti.ti_nonpk_cts;
@@ -511,7 +510,7 @@ let emit_param oc ti pk cts =
 
 let emit_detuple oc cts =
   if cts = [] then
-    fprint oc "C.Tuple.(fun t -> ())"
+    fprint oc "(fun t -> ())"
   else begin
     fprint oc "C.Tuple.(fun t -> {";
     List.iteri
@@ -548,19 +547,17 @@ let emit_impl oc ti =
   emit_query oc "fetch" emit_fetch;
   emit_query oc "delete" emit_delete;
   pp oc "@]@ end";
-  begin match go.go_types_module with
-  | None ->
-    emit_type_pk ~in_intf:false oc ti;
-    emit_type_patch_etc oc ti
-  | Some tm ->
-    pp oc "@ include %s.%s" tm (String.capitalize_ascii (snd ti.ti_tqn))
-  end;
+  (match go.go_types_module with
+   | None ->
+      emit_type_pk ~in_intf:false oc ti;
+      emit_type_patch_etc oc ti
+   | Some tm ->
+      pp oc "@ include %s.%s" tm (String.capitalize_ascii (snd ti.ti_tqn)));
   emit_type_nonpk ~in_intf:false oc ti;
   pp oc "@ @[<v 2>include Cache (struct";
-  begin match go.go_pk_module with
-  | None -> pp oc "@ type _t0 = key\ttype key = _t0"
-  | Some pkm -> pp oc "@ type key = %s.t" pkm
-  end;
+  (match go.go_pk_module with
+   | None -> pp oc "@ type _t0 = key\ttype key = _t0"
+   | Some pkm -> pp oc "@ type key = %s.t" pkm);
   pp oc "@ type _t1 = state\ttype state = _t1";
   pp oc "@ type _t2 = value\ttype value = _t2";
   pp oc "@ type _t3 = change\ttype change = _t3";
@@ -573,7 +570,7 @@ let emit_impl oc ti =
   emit_param oc ti "key" ti.ti_pk_cts;
   pp oc "@]@]@ end)";
 
-  pp oc "@ let key {key} = key";
+  pp oc "@ let key {key; _} = key";
   if go.go_raise_on_absent then begin
     pp oc "@ @[<v 2>let absent op o =";
     if go.go_log_debug <> None then
@@ -582,12 +579,13 @@ let emit_impl oc ti =
          (snd ti.ti_tqn);
     pp oc "@ raise Not_present@]"
   end;
-  pp oc "@ let is_present = function {state = Present _} -> true | _ -> false";
+  pp oc "@ let is_present = function {state = Present _; _} -> true \
+                                   | _ -> false";
   if go.go_raise_on_absent then
     pp oc "@ let state = \
-               function {state = Present x} -> x | o -> absent \"state\" o"
+               function {state = Present x; _} -> x | o -> absent \"state\" o"
   else
-    pp oc "@ let state = function {state = Present x} -> Some x | _ -> None";
+    pp oc "@ let state = function {state = Present x; _} -> Some x | _ -> None";
   if go.go_getters then begin
     let n_pk = List.length ti.ti_pk_cts in
     List.iter
@@ -616,7 +614,8 @@ let emit_impl oc ti =
   let close_query_let () = pp oc "@]" in
 
   if go.go_select_cache then begin
-    pp oc "@ let select_cache = Prime_cache.create P.Beacon.cache_metric 19";
+    pp oc "@ let select_cache = \
+               Prime_cache.create ~cache_metric:P.Beacon.cache_metric 19";
     pp oc "@ let clear_select_cache () = Prime_cache.clear select_cache"
   end;
 
@@ -635,7 +634,7 @@ let emit_impl oc ti =
     pp oc "@ o.state <- Inserting _c;";
     emit_use_C oc;
     pp oc "@ let module Ib = Insert_buffer (C) in";
-    pp oc "@ let ib = Ib.create C.backend_info \"%s\" in"
+    pp oc "@ let ib = Ib.create C.driver_info \"%s\" in"
              (Episql.string_of_qname ti.ti_tqn);
     if go.go_collapse_pk && List.length ti.ti_pk_cts = 1 then
       let cn, ct = List.hd ti.ti_pk_cts in
@@ -663,7 +662,7 @@ let emit_impl oc ti =
       ti.ti_nonpk_cts;
     pp oc "@ let q, p = Ib.contents ib in";
 
-    let emit_field pfx i (cn, ct) =
+    let emit_field pfx i (cn, _ct) =
       if i > 0 then fprint oc "; ";
       fprintf oc "%s%s = %s" pfx cn cn in
     if ti.ti_nonpk_def_cts <> [] then begin
@@ -709,7 +708,7 @@ let emit_impl oc ti =
       else begin
         pp oc "@ @[<v 2>o.notify (`Insert {";
         List.iter
-          (fun (cn, ct) ->
+          (fun (cn, _ct) ->
             pp oc "@ %s%s = state.%s%s;"
                go.go_value_prefix cn go.go_state_prefix cn)
           ti.ti_nonpk_cts;
@@ -734,7 +733,7 @@ let emit_impl oc ti =
     fprint oc " () =";
     emit_use_C oc;
     pp oc "@ let module Ib = Insert_buffer (C) in";
-    pp oc "@ let ib = Ib.create C.backend_info \"%s\" in"
+    pp oc "@ let ib = Ib.create C.driver_info \"%s\" in"
           (Episql.string_of_qname ti.ti_tqn);
     List.iter
       (fun (cn, ct) ->
@@ -767,7 +766,7 @@ let emit_impl oc ti =
           fprint oc (if ct.ct_nullable then ") in" else " in")
         end)
       ti.ti_cts;
-    let emit_field pfx i (cn, ct) =
+    let emit_field pfx i (cn, _ct) =
       if i > 0 then fprint oc "; ";
       fprintf oc "%s%s = %s" pfx cn cn in
     if go.go_collapse_pk && List.length ti.ti_pk_cts = 1 then
@@ -799,7 +798,7 @@ let emit_impl oc ti =
 
   if go.go_select then begin
     open_query_let "select";
-    List.iter (fun (cn, ct) -> fprint oc " ?"; fprint oc cn) ti.ti_cts;
+    List.iter (fun (cn, _ct) -> fprint oc " ?"; fprint oc cn) ti.ti_cts;
     fprint oc " ?(order_by = []) ?limit ?offset () =";
     if go.go_select_cache then begin
       pp oc "@ let args = ";
@@ -814,7 +813,7 @@ let emit_impl oc ti =
     end;
     emit_use_C oc;
     pp oc "@ let module Sb = Select_buffer (C) in";
-    pp oc "@ let sb = Sb.create C.backend_info \"%s\" in"
+    pp oc "@ let sb = Sb.create C.driver_info \"%s\" in"
        (Episql.string_of_qname ti.ti_tqn);
     let emit_ret (cn, _) = pp oc "@ Sb.ret sb \"%s\";" cn in
     List.iter emit_ret ti.ti_pk_cts;
@@ -906,7 +905,7 @@ let emit_impl oc ti =
 
   if (go.go_update || go.go_patch) && ti.ti_nonpk_cts <> [] then begin
     open_query_let "update";
-    List.iter (fun (cn, ct) -> fprintf oc " ?%s" cn) ti.ti_nonpk_cts;
+    List.iter (fun (cn, _ct) -> fprintf oc " ?%s" cn) ti.ti_nonpk_cts;
     pp oc " o =";
     pp oc "@ match o.state with";
     pp oc "@ | Inserting _ -> Lwt.fail (Conflict `Update_insert)";
@@ -950,7 +949,7 @@ let emit_impl oc ti =
     pp oc "      | Present state -> ";
     emit_use_C oc;
     pp oc "@ let module Ub = Update_buffer (C) in";
-    pp oc "@ let ub = Ub.create C.backend_info \"%s\" in"
+    pp oc "@ let ub = Ub.create C.driver_info \"%s\" in"
        (Episql.string_of_qname ti.ti_tqn);
     if go.go_event then
       pp oc "@ let changes = ref [] in";
@@ -994,7 +993,7 @@ let emit_impl oc ti =
 
   if go.go_delete || go.go_patch then begin
     open_query_let "delete";
-    pp oc " ({key} as o) =";
+    pp oc " ({key; _} as o) =";
     emit_use_C oc;
     pp oc "@ @[<v 2>let rec retry () =";
     pp oc "@ match o.state with";
@@ -1026,10 +1025,10 @@ let emit_impl oc ti =
       pp oc "@ @[<v 2>| `Insert (r, d) ->";
       pp oc "@ insert";
       List.iter
-        (fun (cn, ct) -> fprintf oc " ~%s:r.%s%s" cn go.go_value_r_prefix cn)
+        (fun (cn, _ct) -> fprintf oc " ~%s:r.%s%s" cn go.go_value_r_prefix cn)
         ti.ti_nonpk_req_cts;
       List.iter
-        (fun (cn, ct) -> fprintf oc " ?%s:d.%s%s" cn go.go_value_d_prefix cn)
+        (fun (cn, _ct) -> fprintf oc " ?%s:d.%s%s" cn go.go_value_d_prefix cn)
         ti.ti_nonpk_nonreq_cts;
       pp oc " o;@]";
       pp oc "@ @[<v 2>| `Update changes ->";
@@ -1051,7 +1050,7 @@ let emit_impl oc ti =
     close_query_let ()
   end;
 
-  if go.go_event then pp oc "@ let patches {patches} = patches";
+  if go.go_event then pp oc "@ let patches {patches; _} = patches";
 
   if go.go_value then begin
     pp oc "@ @[<v 2>let value o =";
@@ -1086,54 +1085,56 @@ let emit_impl oc ti =
 
 let generate emit stmts oc =
   let emit_top = function
-    | Create_schema _ | Create_sequence _ | Create_enum _
-    | Drop_schema _ | Drop_table _ | Drop_sequence _ | Drop_type _
-    | Create_table {table_scope = `Temporary} -> ()
-    | Create_table {table_qname = ti_tqn; table_items = items} ->
+   | Create_schema _ | Create_sequence _ | Create_enum _
+   | Drop_schema _ | Drop_table _ | Drop_sequence _ | Drop_type _
+   | Create_table {table_scope = `Temporary; _} -> ()
+   | Create_table {table_qname = ti_tqn; table_items = items; _} ->
       if not (Filter.test_qname go.go_filter_tables ti_tqn) then () else
       let pk_opt, cts = List.fold_right collect items (None, []) in
-      begin match pk_opt with
-      | None -> ()
-      | Some pk ->
-        let set_pk = function
-          | cn, {ct_pk = true} as cn_ct -> cn_ct
-          | cn, ct ->
-            let ct_pk = List.mem cn pk in
-            let ct_nullable = ct.ct_nullable && not ct_pk in
-            cn, {ct with ct_pk; ct_nullable} in
-        let ti_cts = List.map set_pk cts in
-        let ti_req_cts =
-          List.filter
-            (fun (_, ct) -> not ct.ct_nullable && not ct.ct_defaultable)
-            ti_cts in
-        let ti_pk_cts = List.filter (fun (_, {ct_pk}) -> ct_pk) ti_cts in
-        let ti_nonpk_cts = List.filter (fun (_, {ct_pk}) -> not ct_pk) ti_cts in
-        let ti_nonpk_def_cts =
-          List.filter (fun (_, ct) -> ct.ct_defaultable) ti_nonpk_cts in
-        let ti_nonpk_req_cts =
-          List.filter (fun (_, ct) -> coltype_is_required ct) ti_nonpk_cts in
-        let ti_nonpk_nonreq_cts =
-          List.filter (fun (_, ct) -> not (coltype_is_required ct))
-                      ti_nonpk_cts in
-        let ti_pk_has_default =
-          List.exists (fun (_, ct) -> ct.ct_defaultable) ti_pk_cts in
-        let ti = {
-          ti_tqn;
-          ti_cts;
-          ti_req_cts;
-          ti_pk_cts;
-          ti_nonpk_cts;
-          ti_nonpk_def_cts;
-          ti_nonpk_req_cts;
-          ti_nonpk_nonreq_cts;
-          ti_pk_has_default;
-        } in
-        emit oc ti
-      end in
+      (match pk_opt with
+       | None -> ()
+       | Some pk ->
+          let set_pk = function
+           | _cn, {ct_pk = true; _} as cn_ct -> cn_ct
+           | cn, ct ->
+              let ct_pk = List.mem cn pk in
+              let ct_nullable = ct.ct_nullable && not ct_pk in
+              cn, {ct with ct_pk; ct_nullable} in
+          let ti_cts = List.map set_pk cts in
+          let ti_req_cts =
+            List.filter
+              (fun (_, ct) -> not ct.ct_nullable && not ct.ct_defaultable)
+              ti_cts in
+          let ti_pk_cts =
+            List.filter (fun (_, {ct_pk; _}) -> ct_pk) ti_cts in
+          let ti_nonpk_cts =
+            List.filter (fun (_, {ct_pk; _}) -> not ct_pk) ti_cts in
+          let ti_nonpk_def_cts =
+            List.filter (fun (_, ct) -> ct.ct_defaultable) ti_nonpk_cts in
+          let ti_nonpk_req_cts =
+            List.filter (fun (_, ct) -> coltype_is_required ct) ti_nonpk_cts in
+          let ti_nonpk_nonreq_cts =
+            List.filter (fun (_, ct) -> not (coltype_is_required ct))
+                        ti_nonpk_cts in
+          let ti_pk_has_default =
+            List.exists (fun (_, ct) -> ct.ct_defaultable) ti_pk_cts in
+          let ti = {
+            ti_tqn;
+            ti_cts;
+            ti_req_cts;
+            ti_pk_cts;
+            ti_nonpk_cts;
+            ti_nonpk_def_cts;
+            ti_nonpk_req_cts;
+            ti_nonpk_nonreq_cts;
+            ti_pk_has_default;
+          } in
+          emit oc ti) in
   List.iter emit_top stmts
 
 let common_header = "\
   (* Generated by episql. *)\n\n\
+  [@@@ocaml.warning \"-27\"]\n\n\
   open Caqti_persist\n\
   module type P = sig\n\
  \  module Beacon : Prime_beacon.S\n\
@@ -1152,7 +1153,6 @@ let generate_intf stmts oc =
 let generate_impl stmts oc =
   pp oc "@[<v 0>";
   pp_print_string oc common_header;
-  pp oc "@ open Printf";
   pp oc "@ open Lwt.Infix";
   emit_custom_open oc;
   pp oc "@ @[<v 2>module type S = sig";
@@ -1167,7 +1167,8 @@ let generate_impl stmts oc =
 
 let generate_types ~in_intf stmts oc =
   pp oc "@[<v 0>";
-  pp oc "@ (* Generated by episql. *)\n";
+  pp oc "@ (* Generated by episql. *)\n\n";
+  pp_print_string oc "[@@@ocaml.warning \"-27\"]\n";
   emit_custom_open oc;
   pp oc "@ @[<v 2>type ('value_r, 'value_d, 'change) persist_patch_in =";
   pp oc "@ [ `Insert of 'value_r * 'value_d";

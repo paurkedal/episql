@@ -106,7 +106,7 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
   let fetch_grade = !select_grade (P.key_size + P.state_size + 8)
 
   let mk_key =
-    let notify ?step patch = assert false in
+    let notify ?step:_ _patch = assert false in
     let patches = React.E.never in
     fun key -> {key; state = Absent; beacon = Beacon.dummy; patches; notify}
 
@@ -178,31 +178,29 @@ module Insert_buffer (C : Caqti_lwt.CONNECTION) = struct
       Buffer.add_string ib.buf " DEFAULT VALUES"
     else begin
       Buffer.add_string ib.buf ") VALUES (";
-      begin match ib.driver_info.bi_parameter_style with
-      | `Linear s ->
-        Buffer.add_string ib.buf s;
-        for i = 1 to ib.param_count - 1 do
-          Buffer.add_string ib.buf ", ";
-          Buffer.add_string ib.buf s
-        done
-      | `Indexed sf ->
-        Buffer.add_string ib.buf (sf 0);
-        for i = 1 to ib.param_count - 1 do
-          Buffer.add_string ib.buf ", ";
-          Buffer.add_string ib.buf (sf i)
-        done
-      | _ -> raise Missing_query_string
-      end;
+      (match ib.driver_info.bi_parameter_style with
+       | `Linear s ->
+          Buffer.add_string ib.buf s;
+          for _ = 1 to ib.param_count - 1 do
+            Buffer.add_string ib.buf ", ";
+            Buffer.add_string ib.buf s
+          done
+       | `Indexed sf ->
+          Buffer.add_string ib.buf (sf 0);
+          for i = 1 to ib.param_count - 1 do
+            Buffer.add_string ib.buf ", ";
+            Buffer.add_string ib.buf (sf i)
+          done
+       | _ -> raise Missing_query_string);
       Buffer.add_char ib.buf ')'
     end;
-    begin match List.rev ib.returning with
-    | [] -> ()
-    | r :: rs ->
-      Buffer.add_string ib.buf " RETURNING ";
-      Buffer.add_string ib.buf r;
-      List.iter (fun r -> Buffer.add_string ib.buf ", ";
-                          Buffer.add_string ib.buf r) rs
-    end;
+    (match List.rev ib.returning with
+     | [] -> ()
+     | r :: rs ->
+        Buffer.add_string ib.buf " RETURNING ";
+        Buffer.add_string ib.buf r;
+        List.iter (fun r -> Buffer.add_string ib.buf ", ";
+                            Buffer.add_string ib.buf r) rs);
     let qs = Buffer.contents ib.buf in
     (Oneshot (fun _ -> qs), Array.of_list (List.rev ib.params))
 end

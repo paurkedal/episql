@@ -24,7 +24,7 @@ let disable_keyword kw =
   if not (Hashtbl.mem Episql_lexer.keywords kw)
   then eprintf "warning: %s is not a keyword.\n" kw
   else Hashtbl.remove Episql_lexer.keywords kw
-let disable_keywords = List.iter disable_keyword <@ Prime_string.chop_affix ","
+let disable_keywords = List.iter disable_keyword % Prime_string.chop_affix ","
 
 let () =
   let arg_inputs = ref [] in

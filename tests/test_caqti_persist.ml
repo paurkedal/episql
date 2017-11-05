@@ -57,7 +57,7 @@ let test_serial () =
   Cp_1d_1r.delete d >>= fun () ->
 
   let now = CalendarLib.Calendar.now () in
-  Cp_1d_1o1r1d.create ~v1:"zzzz" ~v2:now () >>= fun e0 ->
+  Cp_1d_1o1r1d.create ~v1:"zzzz" ~v2:now () >>= fun _e0 ->
   Cp_1d_1o1r1d.create ~v1:"zap" ~v2:now () >>= fun e1 ->
   Cp_1d_1o1r1d.create ~v1:"paz" ~v2:now () >>= fun e2 ->
   Cp_1d_1o1r1d.create ~v1:"zzz" ~v2:now () >>= fun e3 ->

@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2016  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2017  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -31,22 +31,22 @@ let generate stmts oc =
     output_string oc (String.escaped (string_of_column_constraint cc));
     output_char oc '"' in
   let emit_colspec tqn = function
-    | Column {column_name = cn; column_type = dt; column_constraints = ccs} ->
+   | Column {column_name = cn; column_type = dt; column_constraints = ccs; _} ->
       fprintf oc "add_column %s %s '%s'"
                  (string_of_qname tqn) cn (string_of_datatype dt);
       List.iter emit_column_constraint ccs;
       output_char oc '\n'
-    | Constraint _ -> () in
+   | Constraint _ -> () in
   let emit_top = function
-    | Create_sequence {sequence_qname = sqn; sequence_scope = `Permanent} ->
+   | Create_sequence {sequence_qname = sqn; sequence_scope = `Permanent; _} ->
       fprintf oc "create_sequence %s\n\n" (string_of_qname sqn)
-    | Create_table {table_qname = tqn; table_scope = `Permanent;
-                    table_items = items} ->
+   | Create_table {table_qname = tqn; table_scope = `Permanent;
+                   table_items = items; _} ->
       fprintf oc "enter_create_table %s\n" (string_of_qname tqn);
       List.iter (emit_colspec tqn) items;
       fprintf oc "leave_create_table %s\n" (string_of_qname tqn);
       output_char oc '\n'
-    | _ -> () in
+   | _ -> () in
   List.iter emit_top stmts
 
 let () = register_generator "shell" generate
