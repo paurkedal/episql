@@ -178,7 +178,7 @@ module Insert_buffer (C : Caqti_lwt.CONNECTION) = struct
       Buffer.add_string ib.buf " DEFAULT VALUES"
     else begin
       Buffer.add_string ib.buf ") VALUES (";
-      (match ib.driver_info.bi_parameter_style with
+      (match Caqti_driver_info.parameter_style ib.driver_info with
        | `Linear s ->
           Buffer.add_string ib.buf s;
           for _ = 1 to ib.param_count - 1 do
