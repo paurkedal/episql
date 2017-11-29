@@ -80,24 +80,24 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) :
                    and type value := P.value and type change := P.change
                    and type beacon := Beacon.t
 
-module Insert_buffer (C : Caqti_lwt.CONNECTION) : sig
+module Insert_buffer (C : Caqti1_lwt.CONNECTION) : sig
   type t
   val create : Caqti_driver_info.t -> string -> t
   val set : t -> string -> C.Param.t -> unit
   val ret : t -> string -> unit
   val have_ret : t -> bool
-  val contents : t -> Caqti_query.query * C.Param.t array
+  val contents : t -> Caqti1_query.query * C.Param.t array
 end
 
-module Update_buffer (C : Caqti_lwt.CONNECTION) : sig
+module Update_buffer (C : Caqti1_lwt.CONNECTION) : sig
   type t
   val create : Caqti_driver_info.t -> string -> t
   val set : t -> string -> C.Param.t -> unit
   val where : t -> string -> C.Param.t -> unit
-  val contents : t -> (Caqti_query.query * C.Param.t array) option
+  val contents : t -> (Caqti1_query.query * C.Param.t array) option
 end
 
-module Select_buffer (C : Caqti_lwt.CONNECTION) : sig
+module Select_buffer (C : Caqti1_lwt.CONNECTION) : sig
   type t
   type query_fragment = S of string | P of C.Param.t
   val create : Caqti_driver_info.t -> string -> t
@@ -107,5 +107,5 @@ module Select_buffer (C : Caqti_lwt.CONNECTION) : sig
   val order_by : t -> ('a -> string) -> 'a order_item -> unit
   val limit : t -> int -> unit
   val offset : t -> int -> unit
-  val contents : t -> Caqti_query.query * C.Param.t array
+  val contents : t -> Caqti1_query.query * C.Param.t array
 end

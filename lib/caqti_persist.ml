@@ -146,8 +146,8 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
 
 end
 
-module Insert_buffer (C : Caqti_lwt.CONNECTION) = struct
-  open Caqti_query
+module Insert_buffer (C : Caqti1_lwt.CONNECTION) = struct
+  open Caqti1_query
 
   type t = {
     driver_info : Caqti_driver_info.t;
@@ -209,9 +209,9 @@ let make_param_for driver_info =
   (match Caqti_driver_info.parameter_style driver_info with
    | `Linear s -> fun _ -> s
    | `Indexed sf -> sf
-   | _ -> raise Caqti_query.Missing_query_string)
+   | _ -> raise Caqti1_query.Missing_query_string)
 
-module Update_buffer (C : Caqti_lwt.CONNECTION) = struct
+module Update_buffer (C : Caqti1_lwt.CONNECTION) = struct
 
   type state = Init | Set | Where | Noop
 
@@ -259,11 +259,11 @@ module Update_buffer (C : Caqti_lwt.CONNECTION) = struct
     match ub.state with
     | Init | Noop -> None
     | Set -> assert false (* Precaution, we don't need unconditional update. *)
-    | Where -> Some (Caqti_query.Oneshot (fun _ -> qs),
+    | Where -> Some (Caqti1_query.Oneshot (fun _ -> qs),
                      Array.of_list (List.rev ub.params))
 end
 
-module Select_buffer (C : Caqti_lwt.CONNECTION) = struct
+module Select_buffer (C : Caqti1_lwt.CONNECTION) = struct
 
   type query_fragment = S of string | P of C.Param.t
 
@@ -363,6 +363,6 @@ module Select_buffer (C : Caqti_lwt.CONNECTION) = struct
     | Where | Order_by | Final -> ()
     end;
     let qs = Buffer.contents sb.buf in
-    Caqti_query.Oneshot (fun _ -> qs), Array.of_list (List.rev sb.params)
+    Caqti1_query.Oneshot (fun _ -> qs), Array.of_list (List.rev sb.params)
 
 end

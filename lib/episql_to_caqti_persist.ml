@@ -395,7 +395,7 @@ let emit_intf oc ti =
   end;
   let open_query_val fn =
     pp oc "@ @[<hv 2>val %s :" fn;
-    Option.iter (pp oc "@ ?%s: (module Caqti_lwt.CONNECTION) ->")
+    Option.iter (pp oc "@ ?%s: (module Caqti1_lwt.CONNECTION) ->")
                 go.go_connection_arg in
   let close_query_val () = pp oc "@]" in
   pp oc "@ val fetch : %s -> t Lwt.t" pk_type;
@@ -476,13 +476,13 @@ let emit_query oc name emit =
   let pgparam_no = ref 0 in
   let pgparam () = incr pgparam_no; sprintf "$%d" !pgparam_no in
   let sqliteparam () = "?" in
-  pp oc "@ @[<v 2>let %s = Caqti_query.prepare_fun @@@@ function" name;
+  pp oc "@ @[<v 2>let %s = Caqti1_query.prepare_fun @@@@ function" name;
   pp oc "@ | `Pgsql -> \""; emit pgparam; pp oc "\"";
   pp oc "@ | `Sqlite -> \""; emit sqliteparam; pp oc "\"";
-  pp oc "@ | _ -> raise Caqti_query.Missing_query_string@]"
+  pp oc "@ | _ -> raise Caqti1_query.Missing_query_string@]"
 
 let emit_use_C_noarg oc =
-  pp oc "@ P.use_db @@@@ fun (module C : Caqti_lwt.CONNECTION) ->"
+  pp oc "@ P.use_db @@@@ fun (module C : Caqti1_lwt.CONNECTION) ->"
 
 let emit_use_C oc =
   match go.go_connection_arg with
@@ -490,7 +490,7 @@ let emit_use_C oc =
     emit_use_C_noarg oc
   | Some s ->
     pp oc "@ (match %s with None -> P.use_db | Some db -> fun f -> f db)" s;
-    pp oc "@   @@@@ fun (module C : Caqti_lwt.CONNECTION) ->"
+    pp oc "@   @@@@ fun (module C : Caqti1_lwt.CONNECTION) ->"
 
 let emit_param oc ti pk cts =
   let n_pk = List.length ti.ti_pk_cts in
@@ -1138,7 +1138,7 @@ let common_header = "\
   open Caqti_persist\n\
   module type P = sig\n\
  \  module Beacon : Prime_beacon.S\n\
- \  val use_db : ((module Caqti_lwt.CONNECTION) -> 'a Lwt.t) -> 'a Lwt.t\n\
+ \  val use_db : ((module Caqti1_lwt.CONNECTION) -> 'a Lwt.t) -> 'a Lwt.t\n\
   end\n\n"
 
 let generate_intf stmts oc =

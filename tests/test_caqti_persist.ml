@@ -31,8 +31,8 @@ module P = struct
   module Beacon = Prime_beacon.Make (Cm)
 
   let () = Dynlink.allow_unsafe_modules true
-  let pool = Caqti_lwt.connect_pool (Uri.of_string "postgresql://")
-  let use_db f = Caqti_lwt.Pool.use f pool
+  let pool = Caqti1_lwt.connect_pool (Uri.of_string "postgresql://")
+  let use_db f = Caqti1_lwt.Pool.use f pool
 end
 
 module M = Schema_one_persist.Make (P)
