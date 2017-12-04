@@ -1,5 +1,9 @@
 # Change Log
 
+## [0.10.0] - 2017-12-04
+
+- Adjust for new Caqti release.
+
 ## [0.9.2] - 2017-11-05
 
 - Fix warnings from generated (and non-generated) code.
