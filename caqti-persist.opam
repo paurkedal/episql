@@ -12,8 +12,6 @@ build-test: [["jbuilder" "runtest" "-p" name "-j" jobs]]
 
 depends: [
   "jbuilder" {build}
-  "topkg" {build}
-  "topkg-jbuilder" {build}
   "caqti"     {>= "0.6.0"}
   "caqti-lwt" {>= "0.6.0"}
   "extunix"
