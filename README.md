@@ -13,6 +13,9 @@ contains generators for
 
 ## Caqti Persistence
 
+**Note**: This generator will likely be replaced with one providing an
+incompatible API, so don't use it for new projects.
+
 This backend maps database rows to memory-cached objects, and provides an
 interface to fetch, insert, update, and delete individual objects.  It is
 assumed that only one application access the cached tables.
@@ -42,6 +45,8 @@ episql -g caqti-persist-ml -help
 ```
 
 ## Macaque Output
+
+**Note**: This generator will likely be dropped in the near future.
 
 Use the command line switch `-g macaque`.  An table definition like
 
