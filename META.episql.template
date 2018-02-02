@@ -1,3 +1,5 @@
+# JBUILDER_GEN
+
 package "caqti-persist" (
   description = "Transitional alias for caqti-persist"
   requires = "caqti-persist"

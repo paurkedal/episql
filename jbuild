@@ -1,7 +1,0 @@
-(rule
- ((targets (META.episql))
-  (deps (META.episql.from-jbuilder META.episql.epilogue))
-  (action (with-stdout-to ${@}
-    (progn
-      (cat ${<})
-      (cat META.episql.epilogue))))))
