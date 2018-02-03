@@ -12,8 +12,9 @@ build-test: [["jbuilder" "runtest" "-p" name "-j" jobs]]
 
 depends: [
   "jbuilder" {build}
-  "caqti"     {>= "0.6.0"}
-  "caqti-lwt" {>= "0.6.0"}
+  "caqti" {>= "0.8.1"}
+  "caqti-dynload" {test}
+  "caqti-lwt" {>= "0.8.1"}
   "extunix"
   "lwt"
   "prime"
