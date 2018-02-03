@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2017  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2018  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -78,6 +78,7 @@ let translate dt = function
  | e -> translate_inner e
 
 let generate stmts oc =
+  prerr_string "warning: The macaque generator is deprecated.\n";
   let emit_type dt = output_string oc (string_of_datatype dt) in
   let rec emit_expr = function
    | Expr_qname (_, name) -> fprintf oc "$%s$" name
