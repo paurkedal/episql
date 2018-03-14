@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2017  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2018  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -31,9 +31,9 @@ module Filter = struct
     let s = String.trim s in
     if String.length s = 0 then invalid_arg "Filter.instr_of_string";
     (match s.[0] with
-     | '+' -> Incl (Re.compile (Re_glob.glob (String.(trim (slice_from 1 s)))))
-     | '-' -> Excl (Re.compile (Re_glob.glob (String.(trim (slice_from 1 s)))))
-     | _ ->   Incl (Re.compile (Re_glob.glob s)))
+     | '+' -> Incl (Re.compile (Re.Glob.glob (String.(trim (slice_from 1 s)))))
+     | '-' -> Excl (Re.compile (Re.Glob.glob (String.(trim (slice_from 1 s)))))
+     | _ ->   Incl (Re.compile (Re.Glob.glob s)))
 
   let of_string s = String.chop_affix "," s |> List.map instr_of_string
 
