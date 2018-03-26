@@ -17,7 +17,7 @@ CREATE TABLE episql_tests.cp_1d_1o1r1d (
   v0 integer,
   v1 text NOT NULL,
   v2 timestamp DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'utc'),
-  v3 integer NOT NULL DEFAULT 0
+  v3 boolean NOT NULL DEFAULT true
 );
 
 CREATE TABLE episql_tests.tensor1 (

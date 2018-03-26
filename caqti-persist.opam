@@ -15,8 +15,10 @@ depends: [
   "caqti" {>= "0.8.1"}
   "caqti-dynload" {test}
   "caqti-lwt" {>= "0.8.1"}
+  "caqti-type-calendar" {>= "0.8.1"}
   "extunix"
   "lwt"
+  "ppx_deriving" {build}
   "prime"
   "react"
 ]

@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2017  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2018  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -31,8 +31,19 @@ module P = struct
   module Beacon = Prime_beacon.Make (Cm)
 
   let () = Dynlink.allow_unsafe_modules true
-  let pool = Caqti1_lwt.connect_pool (Uri.of_string "postgresql://")
-  let use_db f = Caqti1_lwt.Pool.use f pool
+  let pool =
+    (match Caqti_lwt.connect_pool (Uri.of_string "postgresql://") with
+     | Ok pool -> pool
+     | Error err -> raise (Caqti_error.Exn err))
+  let use_db f =
+    let aux c =
+      Lwt.catch
+        (fun () -> f c >|= fun y -> Ok y)
+        (fun exn -> Lwt.return_error (`Exn exn)) in
+    Caqti_lwt.Pool.use aux pool >>= function
+     | Ok y -> Lwt.return y
+     | Error (`Exn exn) -> Lwt.fail exn
+     | Error (#Caqti_error.t as err) -> Lwt.fail (Caqti_error.Exn err)
 end
 
 module M = Schema_one_persist.Make (P)
@@ -40,6 +51,10 @@ open M
 
 let test_serial () =
   Cp_1d_0.create () >>= fun a ->
+  Cp_1d_0.select ~k0:(`Eq (Cp_1d_0.get_k0 a)) () >>= fun a' ->
+  assert (List.length a' = 1);
+  Cp_1d_0.fetch (Cp_1d_0.get_k0 a) >>= fun a'' ->
+  assert (Cp_1d_0.is_present a'');
   Cp_1d_0.delete a >>= fun () ->
 
   Cp_1d_1o.create () >>= fun b ->
@@ -57,10 +72,10 @@ let test_serial () =
   Cp_1d_1r.delete d >>= fun () ->
 
   let now = CalendarLib.Calendar.now () in
-  Cp_1d_1o1r1d.create ~v1:"zzzz" ~v2:now () >>= fun _e0 ->
-  Cp_1d_1o1r1d.create ~v1:"zap" ~v2:now () >>= fun e1 ->
-  Cp_1d_1o1r1d.create ~v1:"paz" ~v2:now () >>= fun e2 ->
-  Cp_1d_1o1r1d.create ~v1:"zzz" ~v2:now () >>= fun e3 ->
+  Cp_1d_1o1r1d.create ~v1:"zzzz" ~v2:(Some now) () >>= fun _e0 ->
+  Cp_1d_1o1r1d.create ~v1:"zap" ~v2:(Some now) () >>= fun e1 ->
+  Cp_1d_1o1r1d.create ~v1:"paz" ~v2:(Some now) () >>= fun e2 ->
+  Cp_1d_1o1r1d.create ~v1:"zzz" ~v2:(Some now) () >>= fun e3 ->
   begin
     Cp_1d_1o1r1d.select ~v2:(`Eq now) ~order_by:[Asc `v2; Desc `v1]
                                   ~limit:3 ~offset:1 () >>= function

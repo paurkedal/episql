@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2016  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2018  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -25,6 +25,8 @@ val parse_file : ?dialect: dialect_tag -> string -> statement list
 val string_of_datatype : datatype -> string
 
 val string_of_qname : qname -> string
+
+val qname_of_string : string -> qname
 
 val string_of_expression : expression -> string
 

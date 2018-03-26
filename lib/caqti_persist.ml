@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2017  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2018  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -16,6 +16,7 @@
 
 open Lwt.Infix
 open Printf
+open Unprime
 
 type 'a presence =
   | Absent
@@ -33,8 +34,13 @@ type ('value, 'change) persist_patch_out =
   | `Update of 'change list
   | `Delete ]
 
+type conflict_error = {
+  conflict_type: [`Insert_insert | `Update_insert | `Update_delete];
+  conflict_table: string;
+} [@@deriving show]
+
 exception Not_present
-exception Conflict of [ `Insert_insert | `Update_insert | `Update_delete ]
+exception Conflict of conflict_error
 
 type 'a order_predicate =
   [ `Eq of 'a | `Ne of 'a | `Lt of 'a | `Le of 'a | `Ge of 'a | `Gt of 'a
@@ -63,6 +69,7 @@ module type PK_CACHABLE = sig
   val key_size : int
   val state_size : int
   val fetch : key -> state option Lwt.t
+  val table_name : string
 end
 
 module type PK_CACHED = sig
@@ -97,7 +104,7 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
   }
 
   module W = Weak.Make (struct
-    type tmp = t type t = tmp
+    type nonrec t = t
     let equal a b = a.key = b.key
     let hash a = Hashtbl.hash a.key
   end)
@@ -130,113 +137,159 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
   let merge_created (key, state) =
     try
       let o = W.find cache (mk_key key) in
-      begin match o.state with
-      | Deleting c -> Lwt_condition.wait c >|= fun () ->
-                      o.state <- Present state
-      | Absent -> o.state <- Present state; Lwt.return_unit
-      | Inserting _ | Present _ -> Lwt.fail (Conflict `Insert_insert)
-      end >|= fun () -> o
+      let rec retry () =
+        (match o.state with
+         | Deleting c ->
+            Lwt_condition.wait c >>= retry
+         | Absent ->
+            o.state <- Present state;
+            Lwt.return_unit
+         | Inserting _ | Present _ ->
+            let error = {
+              conflict_type = `Insert_insert;
+              conflict_table = P.table_name;
+            } in
+            Lwt.fail (Conflict error)) in
+        retry () >|= fun () -> o
     with Not_found ->
       let o =
         let patches, notify = React.E.create () in
-        Beacon.embed fetch_grade
-          (fun beacon -> {key; state=Present state; beacon; patches; notify}) in
+        Beacon.embed fetch_grade begin fun beacon ->
+          {key; state = Present state; beacon; patches; notify}
+        end in
       W.add cache o;
       Lwt.return o
-
 end
 
-module Insert_buffer (C : Caqti1_lwt.CONNECTION) = struct
-  open Caqti1_query
-
-  type t = {
-    driver_info : Caqti_driver_info.t;
-    buf : Buffer.t;
-    mutable param_count : int;
-    mutable params : C.Param.t list;
-    mutable returning : string list;
-  }
-
-  let create driver_info table_name =
-    let buf = Buffer.create 256 in
-    Buffer.add_string buf "INSERT INTO ";
-    Buffer.add_string buf table_name;
-    {driver_info; buf; param_count = 0; params = []; returning = []}
-
-  let set ib pn pv =
-    Buffer.add_string ib.buf (if ib.param_count = 0 then " (" else ", ");
-    Buffer.add_string ib.buf pn;
-    ib.params <- pv :: ib.params;
-    ib.param_count <- ib.param_count + 1
-
-  let ret ib r = ib.returning <- r :: ib.returning
-
-  let have_ret ib = ib.returning <> []
-
-  let contents ib =
-    if ib.param_count = 0 then
-      Buffer.add_string ib.buf " DEFAULT VALUES"
-    else begin
-      Buffer.add_string ib.buf ") VALUES (";
-      (match Caqti_driver_info.parameter_style ib.driver_info with
-       | `Linear s ->
-          Buffer.add_string ib.buf s;
-          for _ = 1 to ib.param_count - 1 do
-            Buffer.add_string ib.buf ", ";
-            Buffer.add_string ib.buf s
-          done
-       | `Indexed sf ->
-          Buffer.add_string ib.buf (sf 0);
-          for i = 1 to ib.param_count - 1 do
-            Buffer.add_string ib.buf ", ";
-            Buffer.add_string ib.buf (sf i)
-          done
-       | _ -> raise Missing_query_string);
-      Buffer.add_char ib.buf ')'
-    end;
-    (match List.rev ib.returning with
-     | [] -> ()
-     | r :: rs ->
-        Buffer.add_string ib.buf " RETURNING ";
-        Buffer.add_string ib.buf r;
-        List.iter (fun r -> Buffer.add_string ib.buf ", ";
-                            Buffer.add_string ib.buf r) rs);
-    let qs = Buffer.contents ib.buf in
-    (Oneshot (fun _ -> qs), Array.of_list (List.rev ib.params))
+module Params = struct
+  type t = V : 'a Caqti_type.t * 'a -> t
+  let empty = V (Caqti_type.unit, ())
+  let add pt pv (V (pt', pv')) = V (Caqti_type.(tup2 pt' pt), (pv', pv))
 end
 
-let make_param_for driver_info =
-  (match Caqti_driver_info.parameter_style driver_info with
-   | `Linear s -> fun _ -> s
-   | `Indexed sf -> sf
-   | _ -> raise Caqti1_query.Missing_query_string)
+type (_, _) request =
+  Request : ('a, 'b, 'm) Caqti_request.t * 'a -> ('b, 'm) request
 
-module Update_buffer (C : Caqti1_lwt.CONNECTION) = struct
+module Insert = struct
+
+  type wd = Wd
+  type wod = Wod
+
+  module Spec = struct
+    type 'q t =
+      | Done : string -> unit t
+      | Field : {
+          cn: string;
+          ct: 'a Caqti_type.t;
+          next: 'q t;
+        } -> (('a * wod) * 'q) t
+      | Field_default : {
+          cn: string;
+          ct: 'a Caqti_type.t;
+          next: 'q t;
+        } -> (('a * wd) * 'q) t
+  end
+
+  module Request = struct
+    type (_, _, _) t =
+      | Done :
+          ('p, unit, Caqti_mult.zero) Caqti_request.t -> (unit, 'p, unit) t
+      | Done_default :
+          ('p, 'a * 'r, Caqti_mult.one) Caqti_request.t -> (unit, 'p, 'a * 'r) t
+      | Field : {
+          set: ('q, 'p * 'a, 'r) t;
+        } -> (('a * wod) * 'q, 'p, 'r) t
+      | Field_default : {
+          set: ('q, 'p * 'a, 'r) t Lazy.t;
+          ret: ('q, 'p, 'r * 'a) t Lazy.t;
+        } -> (('a * wd) * 'q, 'p, 'r) t
+
+    let rec create'
+      : type q pt rt. (pt Caqti_type.t * _ * rt Caqti_type.t * _) -> q Spec.t ->
+        (q, pt, rt) t =
+      fun (pt, pcns, rt, rcns) ->
+      (function
+       | Spec.Done tn ->
+          let pcns = List.rev pcns in
+          let rcns = List.rev rcns in
+          let qs =
+            "INSERT INTO " ^ tn ^
+            (if pcns = [] then " DEFAULT VALUES" else
+             " (" ^ String.concat ", " pcns ^ ") VALUES (" ^
+             (String.concat ", " (List.map (konst "?") pcns)) ^ ")")
+          in
+          (match rt with
+           | Caqti_type.Unit ->
+              Done (Caqti_request.exec pt qs)
+           | Caqti_type.Tup2 (_, _) ->
+              let qs = qs ^ " RETURNING " ^ String.concat ", " rcns in
+              Done_default (Caqti_request.find pt rt qs)
+           | _ -> assert false)
+       | Spec.Field {cn; ct; next} ->
+          let set =
+            (create' (Caqti_type.(tup2 pt ct), cn :: pcns, rt, rcns) next) in
+          Field {set}
+       | Spec.Field_default {cn; ct; next} ->
+          let set = lazy
+            (create' (Caqti_type.(tup2 pt ct), cn :: pcns, rt, rcns) next) in
+          let ret = lazy
+            (create' (pt, pcns, Caqti_type.(tup2 rt ct), cn :: rcns) next) in
+          Field_default {set; ret})
+
+    let create spec = create' (Caqti_type.unit, [], Caqti_type.unit, []) spec
+  end
+
+  type (_, _) app =
+    | App : {
+        request: ('q, 'p, 'r) Request.t;
+        param: 'p;
+        default: 'r -> 'd;
+      } -> ('q, 'd) app
+
+  let init request = App {request; param = (); default = ident}
+
+  let ($) : type a ad q d. ((a * ad) * q, d) app -> a -> (q, d) app =
+    fun request arg ->
+    (match request with
+     | App {request = Request.Field {set; _}; param; default} ->
+        App {request = set; param = (param, arg); default}
+     | App {request = Request.Field_default {set; _}; param; default} ->
+        App {request = Lazy.force set; param = (param, arg); default})
+
+  let ($?) : type a q d. ((a * wd) * q, d) app -> a option -> (q, d * a) app =
+    fun request arg ->
+    (match request with
+     | App {request = Request.Field_default {set; ret; _}; param; default} ->
+        (match arg with
+         | Some arg ->
+            let default rs = (default rs, arg) in
+            App {request = Lazy.force set; param = (param, arg); default}
+         | None ->
+            let default (rs, r) = (default rs, r) in
+            App {request = Lazy.force ret; param; default}))
+end
+
+module Update_buffer = struct
 
   type state = Init | Set | Where | Noop
 
   type t = {
-    make_param : int -> string;
     buf : Buffer.t;
-    mutable param_count : int;
-    mutable params : C.Param.t list;
+    mutable params : Params.t;
     mutable state : state;
   }
 
-  let create driver_info table_name =
+  let create _driver_info table_name =
     let buf = Buffer.create 256 in
     Buffer.add_string buf "UPDATE ";
     Buffer.add_string buf table_name;
     Buffer.add_string buf " SET ";
-    { make_param = make_param_for driver_info; buf;
-      param_count = 0; params = []; state = Init }
+    {buf; params = Params.empty; state = Init}
 
-  let assign ub pn pv =
+  let assign ub pn (pt, pv) =
     Buffer.add_string ub.buf pn;
-    Buffer.add_string ub.buf " = ";
-    Buffer.add_string ub.buf (ub.make_param ub.param_count);
-    ub.params <- pv :: ub.params;
-    ub.param_count <- ub.param_count + 1
+    Buffer.add_string ub.buf " = ?";
+    ub.params <- Params.add pt pv ub.params
 
   let set ub pn pv =
     begin match ub.state with
@@ -255,34 +308,35 @@ module Update_buffer (C : Caqti1_lwt.CONNECTION) = struct
     assign ub pn pv
 
   let contents ub =
-    let qs = Buffer.contents ub.buf in
-    match ub.state with
-    | Init | Noop -> None
-    | Set -> assert false (* Precaution, we don't need unconditional update. *)
-    | Where -> Some (Caqti1_query.Oneshot (fun _ -> qs),
-                     Array.of_list (List.rev ub.params))
+    let qs = konst (Buffer.contents ub.buf) in
+    (match ub.state with
+     | Init | Noop -> None
+     | Set -> assert false (* Precaution, we don't need unconditional update. *)
+     | Where ->
+        let Params.V (pt, pv) = ub.params in
+        let rt, m = Caqti_type.unit, Caqti_mult.zero in
+        Some (Request (Caqti_request.create_p ~oneshot:true pt rt m qs, pv)))
 end
 
-module Select_buffer (C : Caqti1_lwt.CONNECTION) = struct
+module Select_buffer = struct
 
-  type query_fragment = S of string | P of C.Param.t
+  type query_fragment =
+    | S : string -> query_fragment
+    | P : 'a Caqti_type.t * 'a -> query_fragment
 
   type state = Init | Ret | Where | Order_by | Final
 
   type t = {
-    make_param : int -> string;
     buf : Buffer.t;
     table_name : string;
-    mutable params : C.Param.t list;
-    mutable param_count : int;
+    mutable params : Params.t;
     mutable state : state;
   }
 
-  let create driver_info table_name =
+  let create _driver_info table_name =
     let buf = Buffer.create 256 in
     Buffer.add_string buf "SELECT ";
-    { make_param = make_param_for driver_info; buf; table_name;
-      params = []; param_count = 0; state = Init; }
+    {buf; table_name; params = Params.empty; state = Init}
 
   let ret sb pn =
     match sb.state with
@@ -304,14 +358,12 @@ module Select_buffer (C : Caqti1_lwt.CONNECTION) = struct
     | Where ->
       Buffer.add_string sb.buf " AND "
     end;
-    List.iter
-      (function
-        | S s -> Buffer.add_string sb.buf s
-        | P pv ->
-          Buffer.add_string sb.buf (sb.make_param sb.param_count);
-          sb.params <- pv :: sb.params;
-          sb.param_count <- sb.param_count + 1)
-      qfs
+    qfs |> List.iter begin function
+     | S s -> Buffer.add_string sb.buf s
+     | P (pt, pv) ->
+        Buffer.add_string sb.buf "?";
+        sb.params <- Params.add pt pv sb.params
+    end
 
   let obsolete_order_by sb cn =
     match sb.state with
@@ -354,15 +406,22 @@ module Select_buffer (C : Caqti1_lwt.CONNECTION) = struct
     bprintf sb.buf " OFFSET %d" n;
     sb.state <- Final
 
-  let contents sb =
-    begin match sb.state with
-    | Init -> assert false
-    | Ret ->
-      Buffer.add_string sb.buf " FROM ";
-      Buffer.add_string sb.buf sb.table_name
-    | Where | Order_by | Final -> ()
-    end;
+  let contents sb rt =
+    (match sb.state with
+     | Init -> assert false
+     | Ret ->
+        Buffer.add_string sb.buf " FROM ";
+        Buffer.add_string sb.buf sb.table_name
+     | Where | Order_by | Final -> ());
     let qs = Buffer.contents sb.buf in
-    Caqti1_query.Oneshot (fun _ -> qs), Array.of_list (List.rev sb.params)
+    let Params.V (pt, pv) = sb.params in
+    let m = Caqti_mult.zero_or_more in
+    Request (Caqti_request.create_p ~oneshot:true pt rt m (konst qs), pv)
 
 end
+
+let () =
+  Printexc.register_printer
+    (function
+     | Conflict error -> Some (show_conflict_error error)
+     | _ -> None)

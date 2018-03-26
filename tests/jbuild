@@ -1,7 +1,7 @@
 (executables
  ((names (test_caqti_persist))
   (modules (test_caqti_persist schema_one_persist schema_one_persist_types))
-  (libraries (caqti_persist caqti-dynload))))
+  (libraries (calendar caqti_persist caqti-dynload))))
 
 (executables
  ((names (schema_one_macaque))

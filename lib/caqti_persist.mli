@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2017  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2018  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -30,8 +30,13 @@ type ('value, 'change) persist_patch_out =
   | `Update of 'change list
   | `Delete ]
 
+type conflict_error = {
+  conflict_type: [`Insert_insert | `Update_insert | `Update_delete];
+  conflict_table: string;
+} [@@deriving show]
+
 exception Not_present
-exception Conflict of [ `Insert_insert | `Update_insert | `Update_delete ]
+exception Conflict of conflict_error
 
 type 'a order_predicate =
   [ `Eq of 'a | `Ne of 'a | `Lt of 'a | `Le of 'a | `Ge of 'a | `Gt of 'a
@@ -54,6 +59,7 @@ module type PK_CACHABLE = sig
   val key_size : int
   val state_size : int
   val fetch : key -> state option Lwt.t
+  val table_name : string
 end
 
 module type PK_CACHED = sig
@@ -80,26 +86,73 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) :
                    and type value := P.value and type change := P.change
                    and type beacon := Beacon.t
 
-module Insert_buffer (C : Caqti1_lwt.CONNECTION) : sig
-  type t
-  val create : Caqti_driver_info.t -> string -> t
-  val set : t -> string -> C.Param.t -> unit
-  val ret : t -> string -> unit
-  val have_ret : t -> bool
-  val contents : t -> Caqti1_query.query * C.Param.t array
+type (_, _) request =
+  Request : ('a, 'b, 'm) Caqti_request.t * 'a -> ('b, 'm) request
+
+module Insert : sig
+
+  type wd = Wd
+  type wod = Wod
+
+  module Spec : sig
+    type 'q t =
+      | Done : string -> unit t
+      | Field : {
+          cn: string;
+          ct: 'a Caqti_type.t;
+          next: 'q t;
+        } -> (('a * wod) * 'q) t
+      | Field_default : {
+          cn: string;
+          ct: 'a Caqti_type.t;
+          next: 'q t;
+        } -> (('a * wd) * 'q) t
+  end
+
+  module Request : sig
+    type (_, _, _) t =
+      | Done :
+          ('p, unit, Caqti_mult.zero) Caqti_request.t -> (unit, 'p, unit) t
+      | Done_default :
+          ('p, 'a * 'r, Caqti_mult.one) Caqti_request.t -> (unit, 'p, 'a * 'r) t
+      | Field : {
+          set: ('q, 'p * 'a, 'r) t;
+        } -> (('a * wod) * 'q, 'p, 'r) t
+      | Field_default : {
+          set: ('q, 'p * 'a, 'r) t Lazy.t;
+          ret: ('q, 'p, 'r * 'a) t Lazy.t;
+        } -> (('a * wd) * 'q, 'p, 'r) t
+
+    val create : 'q Spec.t -> ('q, unit, unit) t
+  end
+
+  type (_, _) app =
+    | App : {
+        request: ('q, 'p, 'r) Request.t;
+        param: 'p;
+        default: 'r -> 'd;
+      } -> ('q, 'd) app
+
+  val init : ('q, unit, unit) Request.t -> ('q, unit) app
+  val ($) : (('a * _) * 'q, 'd) app -> 'a -> ('q, 'd) app
+  val ($?) : (('a * wd) * 'q, 'd) app -> 'a option -> ('q, 'd * 'a) app
 end
 
-module Update_buffer (C : Caqti1_lwt.CONNECTION) : sig
+module Update_buffer : sig
   type t
   val create : Caqti_driver_info.t -> string -> t
-  val set : t -> string -> C.Param.t -> unit
-  val where : t -> string -> C.Param.t -> unit
-  val contents : t -> (Caqti1_query.query * C.Param.t array) option
+  val set : t -> string -> 'a Caqti_type.t * 'a -> unit
+  val where : t -> string -> 'a Caqti_type.t * 'a -> unit
+  val contents : t -> (unit, Caqti_mult.zero) request option
 end
 
-module Select_buffer (C : Caqti1_lwt.CONNECTION) : sig
+module Select_buffer : sig
   type t
-  type query_fragment = S of string | P of C.Param.t
+
+  type query_fragment =
+    | S : string -> query_fragment
+    | P : 'a Caqti_type.t * 'a -> query_fragment
+
   val create : Caqti_driver_info.t -> string -> t
   val ret : t -> string -> unit
   val where : t -> query_fragment list -> unit
@@ -107,5 +160,5 @@ module Select_buffer (C : Caqti1_lwt.CONNECTION) : sig
   val order_by : t -> ('a -> string) -> 'a order_item -> unit
   val limit : t -> int -> unit
   val offset : t -> int -> unit
-  val contents : t -> Caqti1_query.query * C.Param.t array
+  val contents : t -> 'a Caqti_type.t -> ('a, Caqti_mult.zero_or_more) request
 end

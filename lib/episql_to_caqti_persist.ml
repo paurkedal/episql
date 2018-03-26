@@ -127,8 +127,8 @@ let convname_of_datatype = function
   | `Bytea -> "bytes"
   | `Numeric_auto | `Numeric _ -> "float" (* FIXME *)
   | `Time (_, _) -> "float"
-  | `Date -> "date_cl"
-  | `Timestamp (_, _) -> "utc_cl"
+  | `Date -> "cdate"
+  | `Timestamp (_, _) -> "ctime"
   | `Interval (_, _) -> "string" (* FIXME *)
   | `Custom _ -> "string"
 
@@ -158,7 +158,7 @@ let coltype_is_required ct = not ct.ct_nullable && not ct.ct_defaultable
 
 let convname_of_coltype ct =
   let s = convname_of_datatype ct.ct_type in
-  if ct.ct_nullable then "option " ^ s else s
+  if ct.ct_nullable then "(option " ^ s ^ ")" else s
 
 let string_of_coltype ct =
   let s = string_of_datatype ct.ct_type in
@@ -295,11 +295,11 @@ let emit_type_patch_etc oc ti =
     emit_deriving oc
   end else begin
     pp oc "@ @[<v 2>type value_d = {";
-    List.iter
-      (fun (cn, ct) ->
-        pp oc "@ %s%s : %s option;"
-           go.go_value_d_prefix cn (string_of_datatype ct.ct_type))
-      ti.ti_nonpk_nonreq_cts;
+    ti.ti_nonpk_nonreq_cts |> List.iter begin fun (cn, ct) ->
+      pp oc "@ %s%s : %s option%s;"
+         go.go_value_d_prefix cn (string_of_datatype ct.ct_type)
+         (if ct.ct_nullable && ct.ct_defaultable then " option" else "")
+    end;
     pp oc "@]@ }";
     emit_deriving oc
   end;
@@ -395,7 +395,7 @@ let emit_intf oc ti =
   end;
   let open_query_val fn =
     pp oc "@ @[<hv 2>val %s :" fn;
-    Option.iter (pp oc "@ ?%s: (module Caqti1_lwt.CONNECTION) ->")
+    Option.iter (pp oc "@ ?%s: (module Caqti_lwt.CONNECTION) ->")
                 go.go_connection_arg in
   let close_query_val () = pp oc "@]" in
   pp oc "@ val fetch : %s -> t Lwt.t" pk_type;
@@ -430,9 +430,10 @@ let emit_intf oc ti =
     open_query_val "create";
     List.iter
       (fun (cn, ct) ->
-        pp oc "@ %s%s: %s ->"
+        pp oc "@ %s%s: %s%s ->"
                 (if ct.ct_nullable || ct.ct_defaultable then "?" else "")
-                cn (string_of_datatype ct.ct_type))
+                cn (string_of_datatype ct.ct_type)
+                (if ct.ct_nullable && ct.ct_defaultable then " option" else ""))
       ti.ti_cts;
     pp oc "@ unit -> t Lwt.t";
     close_query_val ()
@@ -441,9 +442,10 @@ let emit_intf oc ti =
     open_query_val "insert";
     List.iter
       (fun (cn, ct) ->
-        pp oc "@ %s%s: %s ->"
+        pp oc "@ %s%s: %s%s ->"
            (if ct.ct_nullable || ct.ct_defaultable then "?" else "")
-           cn (string_of_datatype ct.ct_type))
+           cn (string_of_datatype ct.ct_type)
+           (if ct.ct_nullable && ct.ct_defaultable then " option" else ""))
       ti.ti_nonpk_cts;
     pp oc "@ t -> unit Lwt.t";
     close_query_val ()
@@ -472,17 +474,8 @@ let emit_intf oc ti =
     pp oc "@ val patches : t -> patch_out React.E.t";
   pp oc "@]@ end"
 
-let emit_query oc name emit =
-  let pgparam_no = ref 0 in
-  let pgparam () = incr pgparam_no; sprintf "$%d" !pgparam_no in
-  let sqliteparam () = "?" in
-  pp oc "@ @[<v 2>let %s = Caqti1_query.prepare_fun @@@@ function" name;
-  pp oc "@ | `Pgsql -> \""; emit pgparam; pp oc "\"";
-  pp oc "@ | `Sqlite -> \""; emit sqliteparam; pp oc "\"";
-  pp oc "@ | _ -> raise Caqti1_query.Missing_query_string@]"
-
 let emit_use_C_noarg oc =
-  pp oc "@ P.use_db @@@@ fun (module C : Caqti1_lwt.CONNECTION) ->"
+  pp oc "@ P.use_db @@@@ fun (module C : Caqti_lwt.CONNECTION) ->"
 
 let emit_use_C oc =
   match go.go_connection_arg with
@@ -490,63 +483,89 @@ let emit_use_C oc =
     emit_use_C_noarg oc
   | Some s ->
     pp oc "@ (match %s with None -> P.use_db | Some db -> fun f -> f db)" s;
-    pp oc "@   @@@@ fun (module C : Caqti1_lwt.CONNECTION) ->"
+    pp oc "@   @@@@ fun (module C : Caqti_lwt.CONNECTION) ->"
+
+let emit_columns_type ?(filter = fun _ -> true) oc cts =
+  fprint oc "Type.";
+  List.iter
+    (fun (_, ct) ->
+      if filter ct then fprintf oc "(tup2 %s " (convname_of_coltype ct))
+    cts;
+  fprint oc "unit";
+  List.iter (fun (_, ct) -> if filter ct then fprint oc ")") cts
+
+let emit_columns_value ?(filter = fun _ -> true) oc cts =
+  List.iter (fun (cn, ct) -> if filter ct then fprintf oc "(%s, " cn) cts;
+  fprint oc "()";
+  List.iter (fun (_, ct) -> if filter ct then fprint oc ")") cts
+
+let emit_returning_value ?(filter = fun _ -> true) oc cts =
+  List.iter (fun (_, ct) -> if filter ct then fprint oc "(") cts;
+  fprint oc "()";
+  List.iter (fun (cn, ct) -> if filter ct then fprintf oc ", %s)" cn) cts
 
 let emit_param oc ti pk cts =
   let n_pk = List.length ti.ti_pk_cts in
-  fprint oc "C.Param.([|";
-  List.iteri
-    (fun i (cn, ct) ->
-      if i > 0 then fprint oc "; ";
-      fprint oc (convname_of_coltype ct); fprint oc " ";
-      if go.go_collapse_pk && n_pk = 1 && ct.ct_pk then
-        fprint oc pk
-      else if ct.ct_pk then
-        fprintf oc "%s.%s%s" pk go.go_pk_prefix cn
-      else
-        fprintf oc "%s" cn)
-    cts;
-  fprint oc "|])"
-
-let emit_detuple oc cts =
-  if cts = [] then
-    fprint oc "(fun t -> ())"
-  else begin
-    fprint oc "C.Tuple.(fun t -> {";
-    List.iteri
-      (fun i (cn, ct) ->
-        if i > 0 then fprint oc "; ";
-        fprintf oc "%s%s = %s %d t"
-                go.go_state_prefix cn (convname_of_coltype ct) i)
-      cts;
-    fprint oc "})"
-  end
+  cts |> List.iter begin fun (cn, ct) ->
+    if go.go_collapse_pk && n_pk = 1 && ct.ct_pk then
+      pp oc "(%s, " pk
+    else if ct.ct_pk then
+      pp oc "(%s.%s%s, " pk go.go_pk_prefix cn
+    else
+      pp oc "(%s, " cn
+  end;
+  pp oc "()";
+  cts |> List.iter (fun _ -> pp oc ")")
 
 let emit_impl oc ti =
-  let have_default = ti.ti_pk_has_default || ti.ti_nonpk_def_cts <> [] in
 
-  let emit_pk_cond next_param =
+  let open_query_let fn =
+    pp oc "@ @[<v 2>let "; fprint oc fn;
+    Option.iter (fprintf oc " ?%s") go.go_connection_arg in
+  let close_query_let () = pp oc "@]" in
+
+  let emit_pk_cond () =
     List.iteri
-      (fun i (cn, _) ->
-        if i > 0 then fprint oc " AND ";
-        fprintf oc "%s = %s" cn (next_param ()))
+      (fun i (cn, _) -> if i > 0 then fprint oc " AND "; fprintf oc "%s = ?" cn)
       ti.ti_pk_cts in
 
-  let emit_fetch next_param =
-    fprintf oc "SELECT %s FROM %s WHERE "
-      (String.concat ", " (List.map (fun (cn, _) -> cn) ti.ti_nonpk_cts))
-      (Episql.string_of_qname ti.ti_tqn);
-    emit_pk_cond next_param in
-
-  let emit_delete next_param =
-    fprintf oc "DELETE FROM %s WHERE " (Episql.string_of_qname ti.ti_tqn);
-    emit_pk_cond next_param in
-
+  (* module Q = *)
   pp oc "@ @[<v 2>module %s = struct" (String.capitalize_ascii (snd ti.ti_tqn));
   pp oc "@ @[<v 2>module Q = struct";
-  emit_query oc "fetch" emit_fetch;
-  emit_query oc "delete" emit_delete;
+
+  (*   let fetch = ... *)
+  pp oc "@ @[<v 2>let fetch = Caqti_request.find_opt";
+  pp oc "@ "; emit_columns_type oc ti.ti_pk_cts;
+  pp oc "@ "; emit_columns_type oc ti.ti_nonpk_cts;
+  pp oc "@ \"";
+  fprintf oc "SELECT %s FROM %s WHERE "
+    (String.concat ", " (List.map (fun (cn, _) -> cn) ti.ti_nonpk_cts))
+    (Episql.string_of_qname ti.ti_tqn);
+  emit_pk_cond ();
+  pp oc "\"@]";
+
+  (*   let delete = ... *)
+  pp oc "@ @[<v 2>let delete = Caqti_request.exec";
+  pp oc "@ "; emit_columns_type oc ti.ti_pk_cts;
+  pp oc "@ \"";
+  fprintf oc "DELETE FROM %s WHERE " (Episql.string_of_qname ti.ti_tqn);
+  emit_pk_cond ();
+  pp oc "\"@]";
+
+  (*   let insert = ... *)
+  pp oc "@ @[<v 2>let insert = Insert.Request.create Insert.Spec.(";
+  ti.ti_cts |> List.iter begin fun (cn, ct) ->
+    pp oc "@ @[%s {cn = \"%s\"; ct = Type.%s; next =@]"
+      (if ct.ct_defaultable then "Field_default" else "Field")
+      cn (convname_of_coltype ct)
+  end;
+  pp oc "@ Done \"%s\"" (Episql.string_of_qname ti.ti_tqn);
+  ti.ti_cts |> List.iter (fun _ -> fprintf oc "}");
+  pp oc ")@]";
+
   pp oc "@]@ end";
+  (* end *)
+
   (match go.go_types_module with
    | None ->
       emit_type_pk ~in_intf:false oc ti;
@@ -554,6 +573,8 @@ let emit_impl oc ti =
    | Some tm ->
       pp oc "@ include %s.%s" tm (String.capitalize_ascii (snd ti.ti_tqn)));
   emit_type_nonpk ~in_intf:false oc ti;
+
+  (* include Cache (...) *)
   pp oc "@ @[<v 2>include Cache (struct";
   (match go.go_pk_module with
    | None -> pp oc "@ type _t0 = key\ttype key = _t0"
@@ -563,14 +584,31 @@ let emit_impl oc ti =
   pp oc "@ type _t3 = change\ttype change = _t3";
   pp oc "@ let key_size = %d" (List.length ti.ti_pk_cts);
   pp oc "@ let state_size = %d" (List.length ti.ti_nonpk_cts);
+  pp oc "@ let table_name = \"%s\"" (Episql.string_of_qname ti.ti_tqn);
   pp oc "@ @[<v 2>let fetch key =";
   emit_use_C_noarg oc;
-  pp oc "@ C.find_opt Q.fetch ";
-  emit_detuple oc ti.ti_nonpk_cts; fprint oc " ";
+  pp oc "@ @[<v 2>C.find_opt Q.fetch ";
   emit_param oc ti "key" ti.ti_pk_cts;
-  pp oc "@]@]@ end)";
+  fprint oc " >>= Caqti_lwt.or_fail >|= function";
+  pp oc "@ | None -> None";
+  pp oc "@ | Some ";
+  emit_columns_value oc ti.ti_nonpk_cts;
+  (match ti.ti_nonpk_cts with
+   | [] -> fprint oc " -> Some ()"
+   | cts ->
+      fprint oc " -> Some {";
+      List.iteri
+        (fun i (cn, _) ->
+          if i > 0 then fprint oc "; ";
+          fprintf oc "%s%s = %s" go.go_state_prefix cn cn)
+        cts;
+      fprint oc "}");
+  pp oc "@]@]@]@ end)";
 
+  (* let key = ... *)
   pp oc "@ let key {key; _} = key";
+
+  (* let absent = ... *)
   if go.go_raise_on_absent then begin
     pp oc "@ @[<v 2>let absent op o =";
     if go.go_log_debug <> None then
@@ -579,13 +617,19 @@ let emit_impl oc ti =
          (snd ti.ti_tqn);
     pp oc "@ raise Not_present@]"
   end;
+
+  (* let is_present = ... *)
   pp oc "@ let is_present = function {state = Present _; _} -> true \
                                    | _ -> false";
+
+  (* let state = ... *)
   if go.go_raise_on_absent then
     pp oc "@ let state = \
                function {state = Present x; _} -> x | o -> absent \"state\" o"
   else
     pp oc "@ let state = function {state = Present x; _} -> Some x | _ -> None";
+
+  (* let get_... = ... *)
   if go.go_getters then begin
     let n_pk = List.length ti.ti_pk_cts in
     List.iter
@@ -608,17 +652,15 @@ let emit_impl oc ti =
       ti.ti_cts
   end;
 
-  let open_query_let fn =
-    pp oc "@ @[<v 2>let "; fprint oc fn;
-    Option.iter (fprintf oc " ?%s") go.go_connection_arg in
-  let close_query_let () = pp oc "@]" in
-
+  (* let select_cache = ... *)
+  (* let clear_select_cache = ... *)
   if go.go_select_cache then begin
     pp oc "@ let select_cache = \
                Prime_cache.create ~cache_metric:P.Beacon.cache_metric 19";
     pp oc "@ let clear_select_cache () = Prime_cache.clear select_cache"
   end;
 
+  (* let insert = ... *)
   if go.go_insert || go.go_patch then begin
     open_query_let "insert";
     List.iter
@@ -627,78 +669,45 @@ let emit_impl oc ti =
                 (if ct.ct_nullable || ct.ct_defaultable then '?' else '~') cn)
       ti.ti_nonpk_cts;
     fprint oc " o =";
-    pp oc "@ @[<v 2>let rec retry () =";
-    pp oc "@ match o.state with";
-    pp oc "@ @[<v 2>| Absent ->";
+    pp oc "@ @[<v 1>let rec retry () = match o.state with";
+    pp oc "@ @[<v 3>| Absent ->";
     pp oc "@ let _c = Lwt_condition.create () in";
     pp oc "@ o.state <- Inserting _c;";
     emit_use_C oc;
-    pp oc "@ let module Ib = Insert_buffer (C) in";
-    pp oc "@ let ib = Ib.create C.driver_info \"%s\" in"
-             (Episql.string_of_qname ti.ti_tqn);
-    if go.go_collapse_pk && List.length ti.ti_pk_cts = 1 then
-      let cn, ct = List.hd ti.ti_pk_cts in
-      pp oc "@ Ib.set ib \"%s\" C.Param.(%s o.key);"
-         cn (convname_of_datatype ct.ct_type)
-    else
-      List.iter
-        (fun (cn, ct) ->
-          pp oc "@ Ib.set ib \"%s\" C.Param.(%s o.key.%s%s);"
-             cn (convname_of_datatype ct.ct_type) go.go_pk_prefix cn)
-        ti.ti_pk_cts;
-    List.iter
-      (fun (cn, ct) ->
-        if ct.ct_nullable || ct.ct_defaultable then
-          pp oc "@ (match %s with \
-                              None -> () \
-                              | Some x -> Ib.set ib \"%s\" C.Param.(%s x));"
-                   cn cn (convname_of_datatype ct.ct_type)
-        else
-          pp oc "@ Ib.set ib \"%s\" C.Param.(%s %s);"
-             cn (convname_of_datatype ct.ct_type) cn)
-      ti.ti_nonpk_cts;
-    List.iter
-      (fun (cn, ct) -> if ct.ct_defaultable then pp oc "@ Ib.ret ib \"%s\";" cn)
-      ti.ti_nonpk_cts;
-    pp oc "@ let q, p = Ib.contents ib in";
 
-    let emit_field pfx i (cn, _ct) =
-      if i > 0 then fprint oc "; ";
-      fprintf oc "%s%s = %s" pfx cn cn in
-    if ti.ti_nonpk_def_cts <> [] then begin
-      pp oc "@ @[<v 2>let decode t =";
-      pp oc "@ let _i = ref (-1) in";
-      pp oc "@ let _df c = function Some x -> x | None -> incr _i; c !_i t in";
-      List.iter
-        (fun (cn, ct) ->
-          pp oc "@ let %s" cn;
-          pp oc (if ct.ct_nullable then " = Some (" else " = ");
-          pp oc "_df C.Tuple.%s %s" (convname_of_datatype ct.ct_type) cn;
-          pp oc (if ct.ct_nullable then ") in" else " in"))
-        ti.ti_nonpk_def_cts;
-      if ti.ti_nonpk_cts = [] then
-        fprint oc " () in"
-      else begin
-        pp oc "@ @[<hv 2>{";
-        List.iteri (emit_field go.go_state_prefix) ti.ti_nonpk_cts;
-        pp oc "@]} in"
-      end;
-      pp oc "@]";
-      pp oc "@ C.find q decode p >|= fun state ->";
-      if go.go_select_cache then
-        pp oc "@ clear_select_cache ();";
-    end else begin
-      pp oc "@ C.exec q p >|= fun () ->";
-      if go.go_select_cache then
-        pp oc "@ clear_select_cache ();";
-      if ti.ti_nonpk_cts = [] then
-        pp oc "@ let state = () in"
-      else begin
-        pp oc "@ @[<hv 2>let state = {";
-        List.iteri (emit_field go.go_state_prefix) ti.ti_nonpk_cts;
-        pp oc "@]} in"
-      end
+    pp oc "@ @[<v 1>(match Insert.(init Q.insert";
+    ti.ti_cts |> List.iter begin fun (cn, ct) ->
+      if ct.ct_pk then begin
+        pp oc (if ct.ct_defaultable then " $? Some " else " $ ");
+        if go.go_collapse_pk && List.length ti.ti_pk_cts = 1 then
+          pp oc "o.key"
+        else
+          pp oc "o.key.%s%s" go.go_pk_prefix cn
+      end else
+        pp oc " %s %s" (if ct.ct_defaultable then "$?" else "$") cn
     end;
+    fprint oc ") with";
+    pp oc "@ @[<v 3>| Insert.App {request = Insert.Request.Done req; \
+                                  param; default} ->";
+    pp oc "@ C.exec req param >>= Caqti_lwt.or_fail >|= default@]";
+    pp oc "@ @[<v 3>| Insert.App {request = Insert.Request.Done_default req; \
+                                  param; default} ->";
+    pp oc "@ C.find req param >>= Caqti_lwt.or_fail >|= default@]";
+    pp oc ")@]@   >|= fun ";
+    emit_returning_value oc ~filter:(fun ct -> ct.ct_defaultable) ti.ti_cts;
+    fprint oc " ->";
+
+    if ti.ti_nonpk_cts = [] then
+      pp oc "@ let state = () in"
+    else begin
+      pp oc "@ @[<hv 2>let state = {";
+      ti.ti_nonpk_cts |> List.iter begin fun (cn, _ct) ->
+        pp oc "@ %s%s = %s;" go.go_state_prefix cn cn
+      end;
+      pp oc "@ @]} in"
+    end;
+    if go.go_select_cache then
+      pp oc "@ clear_select_cache ();";
     pp oc "@ o.state <- Present state;";
     pp oc "@ Lwt_condition.broadcast _c state";
     if go.go_event then begin
@@ -723,6 +732,7 @@ let emit_impl oc ti =
     close_query_let ()
   end;
 
+  (* let create = ... *)
   if go.go_create then begin
     open_query_let "create";
     List.iter
@@ -732,67 +742,43 @@ let emit_impl oc ti =
       ti.ti_cts;
     fprint oc " () =";
     emit_use_C oc;
-    pp oc "@ let module Ib = Insert_buffer (C) in";
-    pp oc "@ let ib = Ib.create C.driver_info \"%s\" in"
-          (Episql.string_of_qname ti.ti_tqn);
-    List.iter
-      (fun (cn, ct) ->
-        if ct.ct_defaultable then
-          pp oc "@ (match %s with None -> Ib.ret ib \"%s\" \
-                           | Some x -> Ib.set ib \"%s\" C.Param.(%s x));"
-             cn cn cn (convname_of_datatype ct.ct_type)
-        else if ct.ct_nullable then
-          pp oc "@ (match %s with None -> () \
-                           | Some x -> Ib.set ib \"%s\" C.Param.(%s x));"
-             cn cn (convname_of_datatype ct.ct_type)
-        else
-          pp oc "@ Ib.set ib \"%s\" C.Param.(%s %s);"
-             cn (convname_of_datatype ct.ct_type) cn)
-      ti.ti_cts;
-    if have_default then
-      pp oc "@ if not (Ib.have_ret ib) then Ib.ret ib \"0\";";
-    pp oc "@ let q, p = Ib.contents ib in";
-    pp oc "@ @[<v 2>let decode t =";
-    if have_default then begin
-      pp oc "@ let _i = ref (-1) in";
-      pp oc "@ let _df c = function Some x -> x | None -> incr _i; c !_i t in";
+
+    pp oc "@ @[<v 1>(match Insert.(init Q.insert";
+    ti.ti_cts |> List.iter begin fun (cn, ct) ->
+      let op = if ct.ct_defaultable then "$?" else "$" in
+      fprintf oc " %s %s" op cn
     end;
-    List.iter
-      (fun (cn, ct) ->
-        if ct.ct_defaultable then begin
-          pp oc "@ let "; fprint oc cn;
-          pp oc (if ct.ct_nullable then " = Some (" else " = ");
-          fprintf oc "_df C.Tuple.%s %s" (convname_of_datatype ct.ct_type) cn;
-          fprint oc (if ct.ct_nullable then ") in" else " in")
-        end)
-      ti.ti_cts;
-    let emit_field pfx i (cn, _ct) =
-      if i > 0 then fprint oc "; ";
-      fprintf oc "%s%s = %s" pfx cn cn in
-    if go.go_collapse_pk && List.length ti.ti_pk_cts = 1 then
-      pp oc "@ %s," (fst (List.hd ti.ti_pk_cts))
-    else begin
-      pp oc "@ {";
-      List.iteri (emit_field go.go_pk_prefix) ti.ti_pk_cts;
-      pp oc "},"
-    end;
+    fprint oc ") with";
+    pp oc "@ @[<v 3>| Insert.App {request = Insert.Request.Done req; \
+                                  param; default} ->";
+    pp oc "@ C.exec req param >>= Caqti_lwt.or_fail >|= default@]";
+    pp oc "@ @[<v 3>| Insert.App {request = Insert.Request.Done_default req; \
+                                  param; default} ->";
+    pp oc "@ C.find req param >>= Caqti_lwt.or_fail >|= default@]";
+    pp oc ")@]@   >>= fun ";
+    emit_returning_value oc ~filter:(fun ct -> ct.ct_defaultable) ti.ti_cts;
+    fprint oc " ->";
+
     if ti.ti_nonpk_cts = [] then
-      fprint oc " () in"
+      pp oc "@ let state = () in"
     else begin
-      pp oc "@ {";
-      List.iteri (emit_field go.go_state_prefix) ti.ti_nonpk_cts;
-      pp oc "} in"
+      pp oc "@ @[let state = {";
+      ti.ti_nonpk_cts |> List.iter begin fun (cn, _ct) ->
+        pp oc "@ %s%s = %s;" go.go_state_prefix cn cn
+      end;
+      pp oc "@ @]} in"
     end;
-    pp oc "@]";
-    if have_default then begin
-      pp oc "@ C.find q decode p >>= fun (key, state) ->";
-      if go.go_select_cache then pp oc "@ clear_select_cache (); ";
-      fprint oc "merge_created (key, state)"
-    end else begin
-      pp oc "@ C.exec q p >>= fun () ->";
-      if go.go_select_cache then pp oc "@ clear_select_cache (); ";
-      fprint oc "merge_created (decode ())"
+    if go.go_collapse_pk && List.length ti.ti_pk_cts = 1 then
+      pp oc "@ merge_created (%s, state)" (fst (List.hd ti.ti_pk_cts))
+    else begin
+      pp oc "@ let pk = @[{";
+      ti.ti_pk_cts |> List.iter begin fun (cn, _) ->
+        pp oc "@ %s%s = %s;" go.go_pk_prefix cn cn;
+      end;
+      pp oc "}@] in";
+      pp oc "@ merge_created (pk, state)";
     end;
+
     close_query_let ()
   end;
 
@@ -812,7 +798,6 @@ let emit_impl oc ti =
       pp oc "@ @[<v 2>with Not_found ->";
     end;
     emit_use_C oc;
-    pp oc "@ let module Sb = Select_buffer (C) in";
     pp oc "@ let sb = Sb.create C.driver_info \"%s\" in"
        (Episql.string_of_qname ti.ti_tqn);
     let emit_ret (cn, _) = pp oc "@ Sb.ret sb \"%s\";" cn in
@@ -821,18 +806,18 @@ let emit_impl oc ti =
     List.iter
       (fun (cn, ct) ->
         let conv = convname_of_datatype ct.ct_type in
-        pp oc "@ begin match %s with" cn;
+        pp oc "@ @[<v 1>(match %s with" cn;
         pp oc "@ | None -> ()";
         if ct.ct_nullable then
           pp oc "@ | Some `Null -> Sb.(where sb [S\"%s IS NULL\"])" cn;
         let mk_binary (on, op) =
           pp oc "@ | Some (`%s x) -> \
-                     Sb.(where sb [S\"%s %s \"; P C.Param.(%s x)])"
+                     Sb.(where sb [S\"%s %s \"; P (Type.%s, x)])"
              on cn op conv in
         let mk_ternary (on, op) =
           pp oc "@ | Some (`%s (x, y)) -> \
-                     Sb.(where sb [S\"%s %s \"; P C.Param.(%s x); \
-                                   S\" AND \"; P C.Param.(%s y)])"
+                     Sb.(where sb [S\"%s %s \"; P (Type.%s, x); \
+                                   S\" AND \"; P (Type.%s, y)])"
              on cn op conv conv in
         List.iter mk_binary
           ["Eq", "="; "Ne", "<>"; "Lt", "<"; "Le", "<="; "Ge", ">="; "Gt", ">"];
@@ -840,7 +825,7 @@ let emit_impl oc ti =
           ["Between", "BETWEEN"; "Not_between", "NOT BETWEEN"];
         if ct.ct_type = `Text then
           List.iter mk_binary ["Like", "LIKE"; "Ilike", "ILIKE"];
-        pp oc "@ end;")
+        pp oc "@]);")
       ti.ti_cts;
     if go.go_obsolete_order_by then begin
       pp oc "@ List.iter (fun col -> Sb.obsolete_order_by sb (match col with ";
@@ -861,44 +846,41 @@ let emit_impl oc ti =
     end;
     pp oc "@ (match limit with None -> () | Some n -> Sb.limit sb n);";
     pp oc "@ (match offset with None -> () | Some n -> Sb.offset sb n);";
-    pp oc "@ let q, p = Sb.contents sb in";
-    pp oc "@ @[<v 2>let decode t acc =";
+    pp oc "@ let Request (req, param) = Sb.contents sb ";
+    emit_columns_type oc ti.ti_cts;
+    pp oc " in";
+    pp oc "@ @[<v 2>let decode ";
+    emit_columns_value oc ti.ti_cts;
+    pp oc " acc =";
     if go.go_collapse_pk && List.length ti.ti_pk_cts = 1 then
-      pp oc "@ let key = C.Tuple.(%s 0 t) in"
-         (convname_of_coltype (snd (List.hd ti.ti_cts)))
+      pp oc "@ let key = %s in" (fst (List.hd ti.ti_pk_cts))
     else begin
-      pp oc "@ let key = C.Tuple.({";
-      List.iteri
-        (fun i (cn, ct) ->
-          if i > 0 then fprint oc "; ";
-          fprintf oc "%s%s = %s %d t"
-                  go.go_pk_prefix cn (convname_of_coltype ct) i)
-        ti.ti_pk_cts;
-      fprint oc "}) in"
+      pp oc "@ let key = {@[";
+      ti.ti_pk_cts |> List.iter begin fun (cn, _) ->
+        pp oc "@ %s%s = %s;" go.go_pk_prefix cn cn
+      end;
+      pp oc "@ @]} in"
     end;
     if ti.ti_nonpk_cts = [] then
       pp oc "@ let state = () in"
     else begin
-      let n_pk = List.length ti.ti_pk_cts in
-      pp oc "@ let state = C.Tuple.({";
-      List.iteri
-        (fun i (cn, ct) ->
-          if i > 0 then fprint oc "; ";
-          fprintf oc "%s%s = %s %d t"
-                  go.go_state_prefix cn (convname_of_coltype ct) (i + n_pk))
-        ti.ti_nonpk_cts;
-      fprint oc "}) in"
+      pp oc "@ let state = {@[";
+      ti.ti_nonpk_cts |> List.iter begin fun (cn, _) ->
+        pp oc "%s%s = %s;" go.go_state_prefix cn cn
+      end;
+      pp oc "@ @]} in"
     end;
     pp oc "@ merge (key, Present state) :: acc in";
     pp oc "@]";
     if go.go_select_cache then begin
-      pp oc "@ C.fold q decode p [] >|= fun r_rev ->";
+      pp oc "@ C.fold req decode param [] >>= Caqti_lwt.or_fail \
+                  >|= fun r_rev ->";
       pp oc "@ let r = List.rev r_rev in";
       pp oc "@ let g = !select_grade (List.length r * %d + %d) in"
          (List.length ti.ti_nonpk_cts) (List.length ti.ti_cts + 2);
       pp oc "@ Prime_cache.replace select_cache g args r; r"
     end else
-      pp oc "@ C.fold q decode p []";
+      pp oc "@ C.fold req decode param []";
     pp oc "@]";
     close_query_let ()
   end;
@@ -907,14 +889,20 @@ let emit_impl oc ti =
     open_query_let "update";
     List.iter (fun (cn, _ct) -> fprintf oc " ?%s" cn) ti.ti_nonpk_cts;
     pp oc " o =";
-    pp oc "@ match o.state with";
-    pp oc "@ | Inserting _ -> Lwt.fail (Conflict `Update_insert)";
-    pp oc "@ | Deleting _ -> Lwt.fail (Conflict `Update_delete)";
-    pp oc "@ @[<v 2>| Absent ->";
+    pp oc "@ @[<v 1>(match o.state with";
+    pp oc "@ | @[<v 1>Inserting _ ->";
+    pp oc "@ Lwt.fail (Conflict {conflict_type = `Update_insert; \
+                                 conflict_table = \"%s\"})@]"
+       (Episql.string_of_qname ti.ti_tqn);
+    pp oc "@ | @[<v 1>Deleting _ ->";
+    pp oc "@ Lwt.fail (Conflict {conflict_type = `Update_delete; \
+                                 conflict_table = \"%s\"})@]"
+       (Episql.string_of_qname ti.ti_tqn);
+    pp oc "@ | @[<v 1>Absent ->";
     if go.go_insert_upserts then begin
       List.iter
         (fun (cn, ct) ->
-          if ct.ct_nullable then
+          if ct.ct_nullable && not ct.ct_defaultable then
             pp oc "@ let %s = match %s with None -> None | Some x -> x in"
                cn cn)
         ti.ti_nonpk_nonreq_cts;
@@ -923,12 +911,12 @@ let emit_impl oc ti =
         List.iter (fun (cn, _) -> fprintf oc " ?%s" cn) ti.ti_nonpk_cts;
         fprint oc " o"
       end else begin
-        pp oc "@ begin match ";
+        pp oc "@ @[<v 1>(match ";
         List.iteri
           (fun i (cn, _) -> if i > 0 then fprint oc ", "; fprint oc cn)
           ti.ti_nonpk_req_cts;
         pp oc " with";
-        pp oc "@ @[<v 2>| ";
+        pp oc "@ @[<hv 3>| ";
         List.iteri
           (fun i (cn, _) -> if i > 0 then fprint oc ", "; fprintf oc "Some %s" cn)
           ti.ti_nonpk_req_cts;
@@ -939,55 +927,53 @@ let emit_impl oc ti =
             fprintf oc " %c%s" (if coltype_is_required ct then '~' else '?') cn)
           ti.ti_nonpk_cts;
         pp oc " o@]";
-        pp oc "@ @[<v 2>| _ ->";
+        pp oc "@ @[<hv 3>| _ ->";
         pp oc "@ Lwt.fail (Failure \"Attempt to update an absent row \
                                      with insufficient data to insert.\")";
-        pp oc "@]@ end";
+        pp oc "@]@])";
       end
     end else
       pp oc "@ Lwt.fail (Failure \"Update of absent row.\")";
-    pp oc "      | Present state -> ";
+    pp oc "@]@ | @[<v 1>Present state ->";
     emit_use_C oc;
-    pp oc "@ let module Ub = Update_buffer (C) in";
     pp oc "@ let ub = Ub.create C.driver_info \"%s\" in"
        (Episql.string_of_qname ti.ti_tqn);
     if go.go_event then
       pp oc "@ let changes = ref [] in";
     List.iter
       (fun (cn, ct) ->
-        pp oc "@ begin match %s with" cn;
-        pp oc "@ | Some x when x <> state.%s%s ->" go.go_state_prefix cn;
-        pp oc "@   Ub.set ub \"%s\" C.Param.(%s x);"
+        pp oc "@ @[<v 1>(match %s with" cn;
+        pp oc "@ @[<v 3>| Some x when x <> state.%s%s ->" go.go_state_prefix cn;
+        pp oc "@ Ub.set ub \"%s\" (Type.%s, x);"
            cn (convname_of_coltype ct);
         if go.go_event then
-          pp oc "@   changes := `Set_%s x :: !changes;" cn;
-        pp oc "@ | _ -> ()";
-        pp oc "@ end;")
+          pp oc "@ changes := `Set_%s x :: !changes;" cn;
+        pp oc "@]@ | _ -> ()@]);")
       ti.ti_nonpk_cts;
     if go.go_collapse_pk && List.length ti.ti_pk_cts = 1 then
       let (cn, ct) = List.hd ti.ti_pk_cts in
-      pp oc "@ Ub.where ub \"%s\" C.Param.(%s o.key);"
+      pp oc "@ Ub.where ub \"%s\" (Type.%s, o.key);"
          cn (convname_of_coltype ct)
     else
       List.iter
         (fun (cn, ct) ->
-          pp oc "@ Ub.where ub \"%s\" C.Param.(%s o.key.%s%s);"
+          pp oc "@ Ub.where ub \"%s\" (Type.%s, o.key.%s%s);"
              cn (convname_of_coltype ct) go.go_pk_prefix cn)
         ti.ti_pk_cts;
-    pp oc "@ begin match Ub.contents ub with";
+    pp oc "@ @[<v 1>(match Ub.contents ub with";
     pp oc "@ | None -> Lwt.return_unit";
-    pp oc "@ @[<v 2>| Some (q, params) ->";
-    pp oc "@ C.exec q params >|= fun () ->";
+    pp oc "@ @[<v 3>| Some (Request (req, params)) ->";
+    pp oc "@ C.exec req params >>= Caqti_lwt.or_fail >|= fun () ->";
     if go.go_select_cache then pp oc "@ clear_select_cache ();";
     List.iteri
       (fun i (cn, _) ->
-        if i > 0 then fprint oc ";\n";
+        if i > 0 then pp oc ";";
         pp oc "@ (match %s with None -> () | Some v -> state.%s%s <- v)"
            cn go.go_state_prefix cn)
       ti.ti_nonpk_cts;
     if go.go_event then
       pp oc ";@ o.notify (`Update (List.rev !changes))";
-    pp oc "@]@ end@]";
+    pp oc "@]@])@])@]";
     close_query_let ()
   end;
 
@@ -996,19 +982,20 @@ let emit_impl oc ti =
     pp oc " ({key; _} as o) =";
     emit_use_C oc;
     pp oc "@ @[<v 2>let rec retry () =";
-    pp oc "@ match o.state with";
+    pp oc "@ @[<v 1>(match o.state with";
     pp oc "@ | Absent -> Lwt.return_unit";
     pp oc "@ | Inserting _c -> Lwt_condition.wait _c >>= fun _ -> retry ()";
-    pp oc "@ | Present _ ->";
-    pp oc "@   let _c = Lwt_condition.create () in";
-    pp oc "@   o.state <- Deleting _c;";
-    pp oc "@   C.exec Q.delete ";
-    emit_param oc ti "key" ti.ti_pk_cts; fprint oc " >|= fun () ->";
+    pp oc "@ @[<v 3>| Present _ ->";
+    pp oc "@ let _c = Lwt_condition.create () in";
+    pp oc "@ o.state <- Deleting _c;";
+    pp oc "@ C.exec Q.delete ";
+    emit_param oc ti "key" ti.ti_pk_cts;
+    pp oc " >>= Caqti_lwt.or_fail >|= fun () ->";
     if go.go_select_cache then pp oc "@   clear_select_cache ();";
-    pp oc "@   o.state <- Absent;";
-    pp oc "@   Lwt_condition.broadcast _c ();";
-    pp oc "@   o.notify `Delete";
-    pp oc "@ | Deleting _c -> Lwt_condition.wait _c in";
+    pp oc "@ o.state <- Absent;";
+    pp oc "@ Lwt_condition.broadcast _c ();";
+    pp oc "@ o.notify `Delete";
+    pp oc "@]@ | Deleting _c -> Lwt_condition.wait _c)@] in";
     pp oc "@]@ retry ()";
     close_query_let ()
   end;
@@ -1016,13 +1003,13 @@ let emit_impl oc ti =
   if go.go_patch then begin
     open_query_let "patch";
     pp oc " o p =";
-    pp oc "@ match p with";
+    pp oc "@ @[<v 1>(match p with";
     if ti.ti_nonpk_cts = [] then begin
       pp oc "@ | `Insert ((), ()) -> insert o";
       pp oc "@ | `Update [] -> Lwt.return_unit";
       pp oc "@ | `Update (x :: _) -> Prime.absurd x"
     end else begin
-      pp oc "@ @[<v 2>| `Insert (r, d) ->";
+      pp oc "@ @[<v 3>| `Insert (r, d) ->";
       pp oc "@ insert";
       List.iter
         (fun (cn, _ct) -> fprintf oc " ~%s:r.%s%s" cn go.go_value_r_prefix cn)
@@ -1031,12 +1018,12 @@ let emit_impl oc ti =
         (fun (cn, _ct) -> fprintf oc " ?%s:d.%s%s" cn go.go_value_d_prefix cn)
         ti.ti_nonpk_nonreq_cts;
       pp oc " o;@]";
-      pp oc "@ @[<v 2>| `Update changes ->";
+      pp oc "@ @[<v 3>| `Update changes ->";
       List.iter
         (fun (cn, _) -> pp oc "@ let %s = ref None in" cn)
         ti.ti_nonpk_cts;
       pp oc "@ List.iter";
-      pp oc "@   @[<hv 2>(function";
+      pp oc "@   @[<hv 1>(function";
       List.iter
         (fun (cn, _) -> pp oc "@ | `Set_%s v -> %s := Some v" cn cn)
         ti.ti_nonpk_cts;
@@ -1046,7 +1033,7 @@ let emit_impl oc ti =
       List.iter (fun (cn, _) -> fprintf oc " ?%s:!%s" cn cn) ti.ti_nonpk_cts;
       pp oc " o@]";
     end;
-    pp oc "@ | `Delete -> delete o";
+    pp oc "@ | `Delete -> delete o)@]";
     close_query_let ()
   end;
 
@@ -1054,8 +1041,8 @@ let emit_impl oc ti =
 
   if go.go_value then begin
     pp oc "@ @[<v 2>let value o =";
-    pp oc "@ match o.state with";
-    pp oc "@ @[<v 2>| Present state ->";
+    pp oc "@ @[<v 1>(match o.state with";
+    pp oc "@ @[<hv 3>| Present state ->";
     if ti.ti_nonpk_cts = [] then begin
       if go.go_raise_on_absent then
         pp oc "@ ()"
@@ -1063,9 +1050,9 @@ let emit_impl oc ti =
         pp oc "@ Some ()"
     end else begin
       if go.go_raise_on_absent then
-        pp oc "@ @[<v 2>{"
+        pp oc "@ @[<hv 2>{"
       else
-        pp oc "@ @[<v 2>Some {";
+        pp oc "@ @[<hv 2>Some {";
       List.iter
         (fun (cn, _) ->
           pp oc "@ %s%s = state.%s%s;"
@@ -1078,7 +1065,7 @@ let emit_impl oc ti =
       pp oc "@ | _ -> raise Not_present"
     else
       pp oc "@ | _ -> None";
-    pp oc "@]"
+    pp oc ")@]@]"
   end;
 
   pp oc "@]@ end"
@@ -1138,7 +1125,7 @@ let common_header = "\
   open Caqti_persist\n\
   module type P = sig\n\
  \  module Beacon : Prime_beacon.S\n\
- \  val use_db : ((module Caqti1_lwt.CONNECTION) -> 'a Lwt.t) -> 'a Lwt.t\n\
+ \  val use_db : ((module Caqti_lwt.CONNECTION) -> 'a Lwt.t) -> 'a Lwt.t\n\
   end\n\n"
 
 let generate_intf stmts oc =
@@ -1162,6 +1149,12 @@ let generate_impl stmts oc =
               go.go_log_debug;
   pp oc "@ @[<v 2>module Make (P : P) = struct";
   pp oc "@ module Cache = Make_pk_cache (P.Beacon)";
+  pp oc "@ @[<v 2>module Type = struct";
+  pp oc "@ include Caqti_type";
+  pp oc "@ include Caqti_type_calendar";
+  pp oc "@ @]end";
+  pp oc "@ module Sb = Select_buffer";
+  pp oc "@ module Ub = Update_buffer";
   generate emit_impl stmts oc;
   pp oc "@]@ end@]@\n@."
 

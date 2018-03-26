@@ -15,7 +15,10 @@
   (public_name caqti-persist)
   (wrapped false)
   (modules (Caqti_persist))
-  (libraries (caqti.v1 caqti-lwt.v1 extunix lwt prime prime.unstable react))))
+  (preprocess (pps (ppx_deriving.std)))
+  (libraries
+   (caqti caqti-lwt caqti-type-calendar
+    extunix lwt prime prime.unstable react))))
 
 (rule
  ((targets (episql_types.ml))
