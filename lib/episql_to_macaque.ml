@@ -74,7 +74,12 @@ let rec translate_inner = function
 
 let translate dt = function
  | Expr_literal _ as e -> e
- | Expr_app ((None, "nextval"), _) as e when dt = `Integer -> e
+ | Expr_app ((None, "nextval") as f, [seq]) when dt = `Integer ->
+    let seq =
+      (match seq with
+       | Expr_literal (Lit_text tqn) -> Expr_qname (qname_of_string tqn)
+       | _ -> seq) in
+    Expr_app (f, [seq])
  | e -> translate_inner e
 
 let generate stmts oc =
