@@ -105,6 +105,7 @@ let generate stmts oc =
       fprintf oc "$%s:%Ld%s$" conv i suffix
    | e -> emit_expr e in
   let emit_column_constraint dt = function
+   | `Check _ -> ()
    | `Not_null | `Primary_key -> output_string oc " NOT NULL"
    | `Null | `Unique | `References _ | `On_delete _ | `On_update _ -> ()
    | `Default e ->

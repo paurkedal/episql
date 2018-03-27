@@ -66,8 +66,14 @@ type expression =
   | Expr_literal of literal
   | Expr_app of qname * expression list
 
+type check_constraint = {
+  condition: expression;
+  no_inherit: bool;
+}
+
 type column_constraint =
-  [ `Not_null
+  [ `Check of check_constraint
+  | `Not_null
   | `Null
   | `Unique
   | `Primary_key
@@ -86,7 +92,7 @@ type column = {
 type table_scope = [`Permanent | `Permanent_unlogged | `Temporary]
 
 type table_constraint =
-  [ `Check of expression * [`No_inherit] list
+  [ `Check of check_constraint
   | `Unique of string list
   | `Primary_key of string list
   | `Foreign_key of string list * qname * string list ]

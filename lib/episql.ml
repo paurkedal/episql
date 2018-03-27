@@ -115,7 +115,12 @@ let rec bprint_expression buf = function
 
 let string_of_expression e = with_buffer (fun buf -> bprint_expression buf e)
 
+let string_of_check_constraint {condition; no_inherit} =
+    "CHECK (" ^ string_of_expression condition ^ ")" ^
+    (if no_inherit then " NO INHERIT" else "")
+
 let string_of_column_constraint = function
+  | `Check check_constraint -> string_of_check_constraint check_constraint
   | `Not_null -> "NOT NULL"
   | `Null -> "NULL"
   | `Unique -> "UNIQUE"

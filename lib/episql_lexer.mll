@@ -28,11 +28,13 @@
   let keywords = Hashtbl.create 31
   let () =
     List.iter (fun (kw, token) -> Hashtbl.add keywords kw token)
-      [ "AS", (fun idr -> AS idr);
+      [ "AND", (fun _ -> L8 "AND");
+        "AS", (fun idr -> AS idr);
         "AT", (fun idr -> AT idr);
         "BY", (fun idr -> BY idr);
         "CACHE", (fun idr -> CACHE idr);
         "CASCADE", (fun idr -> CASCADE idr);
+        "CHECK", (fun idr -> CHECK idr);
         "COLLATE", (fun idr -> COLLATE idr);
         "CREATE", (fun idr -> CREATE idr);
         "CYCLE", (fun idr -> CYCLE idr);
@@ -52,6 +54,7 @@
         "NOT", (fun idr -> NOT idr);
         "NULL", (fun idr -> NULL idr);
         "ON", (fun idr -> ON idr);
+        "OR", (fun _ -> L6 "OR");
         "PRIMARY", (fun idr -> PRIMARY idr);
         "REFERENCES", (fun idr -> REFERENCES idr);
         "RESTRICT", (fun idr -> RESTRICT idr);
@@ -117,6 +120,10 @@ rule lex_main dt = parse
   | ',' { COMMA }
   | ';' { SEMICOLON }
   | '.' { DOT }
+  | ("+" | "-") as op { A2 (String.make 1 op) }
+  | ("*" | "/") as op { A4 (String.make 1 op) }
+  | "||" as op { A6 op }
+  | ("=" | "!=" | "<=" | "<" | ">=" | ">") as op { R0 op }
   | wordfst wordcnt* as word
     { try Hashtbl.find keywords (String.uppercase_ascii word) word
       with Not_found -> IDENTIFIER word }

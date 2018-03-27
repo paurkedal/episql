@@ -21,6 +21,7 @@
 
 /* Operators and special */
 %token COMMA DOT EOF SEMICOLON LPAREN RPAREN
+%token<string> L6 L8 R0 A2 A4 A6
 
 /* Keywords */
 %token<string> AS AT BY CACHE CASCADE COLLATE CHECK CREATE CYCLE
@@ -44,6 +45,16 @@
 %token<int64> INT
 %token<float> FLT
 %token<string> STRING
+
+/* Precedence */
+%left L6
+%left L8
+%nonassoc R0
+%left A2
+%left A4
+%left A6
+%nonassoc AT_TIME_ZONE
+%nonassoc APPLICATION
 
 %type<Episql_types.statement list> schema
 %start schema
@@ -131,9 +142,14 @@ column_constraints:
     /* empty */ { [] }
   | column_constraints column_constraint { $2 :: $1 }
   ;
+check_constraint:
+    LPAREN expr RPAREN { {condition = $2; no_inherit = false} }
+  | LPAREN expr RPAREN NO INHERIT { {condition = $2; no_inherit = true} }
+  ;
 column_constraint:
     NOT NULL { `Not_null }
   | NULL { `Null }
+  | CHECK check_constraint { `Check $2 }
   | UNIQUE { `Unique }
   | PRIMARY KEY { `Primary_key }
   | DEFAULT expr { `Default $2 }
@@ -143,7 +159,7 @@ column_constraint:
   | ON UPDATE action { `On_update $3 }
   ;
 table_constraint:
-    CHECK LPAREN expr RPAREN check_attr { `Check ($3, $5) }
+    CHECK check_constraint { `Check $2 }
   | UNIQUE LPAREN nonempty_tfnames_r RPAREN
     { `Unique (List.rev $3) }
   | PRIMARY KEY LPAREN nonempty_tfnames_r RPAREN
@@ -156,7 +172,6 @@ paren_column_names_opt:
     /* empty */ { [] }
   | LPAREN nonempty_tfnames_r RPAREN { List.rev $2 }
   ;
-check_attr: /* empty */ { [] } | NO INHERIT { [`No_inherit] };
 
 action:
     CASCADE { `Cascade }
@@ -245,13 +260,25 @@ interval_fields:
   ;
 
 expr:
+    expr_top { $1 }
+  | expr L6 expr { Expr_app ((None, $2), [$1; $3]) }
+  | expr L8 expr { Expr_app ((None, $2), [$1; $3]) }
+  | NOT expr %prec L8 { Expr_app ((None, "NOT"), [$2]) }
+  | expr R0 expr { Expr_app ((None, $2), [$1; $3]) }
+  | expr A2 expr { Expr_app ((None, $2), [$1; $3]) }
+  | A2 expr { Expr_app ((None, $1), [$2]) }
+  | expr A4 expr { Expr_app ((None, $2), [$1; $3]) }
+  | expr A6 expr { Expr_app ((None, $2), [$1; $3]) }
+  ;
+expr_top:
     literal { Expr_literal $1 }
   | qname { Expr_qname $1 }
-  | qname LPAREN expr_params RPAREN { Expr_app ($1, $3) }
-  | expr AT TIME ZONE STRING
+  | qname LPAREN expr_params RPAREN %prec APPLICATION { Expr_app ($1, $3) }
+  | expr_top AT TIME ZONE STRING %prec AT_TIME_ZONE
     { Expr_app ((None, "__at_time_zone"), [$1; Expr_literal (Lit_text $5)]) }
   | LPAREN expr RPAREN { $2 }
   ;
+
 expr_params: /* empty */ {[]} | expr_nonempty_params {List.rev $1};
 expr_nonempty_params:
     expr { [$1] }

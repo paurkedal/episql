@@ -1,4 +1,4 @@
-(* Copyright (C) 2015--2017  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2015--2018  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -49,6 +49,7 @@ let xml_of_attr = function
  | `Owner owner -> Attr.string "owner" (string_of_qname owner)
 
 let xmlattrs_of_column_constraint = function
+ | `Check _ -> [] (* output as element *)
  | `Not_null -> [Attr.bool "nullable" false]
  | `Null -> [Attr.bool "nullable" true]
  | `Unique -> [Attr.bool "unique" true]
@@ -107,6 +108,11 @@ let xmlattrs_of_coltype ct =
 
 let write_column o name = output_leaf o "column" [Attr.string "name" name]
 
+let write_check_constraint o {condition; no_inherit} =
+  let attrs = [Attr.expr "condition" condition] in
+  let attrs = if no_inherit then attrs else Attr.flag "no-inherit" :: attrs in
+  output_leaf o "check" attrs
+
 let write_item o = function
  | Column { column_name = cn; column_type = ct;
             column_collate = cc; column_constraints = constrs } ->
@@ -117,15 +123,13 @@ let write_item o = function
       |> List.cons (Attr.string "type" ctn)
       |> List.cons (Attr.string "name" cn) in
     Xmlm.output o (`El_start (tag "column", attrs));
+    constrs |> List.iter begin function
+     | `Check check_constraint -> write_check_constraint o check_constraint
+     | _ -> ()
+    end;
     Xmlm.output o `El_end
- | Constraint (`Check (expr, constr_attrs)) ->
-    let attrs = [Attr.expr "condition" expr] in
-    let attrs =
-      match constr_attrs with
-      | [] -> attrs
-      | [`No_inherit] -> Attr.flag "no-inherit" :: attrs
-      | _ -> assert false in
-    output_leaf o "check" attrs
+ | Constraint (`Check check_constraint) ->
+     write_check_constraint o check_constraint
  | Constraint (`Unique cols) ->
     if !use_compact_lists then
       output_leaf o "unique" [Attr.string_list "columns" cols]

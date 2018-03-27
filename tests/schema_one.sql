@@ -27,7 +27,7 @@ CREATE TABLE episql_tests.tensor1 (
 );
 
 CREATE TABLE episql_tests.tensor2 (
-  i integer NOT NULL,
+  i integer NOT NULL CHECK (i >= 0),
   j integer NOT NULL,
   x double precision NOT NULL,
   note text,
