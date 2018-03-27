@@ -46,9 +46,12 @@
         "EXISTS", (fun idr -> EXISTS idr);
         "FOREIGN", (fun idr -> FOREIGN idr);
         "IF", (fun idr -> IF idr);
+        "ILIKE", (fun idr -> R0 idr); (* TODO: Precedence. *)
         "INCREMENT", (fun idr -> INCREMENT idr);
         "INHERIT", (fun idr -> INHERIT idr);
+        "IS", (fun idr -> R0 idr); (* TODO: Precedence and right operand. *)
         "KEY", (fun idr -> KEY idr);
+        "LIKE", (fun idr -> R0 idr); (* TODO: Precedence. *)
         "MINVALUE", (fun idr -> MINVALUE idr);
         "MAXVALUE", (fun idr -> MAXVALUE idr);
         "NO", (fun idr -> NO idr);
@@ -116,15 +119,18 @@ rule lex_main dt = parse
   | "/*" { lex_cstyle_comment dt (Lexing.lexeme_start_p lexbuf) lexbuf;
            lex_main dt lexbuf; }
   | '\n' { Lexing.new_line lexbuf; lex_main dt lexbuf }
+  | ';' { SEMICOLON }
+  | ',' { COMMA }
+  | ("=" | "!=" | "<=" | "<" | ">=" | ">") as op { R0 op }
+  | "||" as op { A0 op }
+  | '-' { MINUS }
+  | ("+") as op { A2 (String.make 1 op) }
+  | ("*" | "/" | "%") as op { A4 (String.make 1 op) }
+  | ("^") as op { A6 (String.make 1 op) }
+  | '.' { DOT }
+  | "::" { CAST }
   | '(' { LPAREN }
   | ')' { RPAREN }
-  | ',' { COMMA }
-  | ';' { SEMICOLON }
-  | '.' { DOT }
-  | ("+" | "-") as op { A2 (String.make 1 op) }
-  | ("*" | "/") as op { A4 (String.make 1 op) }
-  | "||" as op { A6 op }
-  | ("=" | "!=" | "<=" | "<" | ">=" | ">") as op { R0 op }
   | wordfst wordcnt* as word
     { try Hashtbl.find keywords (String.uppercase_ascii word) word
       with Not_found -> IDENTIFIER word }

@@ -21,7 +21,7 @@
 
 /* Operators and special */
 %token COMMA DOT EOF SEMICOLON LPAREN RPAREN
-%token<string> L6 L8 R0 A2 A4 A6
+%token<string> L6 L8 R0 A0 A2 A4 A6
 
 /* Keywords */
 %token<string> AS AT BY CACHE CASCADE COLLATE CHECK CONSTRAINT CREATE CYCLE
@@ -31,6 +31,7 @@
 %token<string> PRIMARY REFERENCES RESTRICT UNIQUE UPDATE SCHEMA SEQUENCE START
 %token<string> TABLE TEMPORARY UNLOGGED TYPE ZONE
 %token<string> YEAR MONTH DAY HOUR MINUTE SECOND TO
+%token MINUS CAST
 
 /* Type-Forming Words */
 %token<string> BOOLEAN
@@ -50,10 +51,12 @@
 %left L6
 %left L8
 %nonassoc R0
-%left A2
+%left A0
+%left A2 MINUS
 %left A4
 %left A6
-%nonassoc AT_TIME_ZONE
+%right UNARY_MINUS
+%left CAST
 %nonassoc APPLICATION
 
 %type<Episql_types.statement list> schema
@@ -268,22 +271,28 @@ interval_fields:
   ;
 
 expr:
-    expr_top { $1 }
+    expr_atz { $1 }
   | expr L6 expr { Expr_app ((None, $2), [$1; $3]) }
   | expr L8 expr { Expr_app ((None, $2), [$1; $3]) }
   | NOT expr %prec L8 { Expr_app ((None, "NOT"), [$2]) }
   | expr R0 expr { Expr_app ((None, $2), [$1; $3]) }
+  | expr A0 expr { Expr_app ((None, $2), [$1; $3]) }
   | expr A2 expr { Expr_app ((None, $2), [$1; $3]) }
-  | A2 expr { Expr_app ((None, $1), [$2]) }
+  | expr MINUS expr { Expr_app ((None, "-"), [$1; $3]) }
   | expr A4 expr { Expr_app ((None, $2), [$1; $3]) }
   | expr A6 expr { Expr_app ((None, $2), [$1; $3]) }
+  | MINUS expr %prec UNARY_MINUS { Expr_app ((None, "-"), [$2]) }
+  ;
+expr_atz:
+    expr_top { $1 }
+  | expr_top AT TIME ZONE STRING
+    { Expr_app ((None, "__at_time_zone"), [$1; Expr_literal (Lit_text $5)]) }
   ;
 expr_top:
     literal { Expr_literal $1 }
   | qname { Expr_qname $1 }
   | qname LPAREN expr_params RPAREN %prec APPLICATION { Expr_app ($1, $3) }
-  | expr_top AT TIME ZONE STRING %prec AT_TIME_ZONE
-    { Expr_app ((None, "__at_time_zone"), [$1; Expr_literal (Lit_text $5)]) }
+  | expr_top CAST expr_top { Expr_app ((None, "::"), [$1; $3]) }
   | LPAREN expr RPAREN { $2 }
   ;
 
