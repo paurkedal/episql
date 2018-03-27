@@ -64,8 +64,8 @@ let rec translate_inner = function
      | `Convert_to_function -> Expr_app (qn, [])
      | `Unsupported -> raise Unsupported
      | `Noop -> e)
- | Expr_literal (Lit_integer _) -> raise Unsupported
  | Expr_literal (Lit_text _) as e -> e
+ | Expr_literal _ -> raise Unsupported
  | Expr_app (qn, es) ->
     (match qname_info qn with
      | `Unsupported -> raise Unsupported
@@ -87,9 +87,9 @@ let generate stmts oc =
   let emit_type dt = output_string oc (string_of_datatype dt) in
   let rec emit_expr = function
    | Expr_qname (_, name) -> fprintf oc "$%s$" name
-   | Expr_literal (Lit_integer _) -> assert false
    | Expr_literal (Lit_text s) ->
       fprintf oc "$string:\"%s\"$" (String.escaped s)
+   | Expr_literal _ -> assert false
    | Expr_app (f, []) ->
       output_string oc (string_of_qname f);
       output_string oc "()"

@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2015  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2018  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -58,6 +58,7 @@ type serialtype = [ `Smallserial | `Serial | `Bigserial ]
 
 type literal =
   | Lit_integer of int64
+  | Lit_float of float
   | Lit_text of string
 
 type expression =

@@ -99,6 +99,7 @@ let string_of_datatype : datatype -> string = function
 
 let string_of_literal = function
   | Lit_integer i -> Int64.to_string i
+  | Lit_float x -> Printf.sprintf "%.16g" x
   | Lit_text s -> sql_quote s
 
 let rec bprint_expression buf = function

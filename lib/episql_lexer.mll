@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2017  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2018  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -102,6 +102,8 @@
 }
 
 let digit = ['0'-'9']
+let uint = digit+
+let ufix = (digit+ '.' digit* | '.' digit+)
 let wordfst = ['a'-'z' 'A'-'Z' '_']
 let wordcnt = ['a'-'z' 'A'-'Z' '_' '0'-'9']
 
@@ -120,7 +122,9 @@ rule lex_main dt = parse
       with Not_found -> IDENTIFIER word }
   | "'" { lex_string (Buffer.create 64) lexbuf }
   | '"' { lex_identifier (Buffer.create 32) lexbuf }
-  | digit+ as i { INT (Int64.of_string i) }
+  | uint as s { INT (Int64.of_string s) }
+  | uint  'e' ['-' '+']? uint   as s { FLT (float_of_string s) }
+  | ufix ('e' ['-' '+']? uint)? as s { FLT (float_of_string s) }
   | eof { EOF }
   | _ as c
     { let open Lexing in

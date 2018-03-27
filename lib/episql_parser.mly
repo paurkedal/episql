@@ -1,4 +1,4 @@
-/* Copyright (C) 2014--2017  Petter A. Urkedal <paurkedal@gmail.com>
+/* Copyright (C) 2014--2018  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -42,6 +42,7 @@
 /* Literals */
 %token<string> IDENTIFIER
 %token<int64> INT
+%token<float> FLT
 %token<string> STRING
 
 %type<Episql_types.statement list> schema
@@ -259,6 +260,7 @@ expr_nonempty_params:
 
 literal:
     INT { Lit_integer $1 }
+  | FLT { Lit_float $1 }
   | STRING { Lit_text $1 }
   ;
 identifier:
