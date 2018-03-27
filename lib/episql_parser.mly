@@ -24,7 +24,7 @@
 %token<string> L6 L8 R0 A2 A4 A6
 
 /* Keywords */
-%token<string> AS AT BY CACHE CASCADE COLLATE CHECK CREATE CYCLE
+%token<string> AS AT BY CACHE CASCADE COLLATE CHECK CONSTRAINT CREATE CYCLE
 %token<string> DEFAULT DELETE DROP ENUM EXISTS FOREIGN
 %token<string> IF INCREMENT INHERIT KEY
 %token<string> MINVALUE MAXVALUE NO NOT NULL ON WITH
@@ -132,7 +132,7 @@ table_item:
     tfname datatype collate column_constraints
     { Column { column_name = $1; column_type = $2;
                column_collate = $3; column_constraints = List.rev $4 } }
-  | table_constraint { Constraint $1 }
+  | table_constraint { Constraint (fst $1, snd $1) }
   ;
 collate:
     /* empty */ { None }
@@ -143,13 +143,13 @@ column_constraints:
   | column_constraints column_constraint { $2 :: $1 }
   ;
 check_constraint:
-    LPAREN expr RPAREN { {condition = $2; no_inherit = false} }
-  | LPAREN expr RPAREN NO INHERIT { {condition = $2; no_inherit = true} }
+    CHECK LPAREN expr RPAREN { {condition = $3; no_inherit = false} }
+  | CHECK LPAREN expr RPAREN NO INHERIT { {condition = $3; no_inherit = true} }
   ;
-column_constraint:
+unnamed_column_constraint:
     NOT NULL { `Not_null }
   | NULL { `Null }
-  | CHECK check_constraint { `Check $2 }
+  | check_constraint { `Check $1 }
   | UNIQUE { `Unique }
   | PRIMARY KEY { `Primary_key }
   | DEFAULT expr { `Default $2 }
@@ -158,8 +158,12 @@ column_constraint:
   | ON DELETE action { `On_delete $3 }
   | ON UPDATE action { `On_update $3 }
   ;
-table_constraint:
-    CHECK check_constraint { `Check $2 }
+column_constraint:
+    unnamed_column_constraint { (None, $1) }
+  | CONSTRAINT IDENTIFIER unnamed_column_constraint { (Some $2, $3) }
+  ;
+unnamed_table_constraint:
+    check_constraint { `Check $1 }
   | UNIQUE LPAREN nonempty_tfnames_r RPAREN
     { `Unique (List.rev $3) }
   | PRIMARY KEY LPAREN nonempty_tfnames_r RPAREN
@@ -167,6 +171,10 @@ table_constraint:
   | FOREIGN KEY LPAREN nonempty_tfnames_r RPAREN
     REFERENCES tfqname paren_column_names_opt
     { `Foreign_key (List.rev $4, $7, $8) }
+  ;
+table_constraint:
+    unnamed_table_constraint { (None, $1) }
+  | CONSTRAINT IDENTIFIER unnamed_table_constraint { (Some $2, $3) }
   ;
 paren_column_names_opt:
     /* empty */ { [] }

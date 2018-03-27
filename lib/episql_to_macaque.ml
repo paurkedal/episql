@@ -104,7 +104,7 @@ let generate stmts oc =
       let conv, suffix = int_conversion_of_datatype dt in
       fprintf oc "$%s:%Ld%s$" conv i suffix
    | e -> emit_expr e in
-  let emit_column_constraint dt = function
+  let emit_column_constraint dt (_, constr) = match constr with
    | `Check _ -> ()
    | `Not_null | `Primary_key -> output_string oc " NOT NULL"
    | `Null | `Unique | `References _ | `On_delete _ | `On_update _ -> ()
@@ -134,14 +134,14 @@ let generate stmts oc =
   let emit_table_post tqn = function
    | Column {column_name = cn; column_type = dt; column_constraints = ccs; _} ->
       let emit_default_nul_workaround = function
-       | `Default e ->
+       | (_, `Default e) ->
           (try
             ignore (translate dt e);
             fprintf oc "let () = ignore <:value< nullable $%s$?%s >>\n"
                        (snd tqn) cn
            with Unsupported -> ())
        | _ -> () in
-      if List.mem `Not_null ccs then
+      if List.exists (function (_, `Not_null) -> true | _ -> false) ccs then
         List.iter emit_default_nul_workaround ccs
    | Constraint _ -> () in
   let emit_top = function

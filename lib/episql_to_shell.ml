@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2017  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2018  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -25,7 +25,7 @@ let generate stmts oc =
     #   enter_create_table TABLE_QNAME\n\
     #   add_column TABLE_QNAME COLUMN_NAME COLUMN_TYPE CONSTRAINTS\n\
     #   leave_create_table TABLE_QNAME\n\n";
-  let emit_column_constraint cc =
+  let emit_column_constraint (_, cc) =
     output_string oc " \"";
     (* FIXME: Need proper shell quoting. *)
     output_string oc (String.escaped (string_of_column_constraint cc));

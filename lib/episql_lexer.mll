@@ -36,6 +36,7 @@
         "CASCADE", (fun idr -> CASCADE idr);
         "CHECK", (fun idr -> CHECK idr);
         "COLLATE", (fun idr -> COLLATE idr);
+        "CONSTRAINT", (fun idr -> CONSTRAINT idr);
         "CREATE", (fun idr -> CREATE idr);
         "CYCLE", (fun idr -> CYCLE idr);
         "DEFAULT", (fun idr -> DEFAULT idr);

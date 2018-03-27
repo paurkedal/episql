@@ -21,17 +21,17 @@ CREATE TABLE episql_tests.cp_1d_1o1r1d (
 );
 
 CREATE TABLE episql_tests.tensor1 (
-  i integer PRIMARY KEY,
+  i integer CONSTRAINT tensor1_pk PRIMARY KEY,
   x double precision NOT NULL,
   note text
 );
 
 CREATE TABLE episql_tests.tensor2 (
-  i integer NOT NULL CHECK (i >= 0),
+  i integer NOT NULL CONSTRAINT tensor2_check_i_ge_zero CHECK (i >= 0),
   j integer NOT NULL,
   x double precision NOT NULL,
   note text,
-  PRIMARY KEY (i, j)
+  CONSTRAINT tensor2_pk PRIMARY KEY (i, j)
 );
 
 CREATE TABLE episql_tests.tensor3c (

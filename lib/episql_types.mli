@@ -86,7 +86,7 @@ type column = {
   column_name : string;
   column_type : datatype;
   column_collate : string option;
-  column_constraints : column_constraint list;
+  column_constraints : (string option * column_constraint) list;
 }
 
 type table_scope = [`Permanent | `Permanent_unlogged | `Temporary]
@@ -99,7 +99,7 @@ type table_constraint =
 
 type table_item =
   | Column of column
-  | Constraint of table_constraint
+  | Constraint of string option * table_constraint
 
 type table = {
   table_qname : qname;

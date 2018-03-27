@@ -48,7 +48,7 @@ let xml_of_attr = function
  | `No_cycle -> Attr.bool "cycle" false
  | `Owner owner -> Attr.string "owner" (string_of_qname owner)
 
-let xmlattrs_of_column_constraint = function
+let xmlattrs_of_column_constraint (_, constr) = match constr with
  | `Check _ -> [] (* output as element *)
  | `Not_null -> [Attr.bool "nullable" false]
  | `Null -> [Attr.bool "nullable" true]
@@ -108,9 +108,13 @@ let xmlattrs_of_coltype ct =
 
 let write_column o name = output_leaf o "column" [Attr.string "name" name]
 
-let write_check_constraint o {condition; no_inherit} =
+let write_check_constraint o (name, {condition; no_inherit}) =
   let attrs = [Attr.expr "condition" condition] in
   let attrs = if no_inherit then attrs else Attr.flag "no-inherit" :: attrs in
+  let attrs =
+    (match name with
+     | None -> attrs
+     | Some name -> Attr.string "name" name :: attrs) in
   output_leaf o "check" attrs
 
 let write_item o = function
@@ -124,38 +128,42 @@ let write_item o = function
       |> List.cons (Attr.string "name" cn) in
     Xmlm.output o (`El_start (tag "column", attrs));
     constrs |> List.iter begin function
-     | `Check check_constraint -> write_check_constraint o check_constraint
+     | (name, `Check check_constraint) ->
+        write_check_constraint o (name, check_constraint)
      | _ -> ()
     end;
     Xmlm.output o `El_end
- | Constraint (`Check check_constraint) ->
-     write_check_constraint o check_constraint
- | Constraint (`Unique cols) ->
+ | Constraint (name, `Check check_constraint) ->
+     write_check_constraint o (name, check_constraint)
+ | Constraint (name, `Unique cols) ->
+    let attrs = List.of_option (Option.map (Attr.string "name") name) in
     if !use_compact_lists then
-      output_leaf o "unique" [Attr.string_list "columns" cols]
+      output_leaf o "unique" (Attr.string_list "columns" cols :: attrs)
     else begin
-      Xmlm.output o (`El_start (tag "unique", []));
+      Xmlm.output o (`El_start (tag "unique", attrs));
       List.iter (write_column o) cols;
       Xmlm.output o `El_end
     end
- | Constraint (`Primary_key cols) ->
+ | Constraint (name, `Primary_key cols) ->
+    let attrs = List.of_option (Option.map (Attr.string "name") name) in
     if !use_compact_lists then
-      output_leaf o "primary-key" [Attr.string_list "columns" cols]
+      output_leaf o "primary-key" (Attr.string_list "columns" cols :: attrs)
     else begin
-      Xmlm.output o (`El_start (tag "primary-key", []));
+      Xmlm.output o (`El_start (tag "primary-key", attrs));
       List.iter (write_column o) cols;
       Xmlm.output o `El_end
     end
- | Constraint (`Foreign_key (cols, reftable, refcols)) ->
+ | Constraint (name, `Foreign_key (cols, reftable, refcols)) ->
+    let attrs = List.of_option (Option.map (Attr.string "name") name) in
     if !use_compact_lists then
-      let attrs = [
-        Attr.(string_list "columns") cols;
-        Attr.qname "ref-table" reftable;
-        Attr.(string_list "ref-columns" refcols)
-      ] in
+      let attrs =
+        Attr.string_list "columns" cols ::
+        Attr.qname "ref-table" reftable ::
+        Attr.string_list "ref-columns" refcols ::
+        attrs in
       output_leaf o "foreign-key" attrs
     else begin
-      Xmlm.output o (`El_start (tag "foreign-key", []));
+      Xmlm.output o (`El_start (tag "foreign-key", attrs));
       List.iter (write_column o) cols;
       Xmlm.output o (`El_start (tag "references",
                                 [Attr.qname "table" reftable]));

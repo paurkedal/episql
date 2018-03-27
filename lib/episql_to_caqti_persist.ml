@@ -182,20 +182,21 @@ let collect = function
   | Column { column_name = cn; column_type = ct_type;
              column_constraints = ccs; _ } ->
     let is_serial = function #serialtype -> true | _ -> false in
-    let is_default = function `Default _ -> true | _ -> false in
+    let is_default = function (_, `Default _) -> true | _ -> false in
     let ct_defaultable = is_serial ct_type || List.exists is_default ccs in
-    if List.mem `Primary_key ccs then
-      begin function
-      | None, cts ->
-        let ct = {ct_pk = true; ct_type; ct_nullable = false; ct_defaultable} in
-        Some [cn], (cn, ct) :: cts
-      | Some _, _ -> failwith "Cannot have multiple primary keys."
-      end
+    if List.exists (function (_, `Primary_key) -> true | _ -> false) ccs then
+      (function
+       | None, cts ->
+          let ct =
+            {ct_pk = true; ct_type; ct_nullable = false; ct_defaultable} in
+          Some [cn], (cn, ct) :: cts
+       | Some _, _ -> failwith "Cannot have multiple primary keys.")
     else
-      let ct_nullable = not (List.mem `Not_null ccs) in
+      let ct_nullable =
+        not (List.exists (function (_, `Not_null) -> true | _ -> false) ccs) in
       let ct = {ct_pk = false; ct_type; ct_nullable; ct_defaultable} in
       fun (pk_opt, cts) -> (pk_opt, (cn, ct) :: cts)
-  | Constraint (`Primary_key pk) ->
+  | Constraint (_, `Primary_key pk) ->
     begin function
     | None, cts -> Some pk, cts
     | Some _, _ -> failwith "Cannot have multiple primary keys."

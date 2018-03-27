@@ -51,6 +51,12 @@
       -new-order-by -raise-on-absent -connection-arg c
       -ppx-deriving show -pk-module Key ${<} -o ${@}))))
 
+(rule
+ ((targets (schema_one.xml))
+  (deps (schema_one.sql ../bin/episql_main.exe))
+  (action
+    (run ../bin/episql_main.exe -g xml ${<} -o ${@}))))
+
 (alias
  ((name runtest)
   (deps (test_caqti_persist.exe))
@@ -60,3 +66,5 @@
  ((name runtest)
   (deps (schema_one_macaque.exe))
   (action (run ${<}))))
+
+(alias ((name runtest) (deps (schema_one.xml))))
