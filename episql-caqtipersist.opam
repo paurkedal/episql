@@ -1,5 +1,5 @@
 opam-version: "1.2"
-name: "episql"
+name: "episql-caqtipersist"
 author: "Petter A. Urkedal <paurkedal@gmail.com>"
 maintainer: "Petter A. Urkedal <paurkedal@gmail.com>"
 homepage: "https://github.com/paurkedal/episql/"
@@ -11,10 +11,10 @@ build: [["jbuilder" "build" "-p" name "-j" jobs]]
 build-test: [["jbuilder" "runtest" "-p" name "-j" jobs]]
 
 depends: [
+  "episql"
   "jbuilder" {build}
   "lwt"
   "ppx_compose"
   "prime"
   "re"
-  "xmlm"
 ]

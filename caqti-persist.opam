@@ -1,7 +1,7 @@
 opam-version: "1.2"
 name: "episql"
-authors: ["Petter A. Urkedal"]
-maintainer: "paurkedal@gmail.com"
+author: "Petter A. Urkedal <paurkedal@gmail.com>"
+maintainer: "Petter A. Urkedal <paurkedal@gmail.com>"
 homepage: "https://github.com/paurkedal/episql/"
 bug-reports: "https://github.com/paurkedal/episql/issues"
 dev-repo: "https://github.com/paurkedal/episql.git"
@@ -18,7 +18,7 @@ depends: [
   "caqti-type-calendar" {>= "0.8.1"}
   "extunix"
   "lwt"
-  "ppx_deriving" {build}
+  "ppx_deriving"
   "prime"
   "react"
 ]
