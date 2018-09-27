@@ -1,16 +1,12 @@
-opam-version: "1.2"
+opam-version: "2.0"
 name: "episql-caqtipersist"
-author: "Petter A. Urkedal <paurkedal@gmail.com>"
 maintainer: "Petter A. Urkedal <paurkedal@gmail.com>"
+authors: "Petter A. Urkedal <paurkedal@gmail.com>"
+license: "LGPL-3 with OCaml linking exception"
 homepage: "https://github.com/paurkedal/episql/"
 bug-reports: "https://github.com/paurkedal/episql/issues"
-dev-repo: "https://github.com/paurkedal/episql.git"
-license: "LGPL-3 with OCaml linking exception"
-
-build: [["jbuilder" "build" "-p" name "-j" jobs]]
-build-test: [["jbuilder" "runtest" "-p" name "-j" jobs]]
-
 depends: [
+  "ocaml"
   "episql"
   "jbuilder" {build}
   "lwt"
@@ -18,3 +14,8 @@ depends: [
   "prime"
   "re"
 ]
+build: [
+  ["jbuilder" "build" "-p" name "-j" jobs]
+  ["jbuilder" "runtest" "-p" name "-j" jobs] {with-test}
+]
+dev-repo: "git+https://github.com/paurkedal/episql.git"
