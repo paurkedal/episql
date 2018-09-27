@@ -1,0 +1,9 @@
+(executable
+  (name episql_main)
+  (flags -linkall)
+  (libraries episql))
+
+(install
+  (section bin)
+  (package episql)
+  (files (episql_main.exe as episql)))
