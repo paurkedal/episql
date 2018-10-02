@@ -1,9 +1,11 @@
 (tests
+  (package caqti-persist)
   (names test_caqti_persist)
   (modules test_caqti_persist schema_one_persist schema_one_persist_types)
   (libraries calendar caqti_persist caqti-dynload lwt lwt_log))
 
 (tests
+  (package episql)
   (names schema_one_macaque)
   (modules schema_one_macaque)
   (preprocess (action
@@ -57,4 +59,4 @@
   (action
     (run ../bin/episql_main.exe -g xml %{schema} -o %{targets})))
 
-(alias (name runtest) (deps schema_one.xml))
+(alias (package episql) (name runtest) (deps schema_one.xml))
