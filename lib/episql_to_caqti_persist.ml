@@ -697,7 +697,7 @@ let emit_impl oc ti =
     pp oc ")@]@   >|= fun ";
     emit_returning_value oc ~filter:(fun ct -> ct.ct_defaultable) ti.ti_cts;
     fprint oc " ->";
-
+    if go.go_select_cache then pp oc "@ clear_select_cache ();";
     if ti.ti_nonpk_cts = [] then
       pp oc "@ let state = () in"
     else begin
@@ -707,8 +707,6 @@ let emit_impl oc ti =
       end;
       pp oc "@ @]} in"
     end;
-    if go.go_select_cache then
-      pp oc "@ clear_select_cache ();";
     pp oc "@ o.state <- Present state;";
     pp oc "@ Lwt_condition.broadcast _c state";
     if go.go_event then begin
@@ -759,7 +757,7 @@ let emit_impl oc ti =
     pp oc ")@]@   >>= fun ";
     emit_returning_value oc ~filter:(fun ct -> ct.ct_defaultable) ti.ti_cts;
     fprint oc " ->";
-
+    if go.go_select_cache then pp oc "@ clear_select_cache ();";
     if ti.ti_nonpk_cts = [] then
       pp oc "@ let state = () in"
     else begin
