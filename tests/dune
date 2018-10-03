@@ -4,19 +4,6 @@
   (modules test_caqti_persist schema_one_persist schema_one_persist_types)
   (libraries calendar caqti_persist caqti-dynload lwt lwt_log))
 
-(tests
-  (package episql)
-  (names schema_one_macaque)
-  (modules schema_one_macaque)
-  (preprocess (action
-    (bash "camlp4o -I `ocamlfind query macaque` -filter syntax.cma %{deps}")))
-  (libraries macaque))
-
-(rule
-  (targets schema_one_macaque.ml)
-  (deps (:schema schema_one.sql) ../bin/episql_main.exe)
-  (action (run ../bin/episql_main.exe -g macaque %{schema} -o %{targets})))
-
 (rule
   (targets schema_one_persist_types.mli)
   (deps (:schema schema_one.sql) ../bin/episql_main.exe)
