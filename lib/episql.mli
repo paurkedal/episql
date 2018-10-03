@@ -18,7 +18,7 @@ open Episql_types
 
 type dialect_tag = private [> `Mysql | `Pgsql | `Sqlite]
 (** A type indicating how to interpret certain SQL code when implementations
-    conflict.  This is the same as {!Caqti_metadata.dialect_tag}. *)
+    conflict.  This is the same as {!Caqti_driver_info.dialect_tag}. *)
 
 val parse_file : ?dialect: dialect_tag -> string -> statement list
 

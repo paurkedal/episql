@@ -206,10 +206,6 @@ let collect = function
 let pp = Format.fprintf
 let fprint oc s = pp_print_string oc s
 let fprintf oc fmt = Printf.ksprintf (fprint oc) fmt
-let rec findent oc n =
-  if n = 0  then () else
-  if n >= 8 then (pp_print_char oc '\t'; findent oc (n - 8))
-            else (pp_print_char oc ' ';  findent oc (n - 1))
 
 let emit_custom_open oc =
   List.iter (fun m -> pp oc "@ open %s" m) (List.rev go.go_open)

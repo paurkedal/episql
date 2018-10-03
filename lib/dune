@@ -2,8 +2,21 @@
   (name episql)
   (public_name episql)
   (wrapped false)
-  (modules :standard \ Caqti_persist)
-  (modules_without_implementation Episql_types)
+  (modules
+    Episql
+    Episql_lexer
+    Episql_parser
+    Episql_types
+    Episql_to_caqti_persist
+    Episql_to_shell
+    Episql_to_xml)
+  (private_modules
+    Episql_parser
+    Episql_to_caqti_persist
+    Episql_to_shell
+    Episql_to_xml)
+  (modules_without_implementation
+    Episql_types)
   (libraries prime re re.glob xmlm))
 
 (ocamllex episql_lexer)
