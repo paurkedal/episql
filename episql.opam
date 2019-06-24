@@ -7,7 +7,7 @@ homepage: "https://github.com/paurkedal/episql/"
 bug-reports: "https://github.com/paurkedal/episql/issues"
 depends: [
   "ocaml"
-  "dune" {build}
+  "dune" {build & >= "1.9"}
   "lwt"
   "ppx_compose"
   "prime"
