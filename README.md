@@ -7,7 +7,6 @@ supports a subset of SQL `CREATE`-statements with focus on PostgreSQL.  It
 contains generators for
 
   * [Caqti][], providing a persistence-style API with caching,
-  * [Macaque][], providing `<:table< >>` and `<:sequence< >>` definitions,
   * XML, providing easy access for external applications to the schema, and
   * Unix shells, providing a series of function calls for general ad-hoc use.
 
@@ -43,31 +42,6 @@ traits.  For more details see
 ``` sh
 episql -g caqti-persist-ml -help
 ```
-
-## Macaque Output
-
-**Note**: This generator will likely be dropped in the near future.
-
-Use the command line switch `-g macaque`.  An table definition like
-
-``` sql
-CREATE TABLE testarea.note (note_id SERIAL PRIMARY KEY, note text NOT NULL);
-```
-
-translates to
-
-``` ocaml
-let note_note_id_seq =
-  <:sequence< serial "testarea.note_note_id_seq" >>
-let note =
-  <:table< testarea.note (
-        note_id integer NOT NULL,
-        note text NOT NULL ) >>
-```
-
-Only a limited selection of default expression forms are supported.  If the
-generator does not know how to handle a certain expression, it the default
-specification is omitted from the Macaque description.
 
 ## XML Output
 
