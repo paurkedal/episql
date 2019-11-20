@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2018  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2019  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -98,7 +98,19 @@ let test_serial () =
     assert (nonpk.s_v1 = "sixty-one");
     Lwt.return_unit
   end >>= fun () ->
-  Cp_1d_1o1r1d.delete e
+  Cp_1d_1o1r1d.delete e >>= fun () ->
+
+  Tensor2.create ~i:1l ~j:2l ~x:33.5 () >>= fun t2' ->
+  Tensor2.select ~i:(`Eq 1l) ~j:(`Eq 2l) () >>= fun t2s ->
+  begin
+    assert (List.length t2s = 1);
+    let t2 = List.hd t2s in
+    assert (Tensor2.is_present t2);
+    assert (Tensor2.get_i t2 = 1l);
+    assert (Tensor2.get_j t2 = 2l);
+    assert (Tensor2.get_x t2 = 33.5);
+    Tensor2.delete t2'
+  end
 
 let test_parallel_inner a j =
   if Tensor1.is_present a then

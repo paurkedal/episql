@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2018  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2019  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -796,8 +796,7 @@ let emit_impl oc ti =
     pp oc "@ let sb = Sb.create C.driver_info \"%s\" in"
        (Episql.string_of_qname ti.ti_tqn);
     let emit_ret (cn, _) = pp oc "@ Sb.ret sb \"%s\";" cn in
-    List.iter emit_ret ti.ti_pk_cts;
-    List.iter emit_ret ti.ti_nonpk_cts;
+    List.iter emit_ret ti.ti_cts;
     List.iter
       (fun (cn, ct) ->
         let conv = convname_of_datatype ct.ct_type in

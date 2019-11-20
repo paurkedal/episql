@@ -28,8 +28,8 @@ CREATE TABLE episql_tests.tensor1 (
 
 CREATE TABLE episql_tests.tensor2 (
   i integer NOT NULL CONSTRAINT tensor2_check_i_ge_zero CHECK (i >= 0),
-  j integer NOT NULL,
   x double precision NOT NULL,
+  j integer NOT NULL,
   note text,
   CONSTRAINT tensor2_pk PRIMARY KEY (i, j)
 );
