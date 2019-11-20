@@ -1,5 +1,3 @@
-# Change Log
-
 ## v0.11.2 - 2019-11-20
 
 - Fixed matching of columns in SQL and extraction in generated search
