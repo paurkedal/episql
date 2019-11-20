@@ -1,5 +1,12 @@
 # Change Log
 
+## v0.11.2 - 2019-11-20
+
+- Fixed matching of columns in SQL and extraction in generated search
+  function when primary key columns do not precede other columns.
+- The Macaque generator is now removed.
+- Adjustments to packaging, in particular make dune a non-build dependency.
+
 ## v0.11.1 - 2018-10-02
 
 - Fix clearing of select cache for caqti-persist create operation.
