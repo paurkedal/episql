@@ -25,7 +25,7 @@
 
 /* Keywords */
 %token<string> AS AT BY CACHE CASCADE COLLATE CHECK CONSTRAINT CREATE CYCLE
-%token<string> DEFAULT DELETE DROP ENUM EXISTS FOREIGN
+%token<string> DEFAULT DELETE DISTINCT DROP ENUM EXISTS FOREIGN FROM
 %token<string> IF INCREMENT INHERIT KEY
 %token<string> MINVALUE MAXVALUE NO NOT NULL ON WITH IS UNKNOWN
 %token<string> PRIMARY REFERENCES RESTRICT UNIQUE UPDATE SCHEMA SEQUENCE START
@@ -286,6 +286,10 @@ expr:
     { Expr_app ((None, if $3 then "IS TRUE" else "IS FALSE"), [$1]) }
   | expr IS NOT BOOL %prec IS
     { Expr_app ((None, if $4 then "IS NOT TRUE" else "IS NOT FALSE"), [$1]) }
+  | expr IS DISTINCT FROM expr %prec IS
+    { Expr_app ((None, "IS DISTINCT FROM"), [$1; $5]) }
+  | expr IS NOT DISTINCT FROM expr %prec IS
+    { Expr_app ((None, "IS NOT DISTINCT FROM"), [$1; $6]) }
   | expr R2 expr { Expr_app ((None, $2), [$1; $3]) }
   | expr R4 expr { Expr_app ((None, $2), [$1; $3]) }
   | expr A0 expr { Expr_app ((None, $2), [$1; $3]) }

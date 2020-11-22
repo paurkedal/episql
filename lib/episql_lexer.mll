@@ -41,10 +41,12 @@
         "CYCLE", (fun idr -> CYCLE idr);
         "DEFAULT", (fun idr -> DEFAULT idr);
         "DELETE", (fun idr -> DELETE idr);
+        "DISTINCT", (fun idr -> DISTINCT idr);
         "DROP", (fun idr -> DROP idr);
         "ENUM", (fun idr -> ENUM idr);
         "EXISTS", (fun idr -> EXISTS idr);
         "FOREIGN", (fun idr -> FOREIGN idr);
+        "FROM", (fun idr -> FROM idr);
         "IF", (fun idr -> IF idr);
         "ILIKE", (fun idr -> R4 idr);
         "IN", (fun idr -> R4 idr);
