@@ -32,7 +32,7 @@ CREATE TABLE episql_tests.tensor2 (
   j integer NOT NULL,
   note text,
   CONSTRAINT tensor2_pk PRIMARY KEY (i, j),
-  CHECK ((note IS NULL) OR (i = i))
+  CHECK (note IS NULL OR note IS NOT NULL OR i = i IS TRUE OR j IS NOT UNKNOWN)
 );
 
 CREATE TABLE episql_tests.tensor3c (

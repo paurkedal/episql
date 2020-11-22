@@ -58,6 +58,7 @@ type serialtype = [ `Smallserial | `Serial | `Bigserial ]
 
 type literal =
   | Lit_null
+  | Lit_bool of bool
   | Lit_integer of int64
   | Lit_float of float
   | Lit_text of string

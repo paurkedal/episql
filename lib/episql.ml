@@ -99,6 +99,8 @@ let string_of_datatype : datatype -> string = function
 
 let string_of_literal = function
   | Lit_null -> "NULL"
+  | Lit_bool true -> "TRUE"
+  | Lit_bool false -> "FALSE"
   | Lit_integer i -> Int64.to_string i
   | Lit_float x -> Printf.sprintf "%.16g" x
   | Lit_text s -> sql_quote s

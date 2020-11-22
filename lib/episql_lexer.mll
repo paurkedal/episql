@@ -50,7 +50,7 @@
         "IN", (fun idr -> R4 idr);
         "INCREMENT", (fun idr -> INCREMENT idr);
         "INHERIT", (fun idr -> INHERIT idr);
-        "IS", (fun idr -> R0 idr); (* TODO: Right operand. *)
+        "IS", (fun idr -> IS idr);
         "KEY", (fun idr -> KEY idr);
         "LIKE", (fun idr -> R4 idr);
         "MINVALUE", (fun idr -> MINVALUE idr);
@@ -71,7 +71,10 @@
         "TEMP", (fun idr -> TEMPORARY idr);
         "TEMPORARY", (fun idr -> TEMPORARY idr);
         "TIME", (fun idr -> TIME idr);
+        "TRUE", (fun _ -> BOOL true);
+        "FALSE", (fun _ -> BOOL false);
         "TYPE", (fun idr -> TYPE idr);
+        "UNKNOWN", (fun idr -> UNKNOWN idr);
         "UNLOGGED", (fun idr -> UNLOGGED idr);
         "UPDATE", (fun idr -> UPDATE idr);
         "WITH", (fun idr -> WITH idr);

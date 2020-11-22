@@ -21,13 +21,13 @@
 
 /* Operators and special */
 %token COMMA DOT EOF SEMICOLON LPAREN RPAREN
-%token<string> L6 L8 R0 R2 R4 A0 A2 A4 A6
+%token<string> L6 L8 R2 R4 A0 A2 A4 A6
 
 /* Keywords */
 %token<string> AS AT BY CACHE CASCADE COLLATE CHECK CONSTRAINT CREATE CYCLE
 %token<string> DEFAULT DELETE DROP ENUM EXISTS FOREIGN
 %token<string> IF INCREMENT INHERIT KEY
-%token<string> MINVALUE MAXVALUE NO NOT NULL ON WITH
+%token<string> MINVALUE MAXVALUE NO NOT NULL ON WITH IS UNKNOWN
 %token<string> PRIMARY REFERENCES RESTRICT UNIQUE UPDATE SCHEMA SEQUENCE START
 %token<string> TABLE TEMPORARY UNLOGGED TYPE ZONE
 %token<string> YEAR MONTH DAY HOUR MINUTE SECOND TO
@@ -45,12 +45,13 @@
 %token<string> IDENTIFIER
 %token<int64> INT
 %token<float> FLT
+%token<bool> BOOL
 %token<string> STRING
 
 /* Precedence */
 %left L6
 %left L8
-%nonassoc R0
+%nonassoc IS
 %nonassoc R2
 %nonassoc R4
 %left A0
@@ -277,7 +278,14 @@ expr:
   | expr L6 expr { Expr_app ((None, $2), [$1; $3]) }
   | expr L8 expr { Expr_app ((None, $2), [$1; $3]) }
   | NOT expr %prec L8 { Expr_app ((None, "NOT"), [$2]) }
-  | expr R0 expr { Expr_app ((None, $2), [$1; $3]) }
+  | expr IS NULL %prec IS { Expr_app ((None, "IS NULL"), [$1]) }
+  | expr IS NOT NULL %prec IS { Expr_app ((None, "IS NOT NULL"), [$1]) }
+  | expr IS UNKNOWN %prec IS { Expr_app ((None, "IS UNKNOWN"), [$1]) }
+  | expr IS NOT UNKNOWN %prec IS { Expr_app ((None, "IS NOT UNKNOWN"), [$1]) }
+  | expr IS BOOL %prec IS
+    { Expr_app ((None, if $3 then "IS TRUE" else "IS FALSE"), [$1]) }
+  | expr IS NOT BOOL %prec IS
+    { Expr_app ((None, if $4 then "IS NOT TRUE" else "IS NOT FALSE"), [$1]) }
   | expr R2 expr { Expr_app ((None, $2), [$1; $3]) }
   | expr R4 expr { Expr_app ((None, $2), [$1; $3]) }
   | expr A0 expr { Expr_app ((None, $2), [$1; $3]) }
@@ -308,6 +316,7 @@ expr_nonempty_params:
 
 literal:
     NULL { Lit_null }
+  | BOOL { Lit_bool $1 }
   | INT { Lit_integer $1 }
   | FLT { Lit_float $1 }
   | STRING { Lit_text $1 }
