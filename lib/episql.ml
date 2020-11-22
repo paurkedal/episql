@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2018  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2020  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -98,6 +98,7 @@ let string_of_datatype : datatype -> string = function
   | `Custom qn -> string_of_qname qn
 
 let string_of_literal = function
+  | Lit_null -> "NULL"
   | Lit_integer i -> Int64.to_string i
   | Lit_float x -> Printf.sprintf "%.16g" x
   | Lit_text s -> sql_quote s

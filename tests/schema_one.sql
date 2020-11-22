@@ -31,7 +31,8 @@ CREATE TABLE episql_tests.tensor2 (
   x double precision NOT NULL,
   j integer NOT NULL,
   note text,
-  CONSTRAINT tensor2_pk PRIMARY KEY (i, j)
+  CONSTRAINT tensor2_pk PRIMARY KEY (i, j),
+  CHECK ((note IS NULL) OR (i = i))
 );
 
 CREATE TABLE episql_tests.tensor3c (
