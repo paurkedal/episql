@@ -46,12 +46,13 @@
         "EXISTS", (fun idr -> EXISTS idr);
         "FOREIGN", (fun idr -> FOREIGN idr);
         "IF", (fun idr -> IF idr);
-        "ILIKE", (fun idr -> R0 idr); (* TODO: Precedence. *)
+        "ILIKE", (fun idr -> R4 idr);
+        "IN", (fun idr -> R4 idr);
         "INCREMENT", (fun idr -> INCREMENT idr);
         "INHERIT", (fun idr -> INHERIT idr);
-        "IS", (fun idr -> R0 idr); (* TODO: Precedence and right operand. *)
+        "IS", (fun idr -> R0 idr); (* TODO: Right operand. *)
         "KEY", (fun idr -> KEY idr);
-        "LIKE", (fun idr -> R0 idr); (* TODO: Precedence. *)
+        "LIKE", (fun idr -> R4 idr);
         "MINVALUE", (fun idr -> MINVALUE idr);
         "MAXVALUE", (fun idr -> MAXVALUE idr);
         "NO", (fun idr -> NO idr);
@@ -81,6 +82,7 @@
         "HOUR", (fun idr -> HOUR idr);
         "MINUTE", (fun idr -> MINUTE idr);
         "SECOND", (fun idr -> SECOND idr);
+        "SIMILAR", (fun idr -> R4 idr);
         "TO", (fun idr -> TO idr);
 
         (* Type-forming keywords *)
@@ -121,7 +123,7 @@ rule lex_main dt = parse
   | '\n' { Lexing.new_line lexbuf; lex_main dt lexbuf }
   | ';' { SEMICOLON }
   | ',' { COMMA }
-  | ("=" | "!=" | "<=" | "<" | ">=" | ">") as op { R0 op }
+  | ("=" | "<>" | "!=" | "<=" | "<" | ">=" | ">") as op { R2 op }
   | "||" as op { A0 op }
   | '-' { MINUS }
   | ("+") as op { A2 (String.make 1 op) }
