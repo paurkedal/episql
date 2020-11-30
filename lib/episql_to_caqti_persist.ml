@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2019  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2020  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -83,6 +83,7 @@ type genopts = {
   mutable go_log_debug : string option;
   mutable go_connection_arg : string option;
   mutable go_obsolete_order_by : bool;
+  mutable go_public_state : bool;
 }
 let go = {
   go_types_module = None;
@@ -115,6 +116,7 @@ let go = {
   go_log_debug = Some "caqti-persist";
   go_connection_arg = None;
   go_obsolete_order_by = true;
+  go_public_state = false;
 }
 
 let convname_of_datatype = function
@@ -252,7 +254,8 @@ let emit_type_nonpk ~in_intf oc ti =
     pp oc "@ type state = unit"
   else begin
     pp oc "@ @[<v 2>type state = ";
-    pp_print_string oc (if in_intf then "private {" else "{");
+    pp_print_string oc
+      (if in_intf && not go.go_public_state then "private {" else "{");
     List.iter
       (fun (cn, ct) ->
         pp oc "@ mutable %s%s : %s;"
@@ -1234,6 +1237,9 @@ let () =
       Arg.String (fun arg -> go.go_pk_module <- Some arg;
                              go.go_pk_prefix <- arg ^ "."),
       "M Put key record into a sub-module M instead of prefixing.";
+    "-public-state", Arg.Unit (fun () -> go.go_public_state <- true),
+      "Don't make state records private. This allows modifying to account for \
+       out-of-band changes to the database.";
   ] in
   let arg_specs = [
     "-t", Arg.String set_types_module,
