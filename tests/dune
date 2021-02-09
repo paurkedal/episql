@@ -10,7 +10,7 @@
   (action
     (run ../bin/episql_main.exe
       -g caqti-persist-types-mli
-      -new-order-by -raise-on-absent -connection-arg c
+      -new-order-by -raise-on-absent -connection-arg c -return-result
       -ppx-deriving show -pk-module Key %{schema} -o %{targets})))
 
 (rule
@@ -19,7 +19,7 @@
   (action
     (run ../bin/episql_main.exe
       -g caqti-persist-types-ml
-      -new-order-by -raise-on-absent -connection-arg c
+      -new-order-by -raise-on-absent -connection-arg c -return-result
       -ppx-deriving show -pk-module Key %{schema} -o %{targets})))
 
 (rule
@@ -28,7 +28,7 @@
   (action
     (run ../bin/episql_main.exe
       -g caqti-persist-mli -t schema_one_persist_types
-      -new-order-by -raise-on-absent -connection-arg c
+      -new-order-by -raise-on-absent -connection-arg c -return-result
       -ppx-deriving show -pk-module Key %{schema} -o %{targets})))
 
 (rule
@@ -37,7 +37,7 @@
   (action
     (run ../bin/episql_main.exe
       -g caqti-persist-ml -t schema_one_persist_types
-      -new-order-by -raise-on-absent -connection-arg c
+      -new-order-by -raise-on-absent -connection-arg c -return-result
       -ppx-deriving show -pk-module Key %{schema} -o %{targets})))
 
 (rule

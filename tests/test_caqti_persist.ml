@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2019  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2021  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -17,6 +17,20 @@
 open Caqti_persist
 open Lwt.Infix
 open Unprime_list
+
+let (>>=?) m f = m >>= function Ok x -> f x | Error _ as r -> Lwt.return r
+
+module Result_list_lwt = struct
+
+  let rec iter_s f = function
+   | [] -> Lwt.return_ok ()
+   | x :: xs -> f x >>=? fun () -> iter_s f xs
+
+  let rec join = function
+   | [] -> Lwt.return_ok ()
+   | m :: ms -> m >>=? fun () -> join ms
+
+end
 
 let section = Lwt_log.Section.make "Test_caqti_persist"
 
@@ -50,58 +64,58 @@ module M = Schema_one_persist.Make (P)
 open M
 
 let test_serial () =
-  Cp_1d_0.create () >>= fun a ->
-  Cp_1d_0.select ~k0:(`Eq (Cp_1d_0.get_k0 a)) () >>= fun a' ->
+  Cp_1d_0.create () >>=? fun a ->
+  Cp_1d_0.select ~k0:(`Eq (Cp_1d_0.get_k0 a)) () >>=? fun a' ->
   assert (List.length a' = 1);
-  Cp_1d_0.fetch (Cp_1d_0.get_k0 a) >>= fun a'' ->
+  Cp_1d_0.fetch (Cp_1d_0.get_k0 a) >>=? fun a'' ->
   assert (Cp_1d_0.is_present a'');
-  Cp_1d_0.delete a >>= fun () ->
+  Cp_1d_0.delete a >>=? fun () ->
 
-  Cp_1d_1o.create () >>= fun b ->
-  Cp_1d_1o.update ~v0:(Some "updated") b >>= fun () ->
-  Cp_1d_1o.patch b `Delete >>= fun () ->
+  Cp_1d_1o.create () >>=? fun b ->
+  Cp_1d_1o.update ~v0:(Some "updated") b >>=? fun () ->
+  Cp_1d_1o.patch b `Delete >>=? fun () ->
 
-  Cp_1d_1o.create ~v0:"created" () >>= fun c ->
-  Cp_1d_1o.delete c >>= fun () ->
-  Cp_1d_1o.insert c >>= fun () ->
-  Cp_1d_1o.patch c `Delete >>= fun () ->
+  Cp_1d_1o.create ~v0:"created" () >>=? fun c ->
+  Cp_1d_1o.delete c >>=? fun () ->
+  Cp_1d_1o.insert c >>=? fun () ->
+  Cp_1d_1o.patch c `Delete >>=? fun () ->
 
-  Cp_1d_1r.create ~v0:1.0 () >>= fun d ->
-  Cp_1d_1r.patch d `Delete >>= fun () ->
-  Cp_1d_1r.(patch d (`Insert ({r_v0 = 5.25}, defaults))) >>= fun () ->
-  Cp_1d_1r.delete d >>= fun () ->
+  Cp_1d_1r.create ~v0:1.0 () >>=? fun d ->
+  Cp_1d_1r.patch d `Delete >>=? fun () ->
+  Cp_1d_1r.(patch d (`Insert ({r_v0 = 5.25}, defaults))) >>=? fun () ->
+  Cp_1d_1r.delete d >>=? fun () ->
 
   let now = CalendarLib.Calendar.now () in
-  Cp_1d_1o1r1d.create ~v1:"zzzz" ~v2:(Some now) () >>= fun _e0 ->
-  Cp_1d_1o1r1d.create ~v1:"zap" ~v2:(Some now) () >>= fun e1 ->
-  Cp_1d_1o1r1d.create ~v1:"paz" ~v2:(Some now) () >>= fun e2 ->
-  Cp_1d_1o1r1d.create ~v1:"zzz" ~v2:(Some now) () >>= fun e3 ->
+  Cp_1d_1o1r1d.create ~v1:"zzzz" ~v2:(Some now) () >>=? fun _e0 ->
+  Cp_1d_1o1r1d.create ~v1:"zap" ~v2:(Some now) () >>=? fun e1 ->
+  Cp_1d_1o1r1d.create ~v1:"paz" ~v2:(Some now) () >>=? fun e2 ->
+  Cp_1d_1o1r1d.create ~v1:"zzz" ~v2:(Some now) () >>=? fun e3 ->
   begin
     Cp_1d_1o1r1d.select ~v2:(`Eq now) ~order_by:[Asc `v2; Desc `v1]
-                                  ~limit:3 ~offset:1 () >>= function
+                                  ~limit:3 ~offset:1 () >>=? function
      | [e1'; e2'; e3'] ->
         assert (e1' == e3);
         assert (e2' == e1);
         assert (e3' == e2);
-        Lwt.return_unit
+        Lwt.return_ok ()
      | _ -> assert false
-  end >>= fun () ->
+  end >>=? fun () ->
   let e = e1 in
-  Lwt_list.iter_s (Cp_1d_1o1r1d.patch e)
+  Result_list_lwt.iter_s (Cp_1d_1o1r1d.patch e)
     [ `Delete;
       `Insert (Cp_1d_1o1r1d.({r_v1 = "sixty-one"}, defaults));
-      `Update [`Set_v0 (Some (Int32.of_int 61))] ] >>= fun () ->
+      `Update [`Set_v0 (Some (Int32.of_int 61))] ] >>=? fun () ->
   begin
     let open Cp_1d_1o1r1d in
     let nonpk = state e in
     assert (nonpk.s_v0 = Some (Int32.of_int 61));
     assert (nonpk.s_v1 = "sixty-one");
-    Lwt.return_unit
-  end >>= fun () ->
-  Cp_1d_1o1r1d.delete e >>= fun () ->
+    Lwt.return_ok ()
+  end >>=? fun () ->
+  Cp_1d_1o1r1d.delete e >>=? fun () ->
 
-  Tensor2.create ~i:1l ~j:2l ~x:33.5 () >>= fun t2' ->
-  Tensor2.select ~i:(`Eq 1l) ~j:(`Eq 2l) () >>= fun t2s ->
+  Tensor2.create ~i:1l ~j:2l ~x:33.5 () >>=? fun t2' ->
+  Tensor2.select ~i:(`Eq 1l) ~j:(`Eq 2l) () >>=? fun t2s ->
   begin
     assert (List.length t2s = 1);
     let t2 = List.hd t2s in
@@ -125,12 +139,14 @@ let test_parallel_inner a j =
     Tensor1.insert ~x:(float_of_int j) a
 
 let test_parallel i =
-  Tensor1.create ~i:(Int32.of_int i) ~x:0.0 () >>= fun a ->
-  Lwt.join (List.sample (test_parallel_inner a) 100) >>= fun () ->
+  Tensor1.create ~i:(Int32.of_int i) ~x:0.0 () >>=? fun a ->
+  Result_list_lwt.join (List.sample (test_parallel_inner a) 100) >>=? fun () ->
   Tensor1.delete a
 
 let main =
-  test_serial () >>= fun () ->
-  Lwt.join (List.sample test_parallel 100)
+  begin
+    test_serial () >>=? fun () ->
+    Result_list_lwt.join (List.sample test_parallel 100)
+  end >>= Caqti_persist.or_fail
 
 let () = Lwt_main.run main
