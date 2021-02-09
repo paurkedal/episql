@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2020  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2021  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -80,6 +80,7 @@ type genopts = {
   mutable go_type_date : string;
   mutable go_type_timestamp : string;
   mutable go_raise_on_absent : bool;
+  mutable go_return_result : bool;
   mutable go_log_debug : string option;
   mutable go_connection_arg : string option;
   mutable go_obsolete_order_by : bool;
@@ -113,6 +114,7 @@ let go = {
   go_type_date = "CalendarLib.Date.t";
   go_type_timestamp = "CalendarLib.Calendar.t";
   go_raise_on_absent = false;
+  go_return_result = false;
   go_log_debug = Some "caqti-persist";
   go_connection_arg = None;
   go_obsolete_order_by = true;
@@ -354,7 +356,14 @@ let emit_intf oc ti =
   let pk_type =
     (match go.go_pk_module with
      | None -> "key"
-     | Some pkm -> sprintf "%s.t" pkm) in
+     | Some pkm -> sprintf "%s.t" pkm)
+  in
+  let pp_return_type oc t =
+    if go.go_return_result then
+      pp oc "(%s, [> Caqti_error.t]) result Lwt.t" t
+    else
+      pp oc "%s Lwt.t" t
+  in
   pp oc "@ @[<v 2>module %s : sig" (String.capitalize_ascii (snd ti.ti_tqn));
   (match go.go_types_module with
    | None ->
@@ -398,7 +407,7 @@ let emit_intf oc ti =
     Option.iter (pp oc "@ ?%s: (module Caqti_lwt.CONNECTION) ->")
                 go.go_connection_arg in
   let close_query_val () = pp oc "@]" in
-  pp oc "@ val fetch : %s -> t Lwt.t" pk_type;
+  pp oc "@ val fetch : %s -> %a" pk_type pp_return_type "t";
   if go.go_select then begin
     open_query_val "select";
     List.iter
@@ -421,7 +430,7 @@ let emit_intf oc ti =
     else
       pp oc "@]] order_item list ->";
     pp oc "@ ?limit: int ->@ ?offset: int ->";
-    pp oc "@ unit ->@ t list Lwt.t";
+    pp oc "@ unit ->@ %a" pp_return_type "t list";
     close_query_val ()
   end;
   if go.go_select_cache then
@@ -435,7 +444,11 @@ let emit_intf oc ti =
                 cn (string_of_datatype ct.ct_type)
                 (if ct.ct_nullable && ct.ct_defaultable then " option" else ""))
       ti.ti_cts;
-    pp oc "@ unit -> t Lwt.t";
+    if go.go_return_result then
+      pp oc "@ unit -> (t, [> Caqti_error.t | `Conflict of conflict_error]) \
+                         result Lwt.t"
+    else
+      pp oc "@ unit -> t Lwt.t";
     close_query_val ()
   end;
   if go.go_insert then begin
@@ -447,7 +460,7 @@ let emit_intf oc ti =
            cn (string_of_datatype ct.ct_type)
            (if ct.ct_nullable && ct.ct_defaultable then " option" else ""))
       ti.ti_nonpk_cts;
-    pp oc "@ t -> unit Lwt.t";
+    pp oc "@ t -> %a" pp_return_type "unit";
     close_query_val ()
   end;
   if go.go_update && ti.ti_nonpk_cts <> [] then begin
@@ -457,17 +470,17 @@ let emit_intf oc ti =
         pp oc "@ ?%s: %s%s ->" cn (string_of_datatype dt)
            (if dn then " option" else ""))
       ti.ti_nonpk_cts;
-    pp oc "@ t -> unit Lwt.t";
+    pp oc "@ t -> %a" pp_return_type "unit";
     close_query_val ()
   end;
   if go.go_delete then begin
     open_query_val "delete";
-    pp oc "@ t -> unit Lwt.t";
+    pp oc "@ t -> %a" pp_return_type "unit";
     close_query_val ()
   end;
   if go.go_patch then begin
     open_query_val "patch";
-    pp oc "@ t -> patch_in -> unit Lwt.t";
+    pp oc "@ t -> patch_in -> %a" pp_return_type "unit";
     close_query_val ()
   end;
   if go.go_event then
@@ -527,7 +540,21 @@ let emit_impl oc ti =
   let emit_pk_cond () =
     List.iteri
       (fun i (cn, _) -> if i > 0 then fprint oc " AND "; fprintf oc "%s = ?" cn)
-      ti.ti_pk_cts in
+      ti.ti_pk_cts
+  in
+
+  let bind_result_op, map_result_op, fail_or_map_result_op, return_ok =
+    if go.go_return_result then
+      begin
+        pp oc "@ let (>>=?) m f = \
+                   m >>= function Ok x -> f x | Error _ as r -> Lwt.return r";
+        pp oc "@ let (>|=?) m f = \
+                   m >|= function Ok x -> Ok (f x) | Error _ as r -> r";
+        (">>=?", ">|=?", ">|=?", "Lwt.return_ok")
+      end
+    else
+      (">>=", ">|=", ">>= Caqti_lwt.or_fail >|=", "Lwt.return")
+  in
 
   (* module Q = *)
   pp oc "@ @[<v 2>module %s = struct" (String.capitalize_ascii (snd ti.ti_tqn));
@@ -579,9 +606,30 @@ let emit_impl oc ti =
   (match go.go_pk_module with
    | None -> pp oc "@ type _t0 = key\ttype key = _t0"
    | Some pkm -> pp oc "@ type key = %s.t" pkm);
-  pp oc "@ type _t1 = state\ttype state = _t1";
-  pp oc "@ type _t2 = value\ttype value = _t2";
-  pp oc "@ type _t3 = change\ttype change = _t3";
+  pp oc "@ type nonrec state = state";
+  pp oc "@ type nonrec value = value";
+  pp oc "@ type nonrec change = change";
+  if go.go_return_result then
+    begin
+      pp oc "@ @[<v 2>module Result_lwt = struct";
+      pp oc "@ type (+'a, +'e) t = ('a, 'e) result Lwt.t";
+      pp oc "@ let return_ok = Lwt.return_ok";
+      pp oc "@ let map f m = \
+                m >|= function Ok x -> Ok (f x) | Error _ as r -> r";
+      pp oc "@ let bind_lwt f m = m >>= f";
+      pp oc "@ let conflict err = Lwt.return_error (`Conflict err)";
+      pp oc "@]@ end"
+    end
+  else
+    begin
+      pp oc "@ @[<v 2>module Result_lwt = struct";
+      pp oc "@ type ('a, 'e) t = 'a Lwt.t";
+      pp oc "@ let return_ok x = Lwt.return x";
+      pp oc "@ let map f = Lwt.map f";
+      pp oc "@ let bind_lwt f m = m >>= f";
+      pp oc "@ let conflict err = Lwt.fail (Conflict err)";
+      pp oc "@]@ end"
+    end;
   pp oc "@ let key_size = %d" (List.length ti.ti_pk_cts);
   pp oc "@ let state_size = %d" (List.length ti.ti_nonpk_cts);
   pp oc "@ let table_name = \"%s\"" (Episql.string_of_qname ti.ti_tqn);
@@ -589,7 +637,7 @@ let emit_impl oc ti =
   emit_use_C_noarg oc;
   pp oc "@ @[<v 2>C.find_opt Q.fetch ";
   emit_param oc ti "key" ti.ti_pk_cts;
-  fprint oc " >>= Caqti_lwt.or_fail >|= function";
+  pp oc " %s function" fail_or_map_result_op;
   pp oc "@ | None -> None";
   pp oc "@ | Some ";
   emit_columns_value oc ti.ti_nonpk_cts;
@@ -689,11 +737,11 @@ let emit_impl oc ti =
     fprint oc ") with";
     pp oc "@ @[<v 3>| Insert.App {request = Insert.Request.Done req; \
                                   param; default} ->";
-    pp oc "@ C.exec req param >>= Caqti_lwt.or_fail >|= default@]";
+    pp oc "@ C.exec req param %s default@]" fail_or_map_result_op;
     pp oc "@ @[<v 3>| Insert.App {request = Insert.Request.Done_default req; \
                                   param; default} ->";
-    pp oc "@ C.find req param >>= Caqti_lwt.or_fail >|= default@]";
-    pp oc ")@]@   >|= fun ";
+    pp oc "@ C.find req param %s default@]" fail_or_map_result_op;
+    pp oc ")@]@   %s fun " map_result_op;
     emit_returning_value oc ~filter:(fun ct -> ct.ct_defaultable) ti.ti_cts;
     fprint oc " ->";
     if go.go_select_cache then pp oc "@ clear_select_cache ();";
@@ -723,8 +771,9 @@ let emit_impl oc ti =
       end
     end;
     pp oc "@]";
-    pp oc "@ | Inserting _c -> Lwt_condition.wait _c >|= fun _ -> ()";
-    pp oc "@ | Present x -> Lwt.return_unit";
+    pp oc "@ | Inserting _c -> Lwt_condition.wait _c >|= fun _ -> %s"
+      (if go.go_return_result then "Ok ()" else "()");
+    pp oc "@ | Present x -> %s ()" return_ok;
     pp oc "@ | Deleting _c -> Lwt_condition.wait _c >>= retry in";
     pp oc "@]@ retry ()";
     close_query_let ()
@@ -749,11 +798,11 @@ let emit_impl oc ti =
     fprint oc ") with";
     pp oc "@ @[<v 3>| Insert.App {request = Insert.Request.Done req; \
                                   param; default} ->";
-    pp oc "@ C.exec req param >>= Caqti_lwt.or_fail >|= default@]";
+    pp oc "@ C.exec req param %s default@]" fail_or_map_result_op;
     pp oc "@ @[<v 3>| Insert.App {request = Insert.Request.Done_default req; \
                                   param; default} ->";
-    pp oc "@ C.find req param >>= Caqti_lwt.or_fail >|= default@]";
-    pp oc ")@]@   >>= fun ";
+    pp oc "@ C.find req param %s default@]" fail_or_map_result_op;
+    pp oc ")@]@   %s fun " bind_result_op;
     emit_returning_value oc ~filter:(fun ct -> ct.ct_defaultable) ti.ti_cts;
     fprint oc " ->";
     if go.go_select_cache then pp oc "@ clear_select_cache ();";
@@ -792,7 +841,7 @@ let emit_impl oc ti =
           fprint oc cn)
         ti.ti_cts;
       fprint oc " in";
-      pp oc "@ try Lwt.return (Prime_cache.find select_cache args)";
+      pp oc "@ try %s (Prime_cache.find select_cache args)" return_ok;
       pp oc "@ @[<v 2>with Not_found ->";
     end;
     emit_use_C oc;
@@ -870,8 +919,7 @@ let emit_impl oc ti =
     pp oc "@ merge (key, Present state) :: acc in";
     pp oc "@]";
     if go.go_select_cache then begin
-      pp oc "@ C.fold req decode param [] >>= Caqti_lwt.or_fail \
-                  >|= fun r_rev ->";
+      pp oc "@ C.fold req decode param [] %s fun r_rev ->" fail_or_map_result_op;
       pp oc "@ let r = List.rev r_rev in";
       pp oc "@ let g = !select_grade (List.length r * %d + %d) in"
          (List.length ti.ti_nonpk_cts) (List.length ti.ti_cts + 2);
@@ -958,9 +1006,9 @@ let emit_impl oc ti =
              cn (convname_of_coltype ct) go.go_pk_prefix cn)
         ti.ti_pk_cts;
     pp oc "@ @[<v 1>(match Ub.contents ub with";
-    pp oc "@ | None -> Lwt.return_unit";
+    pp oc "@ | None -> %s ()" return_ok;
     pp oc "@ @[<v 3>| Some (Request (req, params)) ->";
-    pp oc "@ C.exec req params >>= Caqti_lwt.or_fail >|= fun () ->";
+    pp oc "@ C.exec req params %s fun () ->" fail_or_map_result_op;
     if go.go_select_cache then pp oc "@ clear_select_cache ();";
     List.iteri
       (fun i (cn, _) ->
@@ -980,19 +1028,20 @@ let emit_impl oc ti =
     emit_use_C oc;
     pp oc "@ @[<v 2>let rec retry () =";
     pp oc "@ @[<v 1>(match o.state with";
-    pp oc "@ | Absent -> Lwt.return_unit";
+    pp oc "@ | Absent -> %s ()" return_ok;
     pp oc "@ | Inserting _c -> Lwt_condition.wait _c >>= fun _ -> retry ()";
     pp oc "@ @[<v 3>| Present _ ->";
     pp oc "@ let _c = Lwt_condition.create () in";
     pp oc "@ o.state <- Deleting _c;";
     pp oc "@ C.exec Q.delete ";
     emit_param oc ti "key" ti.ti_pk_cts;
-    pp oc " >>= Caqti_lwt.or_fail >|= fun () ->";
+    pp oc " %s fun () ->" fail_or_map_result_op;
     if go.go_select_cache then pp oc "@   clear_select_cache ();";
     pp oc "@ o.state <- Absent;";
     pp oc "@ Lwt_condition.broadcast _c ();";
     pp oc "@ o.notify `Delete";
-    pp oc "@]@ | Deleting _c -> Lwt_condition.wait _c)@] in";
+    pp oc "@]@ | Deleting _c -> Lwt_condition.wait _c%s)@] in"
+      (if go.go_return_result then " >|= Result.ok" else "");
     pp oc "@]@ retry ()";
     close_query_let ()
   end;
@@ -1003,7 +1052,7 @@ let emit_impl oc ti =
     pp oc "@ @[<v 1>(match p with";
     if ti.ti_nonpk_cts = [] then begin
       pp oc "@ | `Insert ((), ()) -> insert o";
-      pp oc "@ | `Update [] -> Lwt.return_unit";
+      pp oc "@ | `Update [] -> %s ()" return_ok;
       pp oc "@ | `Update (x :: _) -> Prime.absurd x"
     end else begin
       pp oc "@ @[<v 3>| `Insert (r, d) ->";
@@ -1212,6 +1261,9 @@ let () =
        for consistency, even though they return options.";
     "-no-raise-on-absent", Arg.Unit (fun () -> go.go_raise_on_absent <- false),
       "Inversion of -raise-on-absent and the default for now.";
+    "-return-result", Arg.Unit (fun () -> go.go_return_result <- true),
+      "Return result instead of raising an exception on DB failure \
+       (recommended, will become default).";
     "-connection-arg", Arg.String (fun s -> go.go_connection_arg <- Some s),
       "NAME If passed, each query function accepts an optional argument ?NAME \
        which will be used in place of calling P.use_db. If you use pooled \

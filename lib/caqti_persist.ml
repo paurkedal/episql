@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2018  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2021  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -14,7 +14,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-open Lwt.Infix
 open Printf
 open Unprime
 
@@ -42,6 +41,11 @@ type conflict_error = {
 exception Not_present
 exception Conflict of conflict_error
 
+let or_fail = function
+ | Ok x -> Lwt.return x
+ | Error #Caqti_error.t as r -> Caqti_lwt.or_fail r
+ | Error (`Conflict err) -> Lwt.fail (Conflict err)
+
 type 'a order_predicate =
   [ `Eq of 'a | `Ne of 'a | `Lt of 'a | `Le of 'a | `Ge of 'a | `Gt of 'a
   | `Between of 'a * 'a | `Not_between of 'a * 'a ]
@@ -66,9 +70,16 @@ module type PK_CACHABLE = sig
   type state
   type value
   type change
+  module Result_lwt : sig
+    type (+'a, +'e) t
+    val return_ok : 'a -> ('a, 'e) t
+    val conflict : conflict_error -> ('a, [> `Conflict of conflict_error]) t
+    val map : ('a -> 'b) -> ('a, 'e) t -> ('b, 'e) t
+    val bind_lwt : ('a -> ('b, 'e) t) -> 'a Lwt.t -> ('b, 'e) t
+  end
   val key_size : int
   val state_size : int
-  val fetch : key -> state option Lwt.t
+  val fetch : key -> (state option, [> Caqti_error.t]) Result_lwt.t
   val table_name : string
 end
 
@@ -85,10 +96,12 @@ module type PK_CACHED = sig
     patches : (value, change) persist_patch_out React.event;
     notify : ?step: React.step -> (value, change) persist_patch_out -> unit;
   }
+  type (+'a, +'e) result_lwt
   val find : key -> t option
-  val fetch : key -> t Lwt.t
+  val fetch : key -> (t, [> Caqti_error.t]) result_lwt
   val merge : key * state presence -> t
-  val merge_created : key * state -> t Lwt.t
+  val merge_created :
+    key * state -> (t, [> `Conflict of conflict_error]) result_lwt
 end
 
 module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
@@ -128,11 +141,13 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
 
   let fetch key =
     try
-      Lwt.return (W.find cache (mk_key key))
+      P.Result_lwt.return_ok (W.find cache (mk_key key))
     with Not_found ->
-      P.fetch key >|= fun state ->
-      let state = match state with None -> Absent | Some x -> Present x in
-      merge (key, state)
+      let aux state =
+        let state = match state with None -> Absent | Some x -> Present x in
+        merge (key, state)
+      in
+      P.fetch key |> P.Result_lwt.map aux
 
   let merge_created (key, state) =
     try
@@ -140,25 +155,27 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
       let rec retry () =
         (match o.state with
          | Deleting c ->
-            Lwt_condition.wait c >>= retry
+            P.Result_lwt.bind_lwt retry (Lwt_condition.wait c)
          | Absent ->
             o.state <- Present state;
-            Lwt.return_unit
+            P.Result_lwt.return_ok ()
          | Inserting _ | Present _ ->
             let error = {
               conflict_type = `Insert_insert;
               conflict_table = P.table_name;
             } in
-            Lwt.fail (Conflict error)) in
-        retry () >|= fun () -> o
+            P.Result_lwt.conflict error)
+      in
+      P.Result_lwt.map (fun () -> o) (retry ())
     with Not_found ->
       let o =
         let patches, notify = React.E.create () in
         Beacon.embed fetch_grade begin fun beacon ->
           {key; state = Present state; beacon; patches; notify}
-        end in
+        end
+      in
       W.add cache o;
-      Lwt.return o
+      P.Result_lwt.return_ok o
 end
 
 module Params = struct

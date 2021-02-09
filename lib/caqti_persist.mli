@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2018  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2021  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -38,6 +38,9 @@ type conflict_error = {
 exception Not_present
 exception Conflict of conflict_error
 
+val or_fail :
+  ('a, [< Caqti_error.t | `Conflict of conflict_error]) result -> 'a Lwt.t
+
 type 'a order_predicate =
   [ `Eq of 'a | `Ne of 'a | `Lt of 'a | `Le of 'a | `Ge of 'a | `Gt of 'a
   | `Between of 'a * 'a | `Not_between of 'a * 'a ]
@@ -56,9 +59,17 @@ module type PK_CACHABLE = sig
   type state
   type value
   type change
+  module Result_lwt : sig
+    type (+'a, +'e) t
+    val return_ok : 'a -> ('a, 'e) t
+    val conflict :
+      conflict_error -> ('a, [> `Conflict of conflict_error]) t
+    val map : ('a -> 'b) -> ('a, 'e) t -> ('b, 'e) t
+    val bind_lwt : ('a -> ('b, 'e) t) -> 'a Lwt.t -> ('b, 'e) t
+  end
   val key_size : int
   val state_size : int
-  val fetch : key -> state option Lwt.t
+  val fetch : key -> (state option, [> Caqti_error.t]) Result_lwt.t
   val table_name : string
 end
 
@@ -75,16 +86,22 @@ module type PK_CACHED = sig
     patches : (value, change) persist_patch_out React.event;
     notify : ?step: React.step -> (value, change) persist_patch_out -> unit;
   }
+  type (+'a, +'e) result_lwt
   val find : key -> t option
-  val fetch : key -> t Lwt.t
+  val fetch : key -> (t, [> Caqti_error.t]) result_lwt
   val merge : key * state presence -> t
-  val merge_created : key * state -> t Lwt.t
+  val merge_created :
+    key * state -> (t, [> `Conflict of conflict_error]) result_lwt
 end
 
-module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) :
-        PK_CACHED with type key := P.key and type state := P.state
-                   and type value := P.value and type change := P.change
-                   and type beacon := Beacon.t
+module Make_pk_cache :
+  functor (Beacon : Prime_beacon.S) ->
+  functor (P : PK_CACHABLE) ->
+  PK_CACHED
+    with type key := P.key and type state := P.state
+     and type value := P.value and type change := P.change
+     and type (+'a, +'e) result_lwt := ('a, 'e) P.Result_lwt.t
+     and type beacon := Beacon.t
 
 type (_, _) request =
   Request : ('a, 'b, 'm) Caqti_request.t * 'a -> ('b, 'm) request
