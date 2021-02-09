@@ -1191,8 +1191,9 @@ let generate_impl stmts oc =
   pp oc "@ @[<v 2>module type S = sig";
   generate emit_intf stmts oc;
   pp oc "@]@ end@\n";
-  Option.iter (pp oc "@ let section = Lwt_log.Section.make \"%s\"")
-              go.go_log_debug;
+  if go.go_raise_on_absent then
+    Option.iter (pp oc "@ let section = Lwt_log.Section.make \"%s\"")
+                go.go_log_debug;
   pp oc "@ @[<v 2>module Make (P : P) = struct";
   pp oc "@ module Cache = Make_pk_cache (P.Beacon)";
   pp oc "@ @[<v 2>module Type = struct";

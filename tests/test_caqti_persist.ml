@@ -150,3 +150,8 @@ let main =
   end >>= Caqti_persist.or_fail
 
 let () = Lwt_main.run main
+
+module Also_compile = struct
+  include Schema_one_persist_alt_types
+  include Schema_one_persist_alt
+end
