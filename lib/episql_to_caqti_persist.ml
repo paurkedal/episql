@@ -400,14 +400,19 @@ let emit_intf oc ti =
         if not is_opt then pp oc " option")
       ti.ti_cts
   end;
+
   let open_query_val fn =
     pp oc "@ @[<hv 2>val %s :" fn;
     Option.iter (pp oc "@ ?%s: (module Caqti_lwt.CONNECTION) ->")
                 go.go_connection_arg in
   let close_query_val () = pp oc "@]" in
+
+  (* val fetch *)
   open_query_val "fetch";
   pp oc "@ %s -> %a" pk_type pp_return_type "t";
   close_query_val ();
+
+  (* val select *)
   if go.go_select then begin
     open_query_val "select";
     List.iter
@@ -430,8 +435,12 @@ let emit_intf oc ti =
     pp oc "@ unit ->@ %a" pp_return_type "t list";
     close_query_val ()
   end;
+
+  (* val clear_cache *)
   if go.go_select_cache then
     pp oc "@ val clear_select_cache : unit -> unit";
+
+  (* val create *)
   if go.go_create then begin
     open_query_val "create";
     List.iter
@@ -448,6 +457,8 @@ let emit_intf oc ti =
       pp oc "@ unit -> t Lwt.t";
     close_query_val ()
   end;
+
+  (* val insert *)
   if go.go_insert then begin
     open_query_val "insert";
     List.iter
@@ -460,6 +471,8 @@ let emit_intf oc ti =
     pp oc "@ t -> %a" pp_return_type "unit";
     close_query_val ()
   end;
+
+  (* val update *)
   if go.go_update && ti.ti_nonpk_cts <> [] then begin
     open_query_val "update";
     List.iter
@@ -470,18 +483,25 @@ let emit_intf oc ti =
     pp oc "@ t -> %a" pp_return_type "unit";
     close_query_val ()
   end;
+
+  (* val delete *)
   if go.go_delete then begin
     open_query_val "delete";
     pp oc "@ t -> %a" pp_return_type "unit";
     close_query_val ()
   end;
+
+  (* val patch *)
   if go.go_patch then begin
     open_query_val "patch";
     pp oc "@ t -> patch_in -> %a" pp_return_type "unit";
     close_query_val ()
   end;
+
+  (* val patches *)
   if go.go_event then
     pp oc "@ val patches : t -> patch_out React.E.t";
+
   pp oc "@]@ end"
 
 let emit_use_C_noarg oc =
@@ -828,6 +848,7 @@ let emit_impl oc ti =
     close_query_let ()
   end;
 
+  (* let select = ... *)
   if go.go_select then begin
     open_query_let "select";
     List.iter (fun (cn, _ct) -> fprint oc " ?"; fprint oc cn) ti.ti_cts;
@@ -919,6 +940,7 @@ let emit_impl oc ti =
     close_query_let ()
   end;
 
+  (* let update = ... *)
   if (go.go_update || go.go_patch) && ti.ti_nonpk_cts <> [] then begin
     open_query_let "update";
     List.iter (fun (cn, _ct) -> fprintf oc " ?%s" cn) ti.ti_nonpk_cts;
@@ -1011,6 +1033,7 @@ let emit_impl oc ti =
     close_query_let ()
   end;
 
+  (* let delete = ... *)
   if go.go_delete || go.go_patch then begin
     open_query_let "delete";
     pp oc " ({key; _} as o) =";
@@ -1035,6 +1058,7 @@ let emit_impl oc ti =
     close_query_let ()
   end;
 
+  (* let patch = ... *)
   if go.go_patch then begin
     open_query_let "patch";
     pp oc " o p =";
@@ -1072,8 +1096,10 @@ let emit_impl oc ti =
     close_query_let ()
   end;
 
+  (* let patches = ... *)
   if go.go_event then pp oc "@ let patches {patches; _} = patches";
 
+  (* let value = ... *)
   if go.go_value then begin
     pp oc "@ @[<v 2>let value o =";
     pp oc "@ @[<v 1>(match o.state with";
