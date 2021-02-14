@@ -79,7 +79,9 @@ module type PK_CACHABLE = sig
   end
   val key_size : int
   val state_size : int
-  val fetch : key -> (state option, [> Caqti_error.t]) Result_lwt.t
+  val fetch :
+    ?c: Caqti_lwt.connection ->
+    key -> (state option, [> Caqti_error.t]) Result_lwt.t
   val table_name : string
 end
 
@@ -98,7 +100,9 @@ module type PK_CACHED = sig
   }
   type (+'a, +'e) result_lwt
   val find : key -> t option
-  val fetch : key -> (t, [> Caqti_error.t]) result_lwt
+  val fetch :
+    ?c: Caqti_lwt.connection ->
+    key -> (t, [> Caqti_error.t]) result_lwt
   val merge : key * state presence -> t
   val merge_created :
     key * state -> (t, [> `Conflict of conflict_error]) result_lwt
@@ -139,7 +143,7 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
     Beacon.embed fetch_grade
       (fun beacon -> W.merge cache {key; state; beacon; patches; notify})
 
-  let fetch key =
+  let fetch ?c key =
     try
       P.Result_lwt.return_ok (W.find cache (mk_key key))
     with Not_found ->
@@ -147,7 +151,7 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
         let state = match state with None -> Absent | Some x -> Present x in
         merge (key, state)
       in
-      P.fetch key |> P.Result_lwt.map aux
+      P.fetch ?c key |> P.Result_lwt.map aux
 
   let merge_created (key, state) =
     try

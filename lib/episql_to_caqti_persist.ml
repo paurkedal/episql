@@ -405,7 +405,9 @@ let emit_intf oc ti =
     Option.iter (pp oc "@ ?%s: (module Caqti_lwt.CONNECTION) ->")
                 go.go_connection_arg in
   let close_query_val () = pp oc "@]" in
-  pp oc "@ val fetch : %s -> %a" pk_type pp_return_type "t";
+  open_query_val "fetch";
+  pp oc "@ %s -> %a" pk_type pp_return_type "t";
+  close_query_val ();
   if go.go_select then begin
     open_query_val "select";
     List.iter
@@ -628,17 +630,18 @@ let emit_impl oc ti =
   pp oc "@ let key_size = %d" (List.length ti.ti_pk_cts);
   pp oc "@ let state_size = %d" (List.length ti.ti_nonpk_cts);
   pp oc "@ let table_name = \"%s\"" (Episql.string_of_qname ti.ti_tqn);
-  pp oc "@ @[<v 2>let fetch key =";
-  emit_use_C_noarg oc;
+  pp oc "@ @[<v 2>let fetch ?c key =";
+  emit_use_C oc;
   pp oc "@ @[<v 2>C.find_opt Q.fetch ";
   emit_param oc ti "key" ti.ti_pk_cts;
-  pp oc " %s function" fail_or_map_result_op;
-  pp oc "@ | None -> None";
-  pp oc "@ | Some ";
-  emit_columns_value oc ti.ti_nonpk_cts;
   (match ti.ti_nonpk_cts with
-   | [] -> fprint oc " -> Some ()"
+   | [] ->
+      if not go.go_return_result then pp oc " >>= Caqti_lwt.or_fail"
    | cts ->
+      pp oc " %s function" fail_or_map_result_op;
+      pp oc "@ | None -> None";
+      pp oc "@ | Some ";
+      emit_columns_value oc ti.ti_nonpk_cts;
       fprint oc " -> Some {";
       List.iteri
         (fun i (cn, _) ->
@@ -647,6 +650,7 @@ let emit_impl oc ti =
         cts;
       fprint oc "}");
   pp oc "@]@]@]@ end)";
+  if go.go_connection_arg = None then pp oc "@ let fetch key = fetch key";
 
   (* let key = ... *)
   pp oc "@ let key {key; _} = key";
