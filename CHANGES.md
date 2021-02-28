@@ -1,3 +1,13 @@
+## v0.12.0 - 2021-02-28
+
+- Fix precedence for relations.
+- Make `NULL` a literal in the grammar.
+- Add suffix `IS...`, infix `IS NOT? DISTINCT FROM`, and `<>` operators.
+- Add `-public-state` option to caqti-persist generator.
+- Add option to use the result type where relevant.
+- Add connection arg to `fetch` function when requested.
+- Remove deprecated -new-order-by option.
+
 ## v0.11.2 - 2019-11-20
 
 - Fixed matching of columns in SQL and extraction in generated search
