@@ -412,6 +412,13 @@ let emit_intf oc ti =
   pp oc "@ %s -> %a" pk_type pp_return_type "t";
   close_query_val ();
 
+  (* val refetch *)
+  if ti.ti_nonpk_cts <> [] then begin
+    open_query_val "refetch";
+    pp oc "@ t -> %a" pp_return_type "unit";
+    close_query_val ()
+  end;
+
   (* val select *)
   if go.go_select then begin
     open_query_val "select";
@@ -727,6 +734,27 @@ let emit_impl oc ti =
           fprintf oc "match o.state with Present x -> Some x.%s%s | _ -> None"
                   go.go_state_prefix cn)
       ti.ti_cts
+  end;
+
+  if ti.ti_nonpk_cts <> [] then begin
+    open_query_let "refetch";
+    fprintf oc " ({key; _} as o) =";
+    emit_use_C oc;
+    pp oc "@ @[<v 2>C.find_opt Q.fetch ";
+    emit_param oc ti "key" ti.ti_pk_cts;
+    pp oc " %s function" fail_or_map_result_op;
+    pp oc "@ | None -> o.state <- Absent";
+    pp oc "@ | Some ";
+    emit_columns_value oc ti.ti_nonpk_cts;
+    fprint oc " -> o.state <- Present {";
+    List.iteri
+      (fun i (cn, _) ->
+        if i > 0 then fprint oc "; ";
+        fprintf oc "%s%s = %s" go.go_state_prefix cn cn)
+      ti.ti_nonpk_cts;
+    fprint oc "}";
+    pp oc "@]";
+    close_query_let ()
   end;
 
   (* let select_cache = ... *)
