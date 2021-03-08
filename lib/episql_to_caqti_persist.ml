@@ -418,11 +418,16 @@ let emit_intf oc ti =
     List.iter
       (fun (cn, ct) ->
         let tn = string_of_datatype ct.ct_type in
-        pp oc "@ ?%s: [@[<hov 0>< %s order_predicate" cn tn;
-        if ct.ct_type = `Text then
-          pp oc "@ | `Like of %s@ | `Ilike of %s" tn tn;
-        if ct.ct_nullable then pp oc "@ | `Null";
-        pp oc "@]] ->")
+        if ct.ct_type = `Text || ct.ct_nullable then
+          begin
+            pp oc "@ ?%s: [@[<hov 0>%s order_predicate" cn tn;
+            if ct.ct_type = `Text then
+              pp oc "@ | `Like of %s@ | `Ilike of %s" tn tn;
+            if ct.ct_nullable then pp oc "@ | `Null";
+            pp oc "@]] ->"
+          end
+        else
+          pp oc "@ ?%s: %s order_predicate ->" cn tn)
       ti.ti_cts;
     pp oc "@ ?order_by: [@[<hov 0>< ";
     List.iteri
