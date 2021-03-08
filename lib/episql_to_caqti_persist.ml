@@ -496,6 +496,11 @@ let emit_intf oc ti =
     close_query_val ()
   end;
 
+  (* val uncache* *)
+  pp oc "@ val uncache_key : %s -> unit" pk_type;
+  pp oc "@ val uncache : t -> unit";
+  pp oc "@ val uncache_all : unit -> unit";
+
   (* val patch *)
   if go.go_patch then begin
     open_query_val "patch";
@@ -1100,6 +1105,9 @@ let emit_impl oc ti =
     pp oc "@ | `Delete -> delete o)@]";
     close_query_let ()
   end;
+
+  if go.go_select_cache then
+    pp oc "@ let uncache_all () = clear_select_cache (); uncache_all ()";
 
   (* let patches = ... *)
   if go.go_event then pp oc "@ let patches {patches; _} = patches";

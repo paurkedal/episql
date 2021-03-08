@@ -106,6 +106,9 @@ module type PK_CACHED = sig
   val merge : key * state presence -> t
   val merge_created :
     key * state -> (t, [> `Conflict of conflict_error]) result_lwt
+  val uncache_key : key -> unit
+  val uncache : t -> unit
+  val uncache_all : unit -> unit
 end
 
 module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
@@ -129,10 +132,15 @@ module Make_pk_cache (Beacon : Prime_beacon.S) (P : PK_CACHABLE) = struct
   let cache = W.create 17
   let fetch_grade = !select_grade (P.key_size + P.state_size + 8)
 
+  let uncache_all () = W.clear cache
+
   let mk_key =
     let notify ?step:_ _patch = assert false in
     let patches = React.E.never in
     fun key -> {key; state = Absent; beacon = Beacon.dummy; patches; notify}
+
+  let uncache_key key = W.remove cache (mk_key key)
+  let uncache obj = W.remove cache obj
 
   let find key =
     try Some (W.find cache (mk_key key))

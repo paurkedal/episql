@@ -69,6 +69,9 @@ let test_serial () =
   assert (List.length a' = 1);
   Cp_1d_0.fetch (Cp_1d_0.get_k0 a) >>=? fun a'' ->
   assert (Cp_1d_0.is_present a'');
+  Cp_1d_0.uncache_key (Cp_1d_0.get_k0 a);
+  Cp_1d_0.uncache a;
+  Cp_1d_0.uncache_all ();
   Cp_1d_0.delete a >>=? fun () ->
 
   Cp_1d_1o.create () >>=? fun b ->

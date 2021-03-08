@@ -96,6 +96,9 @@ module type PK_CACHED = sig
   val merge : key * state presence -> t
   val merge_created :
     key * state -> (t, [> `Conflict of conflict_error]) result_lwt
+  val uncache_key : key -> unit
+  val uncache : t -> unit
+  val uncache_all : unit -> unit
 end
 
 module Make_pk_cache :
