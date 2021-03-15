@@ -1,3 +1,8 @@
+## v0.12.1 - 2021-03-15
+
+- Add cache-invalidation features to caqti-persist generator.
+- Fix type generalization issue under recent compilers.
+
 ## v0.12.0 - 2021-02-28
 
 - Fix precedence for relations.
