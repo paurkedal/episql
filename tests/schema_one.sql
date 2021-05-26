@@ -16,7 +16,7 @@ CREATE TABLE episql_tests.cp_1d_1o1r1d (
   k0 SERIAL PRIMARY KEY,
   v0 integer,
   v1 text NOT NULL,
-  v2 timestamp DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'utc'),
+  v2 timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
   v3 boolean NOT NULL DEFAULT true
 );
 
@@ -32,7 +32,7 @@ CREATE TABLE episql_tests.tensor2 (
   j integer NOT NULL,
   note text,
   CONSTRAINT tensor2_pk PRIMARY KEY (i, j),
-  CHECK (note IS NULL OR note IS NOT NULL OR i = i IS TRUE OR j IS NOT UNKNOWN)
+  CHECK (note IS NULL OR note IS NOT NULL OR i = i IS NOT UNKNOWN)
 );
 
 CREATE TABLE episql_tests.tensor3c (

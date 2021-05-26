@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2020  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2021  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -111,7 +111,6 @@
         "TIME", (fun idr -> TIME idr);
         "DATE", (fun idr -> DATE idr);
         "TIMESTAMP", (fun idr -> TIMESTAMP idr);
-        "TIMEZONE", (fun idr -> TIMEZONE idr);
         "INTERVAL", (fun idr -> INTERVAL idr); ]
 }
 

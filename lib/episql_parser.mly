@@ -1,4 +1,4 @@
-/* Copyright (C) 2014--2020  Petter A. Urkedal <paurkedal@gmail.com>
+/* Copyright (C) 2014--2021  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -39,7 +39,7 @@
 %token<string> SMALLINT INTEGER BIGINT SMALLSERIAL SERIAL BIGSERIAL
 %token<string> REAL FLOAT DOUBLE PRECISION
 %token<string> NUMERIC DECIMAL
-%token<string> TIME DATE TIMESTAMP TIMEZONE INTERVAL
+%token<string> TIME DATE TIMESTAMP INTERVAL
 
 /* Literals */
 %token<string> IDENTIFIER
@@ -241,14 +241,14 @@ datatype:
     { `Numeric (Int64.to_int $3, Int64.to_int $5) }
   | TIME { `Time (None, false) }
   | TIME LPAREN INT RPAREN { `Time (Some (Int64.to_int $3), false) }
-  | TIME WITH TIMEZONE { `Time (None, true) }
-  | TIME LPAREN INT RPAREN WITH TIMEZONE
+  | TIME WITH TIME ZONE { `Time (None, true) }
+  | TIME LPAREN INT RPAREN WITH TIME ZONE
     { `Time (Some (Int64.to_int $3), true) }
   | DATE { `Date }
   | TIMESTAMP { `Timestamp (None, false) }
-  | TIMESTAMP WITH TIMEZONE { `Timestamp (None, true) }
+  | TIMESTAMP WITH TIME ZONE { `Timestamp (None, true) }
   | TIMESTAMP LPAREN INT RPAREN { `Timestamp (Some (Int64.to_int $3), false) }
-  | TIMESTAMP LPAREN INT RPAREN WITH TIMEZONE
+  | TIMESTAMP LPAREN INT RPAREN WITH TIME ZONE
     { `Timestamp (Some (Int64.to_int $3), true) }
   | INTERVAL interval_fields { `Interval ($2, None) }
   | INTERVAL interval_fields LPAREN INT RPAREN

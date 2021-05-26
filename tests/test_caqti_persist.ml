@@ -94,14 +94,16 @@ let test_serial () =
   Cp_1d_1o1r1d.create ~v1:"paz" ~v2:(Some now) () >>=? fun e2 ->
   Cp_1d_1o1r1d.create ~v1:"zzz" ~v2:(Some now) () >>=? fun e3 ->
   begin
-    Cp_1d_1o1r1d.select ~v2:(`Eq now) ~order_by:[Asc `v2; Desc `v1]
-                                  ~limit:3 ~offset:1 () >>=? function
+    Cp_1d_1o1r1d.select
+      ~v2:(`Eq now) ~order_by:[Asc `v2; Desc `v1] ~limit:3 ~offset:1 () >>=?
+    (function
      | [e1'; e2'; e3'] ->
         assert (e1' == e3);
         assert (e2' == e1);
         assert (e3' == e2);
         Lwt.return_ok ()
-     | _ -> assert false
+     | _ ->
+        assert false)
   end >>=? fun () ->
   let e = e1 in
   Result_list_lwt.iter_s (Cp_1d_1o1r1d.patch e)
