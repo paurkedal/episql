@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2020  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2021  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -27,6 +27,9 @@ let bprint_qname buf = function
   | (None, name) -> Buffer.add_string buf name
   | (Some ns, name) -> Buffer.add_string buf ns; Buffer.add_char buf '.';
                        Buffer.add_string buf name
+
+let pp_qname =
+  Fmt.(using fst (option (string ++ const string ".")) ++ using snd string)
 
 let string_of_qname = function
   | (None, name) -> name
@@ -122,6 +125,25 @@ let string_of_check_constraint {condition; no_inherit} =
   "CHECK (" ^ string_of_expression condition ^ ")" ^
   (if no_inherit then " NO INHERIT" else "")
 
+let string_of_action = function
+ | `Cascade -> "CASCADE"
+ | `Restrict -> "RESTRICT"
+
+let pp_action = Fmt.using string_of_action Fmt.string
+
+let pp_column_reference =
+  let open Fmt in
+  const string "REFERENCES" ++ sp
+    ++ using (fun {table; _} -> table) pp_qname
+    ++ using (fun {columns; _} -> columns)
+        (option (sp ++ parens (list ~sep:comma string)))
+    ++ using (fun {on_delete; _} -> on_delete)
+        (option (sp ++ const string "ON DELETE " ++ pp_action))
+    ++ using (fun {on_update; _} -> on_update)
+        (option (sp ++ const string "ON UPDATE " ++ pp_action))
+
+let string_of_column_reference = Fmt.to_to_string pp_column_reference
+
 let string_of_column_constraint = function
   | `Check check_constraint -> string_of_check_constraint check_constraint
   | `Not_null -> "NOT NULL"
@@ -129,12 +151,7 @@ let string_of_column_constraint = function
   | `Unique -> "UNIQUE"
   | `Primary_key -> "PRIMARY KEY"
   | `Default e -> "DEFAULT(" ^ string_of_expression e ^ ")"
-  | `References (tqn, None) -> "REFERENCES " ^ string_of_qname tqn
-  | `References (tqn, Some cn) -> "REFERENCES ("^(string_of_qname tqn)^")"^cn
-  | `On_delete `Cascade -> "ON DELETE CASCADE"
-  | `On_delete `Restrict -> "ON DELETE RESTRICT"
-  | `On_update `Cascade -> "ON UPDATE CASCADE"
-  | `On_update `Restrict -> "ON UPDATE RESTRICT"
+  | `References refspec -> string_of_column_reference refspec
 
 let rec autorec g = function
   | Expr_qname _ | Expr_literal _ as e -> g e

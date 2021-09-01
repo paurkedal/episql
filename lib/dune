@@ -17,7 +17,7 @@
     Episql_to_xml)
   (modules_without_implementation
     Episql_types)
-  (libraries prime re re.glob xmlm))
+  (libraries fmt prime re re.glob xmlm))
 
 (ocamllex episql_lexer)
 (ocamlyacc episql_parser)

@@ -8,6 +8,7 @@ bug-reports: "https://github.com/paurkedal/episql/issues"
 depends: [
   "ocaml"
   "dune" {>= "1.9"}
+  "fmt"
   "lwt"
   "ppx_compose"
   "prime"

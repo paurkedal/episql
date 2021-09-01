@@ -159,10 +159,7 @@ unnamed_column_constraint:
   | UNIQUE { `Unique }
   | PRIMARY KEY { `Primary_key }
   | DEFAULT expr { `Default $2 }
-  | REFERENCES tfqname { `References ($2, None) }
-  | REFERENCES tfqname LPAREN tfname RPAREN {`References ($2, Some $4)}
-  | ON DELETE action { `On_delete $3 }
-  | ON UPDATE action { `On_update $3 }
+  | column_reference { `References $1 }
   ;
 column_constraint:
     unnamed_column_constraint { (None, $1) }
@@ -174,17 +171,27 @@ unnamed_table_constraint:
     { `Unique (List.rev $3) }
   | PRIMARY KEY LPAREN nonempty_tfnames_r RPAREN
     { `Primary_key (List.rev $4) }
-  | FOREIGN KEY LPAREN nonempty_tfnames_r RPAREN
-    REFERENCES tfqname paren_column_names_opt
-    { `Foreign_key (List.rev $4, $7, $8) }
+  | FOREIGN KEY LPAREN nonempty_tfnames_r RPAREN column_reference
+    { `Foreign_key (List.rev $4, $6) }
+  ;
+column_reference:
+    REFERENCES tfqname refcolumns refactions
+    { { table = $2; columns = $3; on_delete = fst $4; on_update = snd $4} }
+  ;
+refactions:
+  | /* empty */ { (None, None) }
+  | ON DELETE action { (Some $3, None) };
+  | ON UPDATE action { (None, Some $3) };
+  | ON DELETE action ON UPDATE action { (Some $3, Some $6) }
+  | ON UPDATE action ON DELETE action { (Some $6, Some $3) }
   ;
 table_constraint:
     unnamed_table_constraint { (None, $1) }
   | CONSTRAINT IDENTIFIER unnamed_table_constraint { (Some $2, $3) }
   ;
-paren_column_names_opt:
-    /* empty */ { [] }
-  | LPAREN nonempty_tfnames_r RPAREN { List.rev $2 }
+refcolumns:
+    /* empty */ { None }
+  | LPAREN nonempty_tfnames_r RPAREN { Some (List.rev $2) }
   ;
 
 action:

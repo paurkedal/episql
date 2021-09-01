@@ -1,4 +1,4 @@
-(* Copyright (C) 2015--2018  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2015--2021  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -48,6 +48,18 @@ let xml_of_attr = function
  | `No_cycle -> Attr.bool "cycle" false
  | `Owner owner -> Attr.string "owner" (string_of_qname owner)
 
+let string_of_action = function
+ | `Cascade -> "cascade"
+ | `Restrict -> "restrict"
+
+let opt_cons f = Option.fold (List.cons % f)
+
+let xmlattrs_of_column_reference {table; columns; on_delete; on_update} =
+  List.cons (Attr.string "ref-table" (string_of_qname table)) @@
+  opt_cons (Attr.string "ref-columns" % String.concat " ") columns @@
+  opt_cons (Attr.string "on-delete" % string_of_action) on_delete @@
+  opt_cons (Attr.string "on-update" % string_of_action) on_update @@ []
+
 let xmlattrs_of_column_constraint (_, constr) = match constr with
  | `Check _ -> [] (* output as element *)
  | `Not_null -> [Attr.bool "nullable" false]
@@ -55,15 +67,7 @@ let xmlattrs_of_column_constraint (_, constr) = match constr with
  | `Unique -> [Attr.bool "unique" true]
  | `Primary_key -> [Attr.bool "primary-key" true]
  | `Default expr -> [Attr.expr "default" expr]
- | `References (qn, None) ->
-    [Attr.string "ref-table" (string_of_qname qn)]
- | `References (qn, Some col) ->
-    [Attr.string "ref-table" (string_of_qname qn);
-     Attr.string "ref-column" col]
- | `On_delete `Cascade -> [Attr.string "on-delete" "cascade"]
- | `On_delete `Restrict -> [Attr.string "on-delete" "restrict"]
- | `On_update `Cascade -> [Attr.string "on-update" "cascade"]
- | `On_update `Restrict -> [Attr.string "on-update" "restrict"]
+ | `References colref -> xmlattrs_of_column_reference colref
 
 let xmlattrs_of_coltype ct =
   let mk name = name, [] in
@@ -153,21 +157,30 @@ let write_item o = function
       List.iter (write_column o) cols;
       Xmlm.output o `El_end
     end
- | Constraint (name, `Foreign_key (cols, reftable, refcols)) ->
+ | Constraint (name, `Foreign_key (cols, refspec)) ->
     let attrs = List.of_option (Option.map (Attr.string "name") name) in
     if !use_compact_lists then
       let attrs =
         Attr.string_list "columns" cols ::
-        Attr.qname "ref-table" reftable ::
-        Attr.string_list "ref-columns" refcols ::
-        attrs in
+        xmlattrs_of_column_reference refspec @
+        attrs
+      in
       output_leaf o "foreign-key" attrs
     else begin
+      let attrs =
+        attrs @
+        opt_cons (Attr.string "on-delete" % string_of_action)
+          refspec.on_delete @@
+        opt_cons (Attr.string "on-update" % string_of_action)
+          refspec.on_update @@ []
+      in
       Xmlm.output o (`El_start (tag "foreign-key", attrs));
       List.iter (write_column o) cols;
       Xmlm.output o (`El_start (tag "references",
-                                [Attr.qname "table" reftable]));
-      List.iter (write_column o) refcols;
+                                [Attr.qname "table" refspec.table]));
+      (match refspec.columns with
+       | None -> ()
+       | Some columns -> List.iter (write_column o) columns);
       Xmlm.output o `El_end;
       Xmlm.output o `El_end
     end

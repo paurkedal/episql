@@ -55,3 +55,18 @@ CREATE TABLE episql_tests.defaulted (
   s32 integer NOT NULL DEFAULT nextval('episql_tests.defaulted_seq'),
   s64 bigint NOT NULL DEFAULT nextval('episql_tests.defaulted_seq')
 );
+
+CREATE TABLE episql_tests.ents (
+  ent_id integer PRIMARY KEY,
+  ent_name text UNIQUE NOT NULL
+);
+CREATE TABLE episql_tests.mysts (
+  myst_id integer NOT NULL,
+  ent1_id integer NOT NULL,
+  ent2_id integer NOT NULL,
+  PRIMARY KEY (myst_id, ent_id),
+  FOREIGN KEY (ent1_id) REFERENCES episql_tests.ents (ent_id)
+    ON UPDATE CASCADE ON DELETE CASCADE,
+  FOREIGN KEY (ent2_id) REFERENCES episql_tests.ents
+    ON DELETE CASCADE ON UPDATE RESTRICT
+);

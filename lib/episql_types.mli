@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2020  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2021  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -73,6 +73,13 @@ type check_constraint = {
   no_inherit: bool;
 }
 
+type column_reference = {
+  table: qname;
+  columns: string list option;
+  on_delete: [`Cascade | `Restrict] option;
+  on_update: [`Cascade | `Restrict] option;
+}
+
 type column_constraint =
   [ `Check of check_constraint
   | `Not_null
@@ -80,9 +87,7 @@ type column_constraint =
   | `Unique
   | `Primary_key
   | `Default of expression
-  | `References of qname * string option
-  | `On_delete of [`Cascade | `Restrict]
-  | `On_update of [`Cascade | `Restrict] ]
+  | `References of column_reference ]
 
 type column = {
   column_name : string;
@@ -97,7 +102,7 @@ type table_constraint =
   [ `Check of check_constraint
   | `Unique of string list
   | `Primary_key of string list
-  | `Foreign_key of string list * qname * string list ]
+  | `Foreign_key of string list * column_reference ]
 
 type table_item =
   | Column of column
