@@ -667,8 +667,7 @@ let emit_impl oc ti =
   pp oc "@ let key_size = %d" (List.length ti.ti_pk_cts);
   pp oc "@ let state_size = %d" (List.length ti.ti_nonpk_cts);
   pp oc "@ let table_name = \"%s\"" (Episql.string_of_qname ti.ti_tqn);
-  pp oc "@ @[<v 2>let fetch ?c key =";
-  emit_use_C oc;
+  pp oc "@ @[<v 2>let fetch (module C : Caqti_lwt.CONNECTION) key =";
   pp oc "@ @[<v 2>C.find_opt Q.fetch ";
   emit_param oc ti "key" ti.ti_pk_cts;
   (match ti.ti_nonpk_cts with
@@ -687,7 +686,11 @@ let emit_impl oc ti =
         cts;
       fprint oc "}");
   pp oc "@]@]@]@ end)";
-  if go.go_connection_arg = None then pp oc "@ let fetch key = fetch key";
+  open_query_let "fetch";
+  fprintf oc " key =";
+  emit_use_C oc;
+  pp oc "@ fetch (module C) key";
+  close_query_let ();
 
   (* let key = ... *)
   pp oc "@ let key {key; _} = key";
