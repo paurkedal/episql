@@ -1312,17 +1312,17 @@ let () =
     "-deriving",
       Arg.String (fun c -> go.go_use_ppx <- false;
                            go.go_deriving <- c :: go.go_deriving),
-      "Deprecated.";
+      " Deprecated.";
     "-open", Arg.String (fun m -> go.go_open <- m :: go.go_open),
       "M Open M at top of the generated files but after other open statements.";
     "-raise-on-absent", Arg.Unit (fun () -> go.go_raise_on_absent <- true),
-      "Raise Not_present instead of returning options for state, value, and \
+      " Raise Not_present instead of returning options for state, value, and \
        getters. The exception is also raised for getters of nullable fields \
        for consistency, even though they return options.";
     "-no-raise-on-absent", Arg.Unit (fun () -> go.go_raise_on_absent <- false),
-      "Inversion of -raise-on-absent and the default for now.";
+      " Inversion of -raise-on-absent and the default for now.";
     "-return-result", Arg.Unit (fun () -> go.go_return_result <- true),
-      "Return result instead of raising an exception on DB failure \
+      " Return result instead of raising an exception on DB failure \
        (recommended, will become default).";
     "-connection-arg", Arg.String (fun s -> go.go_connection_arg <- Some s),
       "NAME If passed, each query function accepts an optional argument ?NAME \
@@ -1349,7 +1349,7 @@ let () =
                              go.go_pk_prefix <- arg ^ "."),
       "M Put key record into a sub-module M instead of prefixing.";
     "-public-state", Arg.Unit (fun () -> go.go_public_state <- true),
-      "Don't make state records private. This allows modifying to account for \
+      " Don't make state records private. This allows modifying to account for \
        out-of-band changes to the database.";
   ] in
   let arg_specs = [
