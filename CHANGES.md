@@ -1,3 +1,9 @@
+## v0.12.2 - 2021-10-11
+
+- Fix support for connection argument names other than `c`.
+- Fix parsing and representation of `ON (DELETE|UPDATE)`.
+- Fix parsing of `timestamp with time zone`.
+
 ## v0.12.1 - 2021-03-15
 
 - Add cache-invalidation features to caqti-persist generator.
