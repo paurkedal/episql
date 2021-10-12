@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2017  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2021  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -14,7 +14,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-open Episql_types
 open Printf
 open Unprime_list
 open Unprime
@@ -58,3 +57,8 @@ let () =
   match !arg_output with
   | "-" -> generator stmts stdout
   | fp -> Prime_io.with_file_out (generator stmts) fp
+
+[@@@ocaml.warning "-33"]
+open Gen_caqti_persist
+open Gen_shell
+open Gen_xml

@@ -6,15 +6,9 @@
     Episql
     Episql_lexer
     Episql_parser
-    Episql_types
-    Episql_to_caqti_persist
-    Episql_to_shell
-    Episql_to_xml)
+    Episql_types)
   (private_modules
-    Episql_parser
-    Episql_to_caqti_persist
-    Episql_to_shell
-    Episql_to_xml)
+    Episql_parser)
   (modules_without_implementation
     Episql_types)
   (libraries fmt prime re re.glob xmlm))
