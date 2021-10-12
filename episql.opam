@@ -9,8 +9,6 @@ depends: [
   "ocaml"
   "dune" {>= "1.9"}
   "fmt"
-  "lwt"
-  "ppx_compose"
   "prime"
   "re"
   "xmlm"
