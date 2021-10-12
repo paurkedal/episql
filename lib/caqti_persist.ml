@@ -56,7 +56,7 @@ type 'a order_item =
   | Asc_sql of string
   | Desc_sql of string
 
-let cache_hertz = Int64.to_float ExtUnixSpecific.(sysconf CLK_TCK)
+let cache_hertz = Int64.to_float ExtUnix.Specific.(sysconf CLK_TCK)
 let cache_second = 1.0 /. cache_hertz
 let query_overhead = ref (1e-3 *. cache_second)
 let transfer_grade = ref (1e-8 *. cache_second)
