@@ -11,76 +11,76 @@
 
 (rule
   (targets schema_one_persist_types.mli)
-  (deps (:schema schema_one.sql) ../bin/episql_main.exe)
+  (deps (:schema schema_one.sql) ../../bin/episql_main.exe)
   (action
-    (run ../bin/episql_main.exe
+    (run ../../bin/episql_main.exe
       -g caqti-persist-types-mli
       -raise-on-absent -connection-arg db -return-result
       -ppx-deriving show -pk-module Key %{schema} -o %{targets})))
 
 (rule
   (targets schema_one_persist_types.ml)
-  (deps (:schema schema_one.sql) ../bin/episql_main.exe)
+  (deps (:schema schema_one.sql) ../../bin/episql_main.exe)
   (action
-    (run ../bin/episql_main.exe
+    (run ../../bin/episql_main.exe
       -g caqti-persist-types-ml
       -raise-on-absent -connection-arg db -return-result
       -ppx-deriving show -pk-module Key %{schema} -o %{targets})))
 
 (rule
   (targets schema_one_persist.mli)
-  (deps (:schema schema_one.sql) ../bin/episql_main.exe)
+  (deps (:schema schema_one.sql) ../../bin/episql_main.exe)
   (action
-    (run ../bin/episql_main.exe
+    (run ../../bin/episql_main.exe
       -g caqti-persist-mli -t schema_one_persist_types
       -raise-on-absent -connection-arg db -return-result
       -ppx-deriving show -pk-module Key %{schema} -o %{targets})))
 
 (rule
   (targets schema_one_persist.ml)
-  (deps (:schema schema_one.sql) ../bin/episql_main.exe)
+  (deps (:schema schema_one.sql) ../../bin/episql_main.exe)
   (action
-    (run ../bin/episql_main.exe
+    (run ../../bin/episql_main.exe
       -g caqti-persist-ml -t schema_one_persist_types
       -raise-on-absent -connection-arg db -return-result
       -ppx-deriving show -pk-module Key %{schema} -o %{targets})))
 
 (rule
   (targets schema_one_persist_alt_types.mli)
-  (deps (:schema schema_one.sql) ../bin/episql_main.exe)
+  (deps (:schema schema_one.sql) ../../bin/episql_main.exe)
   (action
-    (run ../bin/episql_main.exe
+    (run ../../bin/episql_main.exe
       -g caqti-persist-types-mli
       -ppx-deriving show -pk-module Key %{schema} -o %{targets})))
 
 (rule
   (targets schema_one_persist_alt_types.ml)
-  (deps (:schema schema_one.sql) ../bin/episql_main.exe)
+  (deps (:schema schema_one.sql) ../../bin/episql_main.exe)
   (action
-    (run ../bin/episql_main.exe
+    (run ../../bin/episql_main.exe
       -g caqti-persist-types-ml
       -ppx-deriving show -pk-module Key %{schema} -o %{targets})))
 
 (rule
   (targets schema_one_persist_alt.mli)
-  (deps (:schema schema_one.sql) ../bin/episql_main.exe)
+  (deps (:schema schema_one.sql) ../../bin/episql_main.exe)
   (action
-    (run ../bin/episql_main.exe
+    (run ../../bin/episql_main.exe
       -g caqti-persist-mli -t schema_one_persist_alt_types
       -ppx-deriving show -pk-module Key %{schema} -o %{targets})))
 
 (rule
   (targets schema_one_persist_alt.ml)
-  (deps (:schema schema_one.sql) ../bin/episql_main.exe)
+  (deps (:schema schema_one.sql) ../../bin/episql_main.exe)
   (action
-    (run ../bin/episql_main.exe
+    (run ../../bin/episql_main.exe
       -g caqti-persist-ml -t schema_one_persist_alt_types
       -ppx-deriving show -pk-module Key %{schema} -o %{targets})))
 
 (rule
   (targets schema_one.xml)
-  (deps (:schema schema_one.sql) ../bin/episql_main.exe)
+  (deps (:schema schema_one.sql) ../../bin/episql_main.exe)
   (action
-    (run ../bin/episql_main.exe -g xml %{schema} -o %{targets})))
+    (run ../../bin/episql_main.exe -g xml %{schema} -o %{targets})))
 
 (alias (package episql) (name runtest) (deps schema_one.xml))
