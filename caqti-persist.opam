@@ -2,7 +2,7 @@ opam-version: "2.0"
 name: "caqti-persist"
 maintainer: "Petter A. Urkedal <paurkedal@gmail.com>"
 authors: "Petter A. Urkedal <paurkedal@gmail.com>"
-license: "LGPL-3 with OCaml linking exception"
+license: "LGPL-3.0-or-later WITH LGPL-3.0-linking-exception"
 homepage: "https://github.com/paurkedal/episql/"
 bug-reports: "https://github.com/paurkedal/episql/issues"
 depends: [
