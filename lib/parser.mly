@@ -15,7 +15,7 @@
  */
 
 %{
-  open Episql_types
+  open Types
   open Unprime_list
 %}
 
@@ -62,7 +62,7 @@
 %left CAST
 %nonassoc APPLICATION
 
-%type<Episql_types.statement list> schema
+%type<Types.statement list> schema
 %start schema
 %%
 

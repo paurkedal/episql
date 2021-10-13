@@ -14,8 +14,8 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-open Episql_types
 open Episql
+open Episql.Types
 open Printf
 
 let generate stmts oc =

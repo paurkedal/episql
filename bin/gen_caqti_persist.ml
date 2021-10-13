@@ -14,7 +14,7 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-open Episql_types
+open Episql.Types
 open Format
 open Unprime_list
 open Unprime_option

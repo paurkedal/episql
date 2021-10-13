@@ -14,12 +14,15 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-open Episql_types
+module Types = Types
+module Lexer = Lexer
+
+open Types
 open Printf
 
 type dialect_tag = [`Sql | `Mysql | `Pgsql | `Sqlite]
 
-let parse_file = Episql_lexer.parse_file
+let parse_file = Lexer.parse_file
 
 let with_buffer f = let buf = Buffer.create 128 in f buf; Buffer.contents buf
 

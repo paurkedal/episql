@@ -20,9 +20,9 @@ open Unprime
 
 let disable_keyword kw =
   let kw = String.uppercase_ascii kw in
-  if not (Hashtbl.mem Episql_lexer.keywords kw)
+  if not (Hashtbl.mem Episql.Lexer.keywords kw)
   then eprintf "warning: %s is not a keyword.\n" kw
-  else Hashtbl.remove Episql_lexer.keywords kw
+  else Hashtbl.remove Episql.Lexer.keywords kw
 let disable_keywords = List.iter disable_keyword % Prime_string.chop_affix ","
 
 let () =

@@ -16,8 +16,8 @@
 
 (** SQL lexer. *)
 
-open Episql_parser
-open Episql_types
+open Parser
+open Types
 
 val keywords : (string, string -> token) Hashtbl.t
 

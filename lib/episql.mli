@@ -14,7 +14,10 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-open Episql_types
+module Types = Types
+module Lexer = Lexer
+
+open Types
 
 type dialect_tag = private [> `Mysql | `Pgsql | `Sqlite]
 (** A type indicating how to interpret certain SQL code when implementations

@@ -15,7 +15,7 @@
  *)
 
 open Episql
-open Episql_types
+open Episql.Types
 open Unprime
 open Unprime_option
 open Unprime_list

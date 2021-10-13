@@ -1,17 +1,8 @@
 (library
   (name episql)
   (public_name episql)
-  (wrapped false)
-  (modules
-    Episql
-    Episql_lexer
-    Episql_parser
-    Episql_types)
-  (private_modules
-    Episql_parser)
-  (modules_without_implementation
-    Episql_types)
+  (modules_without_implementation types)
   (libraries fmt prime re re.glob xmlm))
 
-(ocamllex episql_lexer)
-(ocamlyacc episql_parser)
+(ocamllex lexer)
+(ocamlyacc parser)
