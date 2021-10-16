@@ -394,16 +394,6 @@ module Select_buffer = struct
         sb.params <- Params.add pt pv sb.params
     end
 
-  let obsolete_order_by sb cn =
-    match sb.state with
-    | Init | Final -> assert false
-    | Ret | Where ->
-      if sb.state = Ret then emit_from sb;
-      bprintf sb.buf " ORDER BY %s" cn;
-      sb.state <- Order_by
-    | Order_by ->
-      bprintf sb.buf ", %s" cn
-
   let order_by sb f order_item =
     (match sb.state with
      | Init | Final -> assert false

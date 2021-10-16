@@ -1289,11 +1289,13 @@ let generate_impl' stmts oc =
 let generate_types' ~in_intf stmts oc =
   generate_types ~in_intf stmts (formatter_of_out_channel oc)
 
+(*
 let obsolete_now_default_flag name =
   let h () =
     eprintf "warning: %s is now the default and will be removed.\n%!" name
   in
   (name, Arg.Unit h, " Obsolete option which is now the default.")
+*)
 
 let () =
   let set_types_module mn =
@@ -1346,7 +1348,6 @@ let () =
                            go.go_type_timestamp <- m ^ ".timestamp"),
       "M Shortcut for passing M.counit, M.date, and M.timestamp to the other \
          -with-type-* options.";
-    obsolete_now_default_flag "-new-order-by";
     "-pk-module",
       Arg.String (fun arg -> go.go_pk_module <- Some arg;
                              go.go_pk_prefix <- arg ^ "."),

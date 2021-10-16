@@ -180,7 +180,6 @@ module Select_buffer : sig
   val create : Caqti_driver_info.t -> string -> t
   val ret : t -> string -> unit
   val where : t -> query_fragment list -> unit
-  val obsolete_order_by : t -> string -> unit
   val order_by : t -> ('a -> string) -> 'a order_item -> unit
   val limit : t -> int -> unit
   val offset : t -> int -> unit
