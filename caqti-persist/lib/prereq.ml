@@ -14,15 +14,8 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-include Types
-module Error = Error
-
-(**/**)
-
-module Caqti_persist_internal = struct
-  module Pk_cache = Pk_cache
-
-  module Ib = Insert_builder
-  module Ub = Update_builder
-  module Sb = Select_builder
+module Params = struct
+  type t = V : 'a Caqti_type.t * 'a -> t
+  let empty = V (Caqti_type.unit, ())
+  let add pt pv (V (pt', pv')) = V (Caqti_type.tup2 pt' pt, (pv', pv))
 end

@@ -463,8 +463,7 @@ let emit_intf oc ti =
                 (if ct.ct_nullable && ct.ct_defaultable then " option" else ""))
       ti.ti_cts;
     if go.go_return_result then
-      pp oc "@ unit -> (t, [> Caqti_error.t | `Conflict of conflict_error]) \
-                         result Lwt.t"
+      pp oc "@ unit -> (t, [> Caqti_persist.Error.t]) result Lwt.t"
     else
       pp oc "@ unit -> t Lwt.t";
     close_query_val ()
@@ -614,7 +613,7 @@ let emit_impl oc ti =
   pp oc "\"@]";
 
   (*   let insert = ... *)
-  pp oc "@ @[<v 2>let insert = Insert.Request.create Insert.Spec.(";
+  pp oc "@ @[<v 2>let insert = Ib.Request.create Ib.Spec.(";
   ti.ti_cts |> List.iter begin fun (cn, ct) ->
     pp oc "@ @[%s {cn = \"%s\"; ct = Type.%s; next =@]"
       (if ct.ct_defaultable then "Field_default" else "Field")
@@ -661,7 +660,7 @@ let emit_impl oc ti =
       pp oc "@ let return_ok x = Lwt.return x";
       pp oc "@ let map f = Lwt.map f";
       pp oc "@ let bind_lwt f m = m >>= f";
-      pp oc "@ let conflict err = Lwt.fail (Conflict err)";
+      pp oc "@ let conflict err = Lwt.fail (Caqti_persist.Error.Conflict err)";
       pp oc "@]@ end"
     end;
   pp oc "@ let key_size = %d" (List.length ti.ti_pk_cts);
@@ -702,7 +701,7 @@ let emit_impl oc ti =
       pp oc "@ Lwt_log.ign_debug_f ~section \
                 \"Called %%s on absent row of %s.\" op;"
          (snd ti.ti_tqn);
-    pp oc "@ raise Not_present@]"
+    pp oc "@ raise Caqti_persist.Error.Not_present@]"
   end;
 
   (* let is_present = ... *)
@@ -783,7 +782,7 @@ let emit_impl oc ti =
     pp oc "@ o.state <- Inserting _c;";
     emit_use_C oc;
 
-    pp oc "@ @[<v 1>(match Insert.(init Q.insert";
+    pp oc "@ @[<v 1>(match Ib.(init Q.insert";
     ti.ti_cts |> List.iter begin fun (cn, ct) ->
       if ct.ct_pk then begin
         pp oc (if ct.ct_defaultable then " $? Some " else " $ ");
@@ -795,11 +794,11 @@ let emit_impl oc ti =
         pp oc " %s %s" (if ct.ct_defaultable then "$?" else "$") cn
     end;
     fprint oc ") with";
-    pp oc "@ @[<v 3>| Insert.App {request = Insert.Request.Done req; \
-                                  param; default} ->";
+    pp oc "@ @[<v 3>| Ib.App {request = Ib.Request.Done req; \
+                              param; default} ->";
     pp oc "@ C.exec req param %s default@]" fail_or_map_result_op;
-    pp oc "@ @[<v 3>| Insert.App {request = Insert.Request.Done_default req; \
-                                  param; default} ->";
+    pp oc "@ @[<v 3>| Ib.App {request = Ib.Request.Done_default req; \
+                              param; default} ->";
     pp oc "@ C.find req param %s default@]" fail_or_map_result_op;
     pp oc ")@]@   %s fun " map_result_op;
     emit_returning_value oc ~filter:(fun ct -> ct.ct_defaultable) ti.ti_cts;
@@ -850,17 +849,17 @@ let emit_impl oc ti =
     fprint oc " () =";
     emit_use_C oc;
 
-    pp oc "@ @[<v 1>(match Insert.(init Q.insert";
+    pp oc "@ @[<v 1>(match Ib.(init Q.insert";
     ti.ti_cts |> List.iter begin fun (cn, ct) ->
       let op = if ct.ct_defaultable then "$?" else "$" in
       fprintf oc " %s %s" op cn
     end;
     fprint oc ") with";
-    pp oc "@ @[<v 3>| Insert.App {request = Insert.Request.Done req; \
-                                  param; default} ->";
+    pp oc "@ @[<v 3>| Ib.App {request = Ib.Request.Done req; \
+                              param; default} ->";
     pp oc "@ C.exec req param %s default@]" fail_or_map_result_op;
-    pp oc "@ @[<v 3>| Insert.App {request = Insert.Request.Done_default req; \
-                                  param; default} ->";
+    pp oc "@ @[<v 3>| Ib.App {request = Ib.Request.Done_default req; \
+                              param; default} ->";
     pp oc "@ C.find req param %s default@]" fail_or_map_result_op;
     pp oc ")@]@   %s fun " bind_result_op;
     emit_returning_value oc ~filter:(fun ct -> ct.ct_defaultable) ti.ti_cts;
@@ -972,7 +971,7 @@ let emit_impl oc ti =
     if go.go_select_cache then begin
       pp oc "@ C.fold req decode param [] %s fun r_rev ->" fail_or_map_result_op;
       pp oc "@ let r = List.rev r_rev in";
-      pp oc "@ let g = !select_grade (List.length r * %d + %d) in"
+      pp oc "@ let g = !Pk_cache.select_grade (List.length r * %d + %d) in"
          (List.length ti.ti_nonpk_cts) (List.length ti.ti_cts + 2);
       pp oc "@ Prime_cache.replace select_cache g args r; r"
     end else
@@ -988,12 +987,12 @@ let emit_impl oc ti =
     pp oc " o =";
     pp oc "@ @[<v 1>(match o.state with";
     pp oc "@ | @[<v 1>Inserting _ ->";
-    pp oc "@ Lwt.fail (Conflict {conflict_type = `Update_insert; \
-                                 conflict_table = \"%s\"})@]"
+    pp oc "@ Lwt.fail (Caqti_persist.Error.Conflict \
+                {conflict_type = `Update_insert; conflict_table = \"%s\"})@]"
        (Episql.string_of_qname ti.ti_tqn);
     pp oc "@ | @[<v 1>Deleting _ ->";
-    pp oc "@ Lwt.fail (Conflict {conflict_type = `Update_delete; \
-                                 conflict_table = \"%s\"})@]"
+    pp oc "@ Lwt.fail (Caqti_persist.Error.Conflict \
+                {conflict_type = `Update_delete; conflict_table = \"%s\"})@]"
        (Episql.string_of_qname ti.ti_tqn);
     pp oc "@ | @[<v 1>Absent ->";
     if go.go_insert_upserts then begin
@@ -1167,7 +1166,7 @@ let emit_impl oc ti =
     end;
     pp oc "@]";
     if go.go_raise_on_absent then
-      pp oc "@ | _ -> raise Not_present"
+      pp oc "@ | _ -> raise Caqti_persist.Error.Not_present"
     else
       pp oc "@ | _ -> None";
     pp oc ")@]@]"
@@ -1246,6 +1245,7 @@ let generate_impl stmts oc =
   pp oc "@[<v 0>";
   pp_print_string oc common_header;
   pp oc "@ open Lwt.Infix";
+  pp oc "@ open Caqti_persist.Caqti_persist_internal";
   emit_custom_open oc;
   pp oc "@ @[<v 2>module type S = sig";
   generate emit_intf stmts oc;
@@ -1254,13 +1254,11 @@ let generate_impl stmts oc =
     Option.iter (pp oc "@ let section = Lwt_log.Section.make \"%s\"")
                 go.go_log_debug;
   pp oc "@ @[<v 2>module Make (P : P) = struct";
-  pp oc "@ module Cache = Make_pk_cache (P.Beacon)";
+  pp oc "@ module Cache = Pk_cache.Make (P.Beacon)";
   pp oc "@ @[<v 2>module Type = struct";
   pp oc "@ include Caqti_type";
   pp oc "@ include Caqti_type_calendar";
   pp oc "@ @]end";
-  pp oc "@ module Sb = Select_buffer";
-  pp oc "@ module Ub = Update_buffer";
   generate emit_impl stmts oc;
   pp oc "@]@ end@]@\n@."
 

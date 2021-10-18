@@ -14,7 +14,6 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-open Caqti_persist
 open Lwt.Infix
 open Unprime_list
 
@@ -152,7 +151,7 @@ let main =
   begin
     test_serial () >>=? fun () ->
     Result_list_lwt.join (List.sample test_parallel 100)
-  end >>= Caqti_persist.or_fail
+  end >>= Caqti_persist.Error.or_fail
 
 let () = Lwt_main.run main
 

@@ -14,15 +14,16 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-include Types
-module Error = Error
+type conflict = {
+  conflict_type: [`Insert_insert | `Update_insert | `Update_delete];
+  conflict_table: string;
+}
+[@@deriving show]
 
-(**/**)
+type t = [Caqti_error.t | `Conflict of conflict]
+[@@deriving show]
 
-module Caqti_persist_internal = struct
-  module Pk_cache = Pk_cache
+val or_fail : ('a, [< t]) result -> 'a Lwt.t
 
-  module Ib = Insert_builder
-  module Ub = Update_builder
-  module Sb = Select_builder
-end
+exception Not_present
+exception Conflict of conflict

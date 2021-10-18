@@ -1,8 +1,6 @@
 (library
   (name caqti_persist)
   (public_name caqti-persist)
-  (wrapped false)
-  (modules Caqti_persist)
   (preprocess (pps ppx_deriving.std))
   (libraries
     caqti caqti-lwt caqti-type-calendar

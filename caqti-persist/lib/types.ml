@@ -14,15 +14,25 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-include Types
-module Error = Error
+type 'a order_predicate = [
+  | `Eq of 'a | `Ne of 'a | `Lt of 'a | `Le of 'a | `Ge of 'a | `Gt of 'a
+  | `Between of 'a * 'a | `Not_between of 'a * 'a
+]
 
-(**/**)
+type 'a order_item =
+  | Asc of 'a
+  | Desc of 'a
+  | Asc_sql of string
+  | Desc_sql of string
 
-module Caqti_persist_internal = struct
-  module Pk_cache = Pk_cache
+type ('value_r, 'value_d, 'change) persist_patch_in = [
+  | `Insert of 'value_r * 'value_d
+  | `Update of 'change list
+  | `Delete
+]
 
-  module Ib = Insert_builder
-  module Ub = Update_builder
-  module Sb = Select_builder
-end
+type ('value, 'change) persist_patch_out = [
+  | `Insert of 'value
+  | `Update of 'change list
+  | `Delete
+]

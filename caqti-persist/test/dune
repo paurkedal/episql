@@ -7,7 +7,7 @@
     schema_one_persist_types
     schema_one_persist_alt
     schema_one_persist_alt_types)
-  (libraries calendar caqti_persist caqti-dynload lwt lwt_log))
+  (libraries calendar caqti-persist caqti-dynload lwt lwt_log))
 
 (rule
   (targets schema_one_persist_types.mli)

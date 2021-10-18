@@ -14,15 +14,22 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-include Types
-module Error = Error
+open Types
 
-(**/**)
+type t
 
-module Caqti_persist_internal = struct
-  module Pk_cache = Pk_cache
+type _ request =
+  Request :
+    ('a, 'b, Caqti_mult.zero_or_more) Caqti_request.t * 'a -> 'b request
 
-  module Ib = Insert_builder
-  module Ub = Update_builder
-  module Sb = Select_builder
-end
+type query_fragment =
+  | S : string -> query_fragment
+  | P : 'a Caqti_type.t * 'a -> query_fragment
+
+val create : Caqti_driver_info.t -> string -> t
+val ret : t -> string -> unit
+val where : t -> query_fragment list -> unit
+val order_by : t -> ('a -> string) -> 'a order_item -> unit
+val limit : t -> int -> unit
+val offset : t -> int -> unit
+val contents : t -> 'a Caqti_type.t -> 'a request
