@@ -430,7 +430,7 @@ let emit_intf oc ti =
             pp oc "@ ?%s: [@[<hov 0>%s order_predicate" cn tn;
             if ct.ct_type = `Text then
               pp oc "@ | `Like of %s@ | `Ilike of %s" tn tn;
-            if ct.ct_nullable then pp oc "@ | `Null";
+            if ct.ct_nullable then pp oc "@ | `Is_null";
             pp oc "@]] ->"
           end
         else
@@ -914,23 +914,7 @@ let emit_impl oc ti =
         let conv = convname_of_datatype ct.ct_type in
         pp oc "@ @[<v 1>(match %s with" cn;
         pp oc "@ | None -> ()";
-        if ct.ct_nullable then
-          pp oc "@ | Some `Null -> Sb.(where sb [S\"%s IS NULL\"])" cn;
-        let mk_binary (on, op) =
-          pp oc "@ | Some (`%s x) -> \
-                     Sb.(where sb [S\"%s %s \"; P (Type.%s, x)])"
-             on cn op conv in
-        let mk_ternary (on, op) =
-          pp oc "@ | Some (`%s (x, y)) -> \
-                     Sb.(where sb [S\"%s %s \"; P (Type.%s, x); \
-                                   S\" AND \"; P (Type.%s, y)])"
-             on cn op conv conv in
-        List.iter mk_binary
-          ["Eq", "="; "Ne", "<>"; "Lt", "<"; "Le", "<="; "Ge", ">="; "Gt", ">"];
-        List.iter mk_ternary
-          ["Between", "BETWEEN"; "Not_between", "NOT BETWEEN"];
-        if ct.ct_type = `Text then
-          List.iter mk_binary ["Like", "LIKE"; "Ilike", "ILIKE"];
+        pp oc "@ | Some p -> Sb.where_field sb \"%s\" Type.%s p" cn conv;
         pp oc "@]);")
       ti.ti_cts;
     pp oc "@ List.iter (Sb.order_by sb (function ";

@@ -33,6 +33,13 @@ type t = {
   mutable state: state;
 }
 
+type 'a predicate = [
+  | `Is_null | `Is_not_null
+  | 'a order_predicate
+  | `Like of 'a
+  | `Ilike of 'a
+]
+
 type _ request =
   Request :
     ('a, 'b, Caqti_mult.zero_or_more) Caqti_request.t * 'a -> 'b request
@@ -68,6 +75,26 @@ let where sb qfs =
       Buffer.add_string sb.buf "?";
       sb.params <- Params.add pt pv sb.params
   end
+
+let where_field
+  : type a. t -> string -> a Caqti_type.t -> a predicate -> unit =
+  fun sb cn t ->
+  (function
+   | `Is_null -> where sb [S cn; S" IS NULL"]
+   | `Is_not_null -> where sb [S cn; S" IS NOT NULL"]
+   | `Eq x -> where sb [S cn; S" = "; P (t, x)]
+   | `Ne x -> where sb [S cn; S" <> "; P (t, x)]
+   | `Lt x -> where sb [S cn; S" < "; P (t, x)]
+   | `Gt x -> where sb [S cn; S" > "; P (t, x)]
+   | `Le x -> where sb [S cn; S" <= "; P (t, x)]
+   | `Ge x -> where sb [S cn; S" >= "; P (t, x)]
+   | `Between (x, y) -> where sb [S cn; S" BETWEEN "; P (t, x); S" AND "; P (t, y)]
+   | `Not_between (x, y) -> where sb [S cn; S" NOT BETWEEN "; P (t, x); S" AND "; P (t, y)]
+   | `Like x -> where sb [S cn; S" LIKE "; P (t, x)]
+   | `Ilike x -> where sb [S cn; S" ILIKE "; P (t, x)])
+
+let where_field sb cn t p =
+  where_field sb cn t (p : [< 'a predicate] :> 'a predicate)
 
 let order_by sb f order_item =
   (match sb.state with
