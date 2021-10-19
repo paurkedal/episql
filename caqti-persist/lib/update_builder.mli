@@ -19,7 +19,10 @@ type t
 type request =
   Request : ('a, unit, Caqti_mult.zero) Caqti_request.t * 'a -> request
 
-val create : Caqti_driver_info.t -> string -> t
+val create : unit -> t
+
 val set : t -> string -> 'a Caqti_type.t * 'a -> unit
+
 val where : t -> string -> 'a Caqti_type.t * 'a -> unit
-val contents : t -> request option
+
+val finish : table_name: string -> t -> request option

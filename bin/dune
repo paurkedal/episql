@@ -2,4 +2,4 @@
   (package episql)
   (name episql_main)
   (public_name episql)
-  (libraries episql))
+  (libraries episql fmt))

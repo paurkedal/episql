@@ -15,53 +15,53 @@
  *)
 
 open Prereq
-open Unprime
-
-type state = Init | Set | Where | Noop
+open Unprime_list
 
 type request =
   Request : ('a, unit, Caqti_mult.zero) Caqti_request.t * 'a -> request
 
 type t = {
-  buf : Buffer.t;
-  mutable params : Params.t;
-  mutable state : state;
+  mutable latest_index: int;
+  mutable params: Params.t;
+  mutable rev_settings: (string * int) list;
+  mutable rev_conditions: (string * int) list;
 }
 
-let create _driver_info table_name =
-  let buf = Buffer.create 256 in
-  Buffer.add_string buf "UPDATE ";
-  Buffer.add_string buf table_name;
-  Buffer.add_string buf " SET ";
-  {buf; params = Params.empty; state = Init}
+let create () = {
+  latest_index = -1;
+  params = Params.empty;
+  rev_settings = [];
+  rev_conditions = [];
+}
 
-let assign ub pn (pt, pv) =
-  Buffer.add_string ub.buf pn;
-  Buffer.add_string ub.buf " = ?";
-  ub.params <- Params.add pt pv ub.params
+let add_param ub (pt, pv) =
+  ub.params <- Params.add pt pv ub.params;
+  ub.latest_index <- ub.latest_index + 1;
+  ub.latest_index
 
-let set ub pn pv =
-  begin match ub.state with
-  | Init -> ub.state <- Set
-  | Set -> Buffer.add_string ub.buf ", "
-  | _ -> assert false
-  end;
-  assign ub pn pv
+let set ub cn p =
+  let i = add_param ub p in
+  ub.rev_settings <- (cn, i) :: ub.rev_settings
 
-let where ub pn pv =
-  begin match ub.state with
-  | Init | Noop -> ub.state <- Noop
-  | Set -> Buffer.add_string ub.buf " WHERE "; ub.state <- Where
-  | Where -> Buffer.add_string ub.buf " AND "
-  end;
-  assign ub pn pv
+let where ub cn p =
+  let i = add_param ub p in
+  ub.rev_conditions <- (cn, i) :: ub.rev_conditions
 
-let contents ub =
-  let qs = konst (Buffer.contents ub.buf) in
-  (match ub.state with
-   | Init | Noop -> None
-   | Set -> assert false (* Precaution, we don't need unconditional update. *)
-   | Where ->
-      let Params.V (pt, pv) = ub.params in
-      let rt, m = Caqti_type.unit, Caqti_mult.zero in
-      Some (Request (Caqti_request.create_p ~oneshot:true pt rt m qs, pv)))
+let finish ~table_name ub =
+  if ub.rev_settings = [] then None else
+  let () = assert (ub.rev_conditions <> []) in
+  let query =
+    let open Caqti_query in
+    let mk (cn, i) = S[L cn; L" = "; P i] in
+    let settings = List.rev_map mk ub.rev_settings in
+    let conditions = List.rev_map mk ub.rev_conditions in
+    S[L"UPDATE "; L table_name;
+      L" SET "; S (List.interfix (L", ") settings);
+      L" WHERE "; S (List.interfix (L" AND ") conditions)]
+  in
+  let Params.V (pt, pv) = ub.params in
+  let request =
+    Caqti_request.create ~oneshot:true pt Caqti_type.unit Caqti_mult.zero
+      (Fun.const query)
+  in
+  Some (Request (request, pv))

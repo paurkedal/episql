@@ -19,3 +19,10 @@ module Params = struct
   let empty = V (Caqti_type.unit, ())
   let add pt pv (V (pt', pv')) = V (Caqti_type.tup2 pt' pt, (pv', pv))
 end
+
+let quote_column column =
+  let buf = Buffer.create (String.length column + 2) in
+  String.iter
+    (fun ch -> if ch = '"' then Buffer.add_char buf '"'; Buffer.add_char buf ch)
+    column;
+  Caqti_query.L (Buffer.contents buf)

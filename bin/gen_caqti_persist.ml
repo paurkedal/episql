@@ -906,6 +906,26 @@ let emit_impl oc ti =
     close_query_let ()
   end;
 
+  (* let order_column_name = ... *)
+  if go.go_select then begin
+    let pp_variant =
+      Fmt.(const string "`" ++ using variant_of_colname string)
+    in
+    let pp_cases pp_pat pp_res =
+      let open Fmt in
+      let pp_case = hbox (pp_pat ++ const string " -> " ++ pp_res) in
+      list ~sep:((sp ++ const string "| ")) pp_case
+    in
+    pp oc "@ @[<hov 2>let order_column_name = function@ %a@]"
+      Fmt.(pp_cases (using fst pp_variant) (using fst (quote string)))
+      ti.ti_cts;
+    pp oc "@ @[<hv 2>let select_list = [%a@]]"
+      Fmt.(list ~sep:semi (using fst (quote string))) ti.ti_cts;
+    pp oc "@ @[<hv 2>let select_type =@ ";
+    emit_columns_type oc ti.ti_cts;
+    pp oc "@]"
+  end;
+
   (* let select = ... *)
   if go.go_select then begin
     open_query_let "select";
@@ -923,30 +943,22 @@ let emit_impl oc ti =
       pp oc "@ @[<v 2>with Not_found ->";
     end;
     emit_use_C oc;
-    pp oc "@ let sb = Sb.create C.driver_info \"%s\" in"
-       (Episql.string_of_qname ti.ti_tqn);
-    let emit_ret (cn, _) = pp oc "@ Sb.ret sb \"%s\";" cn in
-    List.iter emit_ret ti.ti_cts;
+    pp oc "@ let sb = Sb.create () in";
     List.iter
       (fun (cn, ct) ->
         let conv = convname_of_datatype ct.ct_type in
         pp oc "@ @[<v 1>(match %s with" cn;
         pp oc "@ | None -> ()";
-        pp oc "@ | Some p -> Sb.where_field sb \"%s\" Type.%s p" cn conv;
+        pp oc "@ | Some p -> Sb.where sb \"%s\" Type.%s p" cn conv;
         pp oc "@]);")
       ti.ti_cts;
-    pp oc "@ List.iter (Sb.order_by sb (function ";
-    List.iteri
-      (fun i (cn, _) ->
-        if i > 0 then fprint oc " | ";
-        fprintf oc "`%s -> \"%s\"" (variant_of_colname cn) cn)
-      ti.ti_cts;
-    pp oc ")) order_by;";
-    pp oc "@ (match limit with None -> () | Some n -> Sb.limit sb n);";
-    pp oc "@ (match offset with None -> () | Some n -> Sb.offset sb n);";
-    pp oc "@ let Request (req, param) = Sb.contents sb ";
-    emit_columns_type oc ti.ti_cts;
-    pp oc " in";
+    pp oc "@ @[<v 2>let Request (req, param) =@ \
+              @[<hov 2>Sb.finish@ \
+                ~table_name:%S@ ~select_list@ ~select_type@ \
+                ~order_column_name@ ~order_by@ ?limit@ ?offset@ \
+                sb"
+      (Episql.string_of_qname ti.ti_tqn);
+    pp oc "@]@]@ in";
     pp oc "@ @[<v 2>let decode ";
     emit_columns_value oc ti.ti_cts;
     pp oc " acc =";
@@ -1034,8 +1046,7 @@ let emit_impl oc ti =
       pp oc "@ Lwt.fail (Failure \"Update of absent row.\")";
     pp oc "@]@ | @[<v 1>Present state ->";
     emit_use_C oc;
-    pp oc "@ let ub = Ub.create C.driver_info \"%s\" in"
-       (Episql.string_of_qname ti.ti_tqn);
+    pp oc "@ let ub = Ub.create () in";
     if go.go_event then
       pp oc "@ let changes = ref [] in";
     List.iter
@@ -1058,7 +1069,8 @@ let emit_impl oc ti =
           pp oc "@ Ub.where ub \"%s\" (Type.%s, o.key.%s%s);"
              cn (convname_of_coltype ct) go.go_pk_prefix cn)
         ti.ti_pk_cts;
-    pp oc "@ @[<v 1>(match Ub.contents ub with";
+    pp oc "@ @[<v 1>(match Ub.finish ~table_name:%S ub with"
+      (Episql.string_of_qname ti.ti_tqn);
     pp oc "@ | None -> %s ()" return_ok;
     pp oc "@ @[<v 3>| Some (Request (req, params)) ->";
     pp oc "@ C.exec req params %s fun () ->" fail_or_map_result_op;

@@ -29,15 +29,16 @@ type _ request =
   Request :
     ('a, 'b, Caqti_mult.zero_or_more) Caqti_request.t * 'a -> 'b request
 
-type query_fragment =
-  | S : string -> query_fragment
-  | P : 'a Caqti_type.t * 'a -> query_fragment
+val create : unit -> t
 
-val create : Caqti_driver_info.t -> string -> t
-val ret : t -> string -> unit
-val where : t -> query_fragment list -> unit
-val where_field : t -> string -> 'a Caqti_type.t -> [< 'a predicate] -> unit
-val order_by : t -> ('a -> string) -> 'a order_item -> unit
-val limit : t -> int -> unit
-val offset : t -> int -> unit
-val contents : t -> 'a Caqti_type.t -> 'a request
+val where : t -> string -> 'a Caqti_type.t -> [< 'a predicate] -> unit
+
+val finish :
+  table_name: string ->
+  select_list: string list ->
+  select_type: 'a Caqti_type.t ->
+  order_column_name: ('b -> string) ->
+  order_by: 'b order_item list ->
+  ?limit: int ->
+  ?offset: int ->
+  t -> 'a request
