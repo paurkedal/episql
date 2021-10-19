@@ -88,8 +88,8 @@ type genopts = {
 let go = {
   go_types_module = None;
   go_filter_tables = [];
-  go_event = true;
-  go_patch = true;
+  go_event = false;
+  go_patch = false;
   go_value = true;
   go_insert = true;
   go_insert_upserts = true;
@@ -277,33 +277,35 @@ let emit_type_patch_etc oc ti =
     pp oc "@]@ }";
     emit_deriving oc
   end;
-  if ti.ti_nonpk_req_cts = [] then begin
-    pp oc "@ type value_r = unit";
-    emit_deriving oc
-  end else begin
-    pp oc "@ @[<v 2>type value_r = {";
-    List.iter
-      (fun (cn, ct) ->
-        pp oc "@ %s%s : %s;"
-           go.go_value_r_prefix cn (string_of_datatype ct.ct_type))
-      ti.ti_nonpk_req_cts;
-    pp  oc "@]@ }";
-    emit_deriving oc
-  end;
-  if ti.ti_nonpk_nonreq_cts = [] then begin
-    pp oc "@ type value_d = unit";
-    emit_deriving oc
-  end else begin
-    pp oc "@ @[<v 2>type value_d = {";
-    ti.ti_nonpk_nonreq_cts |> List.iter begin fun (cn, ct) ->
-      pp oc "@ %s%s : %s option%s;"
-         go.go_value_d_prefix cn (string_of_datatype ct.ct_type)
-         (if ct.ct_nullable && ct.ct_defaultable then " option" else "")
+  if go.go_patch then begin
+    if ti.ti_nonpk_req_cts = [] then begin
+      pp oc "@ type value_r = unit";
+      emit_deriving oc
+    end else begin
+      pp oc "@ @[<v 2>type value_r = {";
+      List.iter
+        (fun (cn, ct) ->
+          pp oc "@ %s%s : %s;"
+             go.go_value_r_prefix cn (string_of_datatype ct.ct_type))
+        ti.ti_nonpk_req_cts;
+      pp  oc "@]@ }";
+      emit_deriving oc
     end;
-    pp oc "@]@ }";
-    emit_deriving oc
+    if ti.ti_nonpk_nonreq_cts = [] then begin
+      pp oc "@ type value_d = unit";
+      emit_deriving oc
+    end else begin
+      pp oc "@ @[<v 2>type value_d = {";
+      ti.ti_nonpk_nonreq_cts |> List.iter begin fun (cn, ct) ->
+        pp oc "@ %s%s : %s option%s;"
+           go.go_value_d_prefix cn (string_of_datatype ct.ct_type)
+           (if ct.ct_nullable && ct.ct_defaultable then " option" else "")
+      end;
+      pp oc "@]@ }";
+      emit_deriving oc
+    end
   end;
-  if ti.ti_nonpk_cts = [] then begin
+  if not go.go_event && not go.go_patch || ti.ti_nonpk_cts = [] then begin
     pp oc "@ type change = %s" go.go_type_counit;
     emit_deriving oc
   end else begin
@@ -316,10 +318,14 @@ let emit_type_patch_etc oc ti =
     pp oc "@]@ ]";
     emit_deriving oc;
   end;
-  pp oc "@ type patch_in = (value_r, value_d, change) persist_patch_in";
-  emit_deriving oc;
-  pp oc "@ type patch_out = (value, change) persist_patch_out";
-  emit_deriving oc
+  if go.go_patch then begin
+    pp oc "@ type patch_in = (value_r, value_d, change) persist_patch_in";
+    emit_deriving oc
+  end;
+  if go.go_event then begin
+    pp oc "@ type patch_out = (value, change) persist_patch_out";
+    emit_deriving oc
+  end
 
 let emit_types ~in_intf oc ti =
   if in_intf then
@@ -328,25 +334,29 @@ let emit_types ~in_intf oc ti =
     pp oc "@ @[<v 2>module %s = struct" (String.capitalize_ascii (snd ti.ti_tqn));
   emit_type_pk ~in_intf oc ti;
   emit_type_patch_etc oc ti;
-  if in_intf then begin
-    pp oc "@ val defaults : value_d"
-  end else if ti.ti_nonpk_nonreq_cts = [] then
-    pp oc "@ let defaults = ()"
-  else begin
-    pp oc "@ @[<v 2>let defaults = {";
-    List.iter
-      (fun (cn, _) -> pp oc "@ %s%s = None;" go.go_value_d_prefix cn)
-      ti.ti_nonpk_nonreq_cts;
-    pp oc "@]@ }"
+  if go.go_patch then begin
+    if in_intf then begin
+      pp oc "@ val defaults : value_d"
+    end else if ti.ti_nonpk_nonreq_cts = [] then
+      pp oc "@ let defaults = ()"
+    else begin
+      pp oc "@ @[<v 2>let defaults = {";
+      List.iter
+        (fun (cn, _) -> pp oc "@ %s%s = None;" go.go_value_d_prefix cn)
+        ti.ti_nonpk_nonreq_cts;
+      pp oc "@]@ }"
+    end
   end;
-  if in_intf then
-    pp oc "@ val changes_of_value : value -> change list"
-  else begin
-    pp oc "@ @[<v 2>let changes_of_value f = [";
-    List.iter
-      (fun (cn, _) -> pp oc "@ `Set_%s f.%s%s;" cn go.go_value_prefix cn)
-      ti.ti_nonpk_cts;
-    pp oc "@]@ ]"
+  if go.go_event then begin
+    if in_intf then
+      pp oc "@ val changes_of_value : value -> change list"
+    else begin
+      pp oc "@ @[<v 2>let changes_of_value f = [";
+      List.iter
+        (fun (cn, _) -> pp oc "@ `Set_%s f.%s%s;" cn go.go_value_prefix cn)
+        ti.ti_nonpk_cts;
+      pp oc "@]@ ]"
+    end
   end;
   pp oc "@]@ end"
 
@@ -372,11 +382,16 @@ let emit_intf oc ti =
       pp oc "@ @[<v 2>include module type of %s" mn;
       pp oc "@ @[<v 1>with type %s = %s.%s" pk_type mn pk_type;
       pp oc "@ and type value = %s.value" mn;
-      pp oc "@ and type value_r = %s.value_r" mn;
-      pp oc "@ and type value_d = %s.value_d" mn;
-      pp oc "@ and type change = %s.change" mn;
-      pp oc "@ and type patch_in = %s.patch_in" mn;
-      pp oc "@ and type patch_out = %s.patch_out" mn;
+      if go.go_patch then begin
+        pp oc "@ and type value_r = %s.value_r" mn;
+        pp oc "@ and type value_d = %s.value_d" mn
+      end;
+      if go.go_event then
+        pp oc "@ and type change = %s.change" mn;
+      if go.go_patch then
+        pp oc "@ and type patch_in = %s.patch_in" mn;
+      if go.go_event then
+        pp oc "@ and type patch_out = %s.patch_out" mn;
       pp oc "@]@]");
   emit_type_nonpk ~in_intf:true oc ti;
   pp oc "@ type t";
@@ -641,7 +656,10 @@ let emit_impl oc ti =
    | Some pkm -> pp oc "@ type key = %s.t" pkm);
   pp oc "@ type nonrec state = state";
   pp oc "@ type nonrec value = value";
-  pp oc "@ type nonrec change = change";
+  if go.go_event || go.go_patch then
+    pp oc "@ type nonrec change = change"
+  else
+    pp oc "@ type nonrec change = %s" go.go_type_counit;
   if go.go_return_result then
     begin
       pp oc "@ @[<v 2>module Result_lwt = struct";
@@ -1251,16 +1269,20 @@ let generate_types ~in_intf stmts oc =
   pp oc "@ (* Generated by episql. *)\n\n";
   pp_print_string oc "[@@@ocaml.warning \"-27\"]\n";
   emit_custom_open oc;
-  pp oc "@ @[<v 2>type ('value_r, 'value_d, 'change) persist_patch_in =";
-  pp oc "@ [ `Insert of 'value_r * 'value_d";
-  pp oc "@ | `Update of 'change list";
-  pp oc "@ | `Delete ]@]";
-  emit_deriving oc;
-  pp oc "@ @[<v 2>type ('value, 'change) persist_patch_out =";
-  pp oc "@ [ `Insert of 'value";
-  pp oc "@ | `Update of 'change list";
-  pp oc "@ | `Delete ]@]";
-  emit_deriving oc;
+  if go.go_patch then begin
+    pp oc "@ @[<v 2>type ('value_r, 'value_d, 'change) persist_patch_in =";
+    pp oc "@ [ `Insert of 'value_r * 'value_d";
+    pp oc "@ | `Update of 'change list";
+    pp oc "@ | `Delete ]@]";
+    emit_deriving oc
+  end;
+  if go.go_event then begin
+    pp oc "@ @[<v 2>type ('value, 'change) persist_patch_out =";
+    pp oc "@ [ `Insert of 'value";
+    pp oc "@ | `Update of 'change list";
+    pp oc "@ | `Delete ]@]";
+    emit_deriving oc
+  end;
   generate (emit_types ~in_intf) stmts oc;
   pp oc "@."
 
@@ -1337,6 +1359,10 @@ let () =
     "-public-state", Arg.Unit (fun () -> go.go_public_state <- true),
       " Don't make state records private. This allows modifying to account for \
        out-of-band changes to the database.";
+    "-enable-patch", Arg.Unit (fun () -> go.go_patch <- true),
+      " Generate patch function.";
+    "-enable-event", Arg.Unit (fun () -> go.go_event <- true),
+      " Generate code to emit react events.";
   ] in
   let arg_specs = [
     "-t", Arg.String set_types_module,

@@ -15,7 +15,7 @@
   (action
     (run ../../bin/episql_main.exe
       -g caqti-persist-types-mli
-      -raise-on-absent -connection-arg db -return-result
+      -raise-on-absent -connection-arg db -return-result -enable-patch
       -ppx-deriving show -pk-module Key %{schema} -o %{targets})))
 
 (rule
@@ -24,7 +24,7 @@
   (action
     (run ../../bin/episql_main.exe
       -g caqti-persist-types-ml
-      -raise-on-absent -connection-arg db -return-result
+      -raise-on-absent -connection-arg db -return-result -enable-patch
       -ppx-deriving show -pk-module Key %{schema} -o %{targets})))
 
 (rule
@@ -33,7 +33,7 @@
   (action
     (run ../../bin/episql_main.exe
       -g caqti-persist-mli -t schema_one_persist_types
-      -raise-on-absent -connection-arg db -return-result
+      -raise-on-absent -connection-arg db -return-result -enable-patch
       -ppx-deriving show -pk-module Key %{schema} -o %{targets})))
 
 (rule
@@ -42,7 +42,7 @@
   (action
     (run ../../bin/episql_main.exe
       -g caqti-persist-ml -t schema_one_persist_types
-      -raise-on-absent -connection-arg db -return-result
+      -raise-on-absent -connection-arg db -return-result -enable-patch
       -ppx-deriving show -pk-module Key %{schema} -o %{targets})))
 
 (rule
@@ -50,7 +50,7 @@
   (deps (:schema schema_one.sql) ../../bin/episql_main.exe)
   (action
     (run ../../bin/episql_main.exe
-      -g caqti-persist-types-mli
+      -g caqti-persist-types-mli -enable-event
       -ppx-deriving show -pk-module Key %{schema} -o %{targets})))
 
 (rule
@@ -58,7 +58,7 @@
   (deps (:schema schema_one.sql) ../../bin/episql_main.exe)
   (action
     (run ../../bin/episql_main.exe
-      -g caqti-persist-types-ml
+      -g caqti-persist-types-ml -enable-event
       -ppx-deriving show -pk-module Key %{schema} -o %{targets})))
 
 (rule
@@ -66,7 +66,7 @@
   (deps (:schema schema_one.sql) ../../bin/episql_main.exe)
   (action
     (run ../../bin/episql_main.exe
-      -g caqti-persist-mli -t schema_one_persist_alt_types
+      -g caqti-persist-mli -t schema_one_persist_alt_types -enable-event
       -ppx-deriving show -pk-module Key %{schema} -o %{targets})))
 
 (rule
@@ -74,7 +74,7 @@
   (deps (:schema schema_one.sql) ../../bin/episql_main.exe)
   (action
     (run ../../bin/episql_main.exe
-      -g caqti-persist-ml -t schema_one_persist_alt_types
+      -g caqti-persist-ml -t schema_one_persist_alt_types -enable-event
       -ppx-deriving show -pk-module Key %{schema} -o %{targets})))
 
 (rule
