@@ -15,6 +15,9 @@
  *)
 
 open Unprime
+open Unprime_list
+
+open Prereq
 
 type wd = Wd
 type wod = Wod
@@ -56,18 +59,30 @@ module Request = struct
      | Spec.Done tn ->
         let pcns = List.rev pcns in
         let rcns = List.rev rcns in
-        let qs =
-          "INSERT INTO " ^ tn ^
-          (if pcns = [] then " DEFAULT VALUES" else
-           " (" ^ String.concat ", " pcns ^ ") VALUES (" ^
-           (String.concat ", " (List.map (konst "?") pcns)) ^ ")")
+        let query =
+          let open Caqti_query in
+          let values =
+            if pcns = [] then
+              L" DEFAULT VALUES"
+            else
+              let cols = List.map quote_column pcns in
+              let vals = List.mapi (fun i _ -> P i) pcns in
+              S[L" ("; S (List.interfix (L", ") cols); L") VALUES (";
+                S (List.interfix (L", ") vals); L")"]
+          in
+          S[L"INSERT INTO "; L tn; values]
         in
         (match rt with
          | Caqti_type.Unit ->
-            Done (Caqti_request.exec pt qs)
+            Done (Caqti_request.create pt rt Caqti_mult.zero (Fun.const query))
          | Caqti_type.Tup2 (_, _) ->
-            let qs = qs ^ " RETURNING " ^ String.concat ", " rcns in
-            Done_default (Caqti_request.find pt rt qs)
+            let query =
+              let open Caqti_query in
+              S(query :: L" RETURNING " ::
+                List.interfix (L", ") (List.map (fun cn -> L cn) rcns))
+            in
+            Done_default
+              (Caqti_request.create pt rt Caqti_mult.one (Fun.const query))
          | _ -> assert false)
      | Spec.Field {cn; ct; next} ->
         let set =
