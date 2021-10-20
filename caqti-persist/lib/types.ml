@@ -36,3 +36,18 @@ type ('value, 'change) persist_patch_out = [
   | `Update of 'change list
   | `Delete
 ]
+
+module type CONNECTION_SPEC = sig
+
+  val rename_schema : string option -> string option
+  (** Given a schema [ns] found in the SQL table definitions, [rename_schema ns]
+      shall return the schema used to quelify the same tables in actual database
+      requests.  [None] means that the table name is unqualified. *)
+
+  val use_db : ((module Caqti_lwt.CONNECTION) -> 'a Lwt.t) -> 'a Lwt.t
+  (** [use_db f] shall call [f] with a database connection. *)
+
+  module Beacon : Prime_beacon.S
+  (** Caching specifications. *)
+
+end

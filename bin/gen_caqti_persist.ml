@@ -578,18 +578,20 @@ let emit_param oc ti pk cts =
   pp oc "()";
   cts |> List.iter (fun _ -> pp oc ")")
 
+let pp_column_eq_param =
+  let open Fmt in
+  hbox (const string "L\"" ++ using fst string ++ const string " = \";")
+  ++ sp ++ hbox (const string "P " ++ using snd int)
+
+let pp_columns_eq_params =
+  Fmt.(list ~sep:(const string "; L\" AND \"; ") pp_column_eq_param)
+
 let emit_impl oc ti =
 
   let open_query_let fn =
     pp oc "@ @[<v 2>let "; fprint oc fn;
     Option.iter (fprintf oc " ?%s") go.go_connection_arg in
   let close_query_let () = pp oc "@]" in
-
-  let emit_pk_cond () =
-    List.iteri
-      (fun i (cn, _) -> if i > 0 then fprint oc " AND "; fprintf oc "%s = ?" cn)
-      ti.ti_pk_cts
-  in
 
   let bind_result_op, map_result_op, fail_or_map_result_op, return_ok =
     if go.go_return_result then
@@ -604,28 +606,35 @@ let emit_impl oc ti =
       (">>=", ">|=", ">>= Caqti_lwt.or_fail >|=", "Lwt.return")
   in
 
+  pp oc "@ @[let schema_name = P.rename_schema %a@]"
+    Fmt.(option ~none:(const string "None")
+          (const string "(Some " ++ quote string ++ const string ")"))
+    (fst ti.ti_tqn);
+  pp oc "@ @[let table_name = qualify schema_name %S@]" (snd ti.ti_tqn);
+
   (* module Q = *)
   pp oc "@ @[<v 2>module %s = struct" (String.capitalize_ascii (snd ti.ti_tqn));
   pp oc "@ @[<v 2>module Q = struct";
 
   (*   let fetch = ... *)
-  pp oc "@ @[<v 2>let fetch = Caqti_request.find_opt";
+  pp oc "@ @[<v 2>let fetch = Caqti_request.create";
   pp oc "@ "; emit_columns_type oc ti.ti_pk_cts;
   pp oc "@ "; emit_columns_type oc ti.ti_nonpk_cts;
-  pp oc "@ \"";
-  fprintf oc "SELECT %s FROM %s WHERE "
-    (String.concat ", " (List.map (fun (cn, _) -> cn) ti.ti_nonpk_cts))
-    (Episql.string_of_qname ti.ti_tqn);
-  emit_pk_cond ();
-  pp oc "\"@]";
+  pp oc "@ Caqti_mult.zero_or_one";
+  pp oc "@ @[<hv 2>(Fun.const Caqti_query.@,\
+              (S[@[<hov>L\"SELECT %a FROM \";@ L table_name;@ \
+                        L\" WHERE \";@ %a@]]))@]@]"
+    Fmt.(list ~sep:comma (using fst string)) ti.ti_nonpk_cts
+    pp_columns_eq_params (List.mapi (fun i (cn, _) -> (cn, i)) ti.ti_pk_cts);
 
   (*   let delete = ... *)
-  pp oc "@ @[<v 2>let delete = Caqti_request.exec";
+  pp oc "@ @[<v 2>let delete = Caqti_request.create";
   pp oc "@ "; emit_columns_type oc ti.ti_pk_cts;
-  pp oc "@ \"";
-  fprintf oc "DELETE FROM %s WHERE " (Episql.string_of_qname ti.ti_tqn);
-  emit_pk_cond ();
-  pp oc "\"@]";
+  pp oc "@ Caqti_type.unit Caqti_mult.zero";
+  pp oc "@ @[<hv 2>(Fun.const Caqti_query.@,\
+              (S[@[<hov>L\"DELETE FROM \";@ L table_name;@ \
+                        L\" WHERE \";@ %a@]]))@]@]"
+    pp_columns_eq_params (List.mapi (fun i (cn, _) -> (cn, i)) ti.ti_pk_cts);
 
   (*   let insert = ... *)
   pp oc "@ @[<v 2>let insert = Ib.Request.create Ib.Spec.(";
@@ -634,7 +643,7 @@ let emit_impl oc ti =
       (if ct.ct_defaultable then "Field_default" else "Field")
       cn (convname_of_coltype ct)
   end;
-  pp oc "@ Done \"%s\"" (Episql.string_of_qname ti.ti_tqn);
+  pp oc "@ Done table_name";
   ti.ti_cts |> List.iter (fun _ -> fprintf oc "}");
   pp oc ")@]";
 
@@ -683,7 +692,7 @@ let emit_impl oc ti =
     end;
   pp oc "@ let key_size = %d" (List.length ti.ti_pk_cts);
   pp oc "@ let state_size = %d" (List.length ti.ti_nonpk_cts);
-  pp oc "@ let table_name = \"%s\"" (Episql.string_of_qname ti.ti_tqn);
+  pp oc "@ let table_name = table_name";
   pp oc "@ @[<v 2>let fetch (module C : Caqti_lwt.CONNECTION) key =";
   pp oc "@ @[<v 2>C.find_opt Q.fetch ";
   emit_param oc ti "key" ti.ti_pk_cts;
@@ -954,10 +963,9 @@ let emit_impl oc ti =
       ti.ti_cts;
     pp oc "@ @[<v 2>let Request (req, param) =@ \
               @[<hov 2>Sb.finish@ \
-                ~table_name:%S@ ~select_list@ ~select_type@ \
+                ~table_name@ ~select_list@ ~select_type@ \
                 ~order_column_name@ ~order_by@ ?limit@ ?offset@ \
-                sb"
-      (Episql.string_of_qname ti.ti_tqn);
+                sb";
     pp oc "@]@]@ in";
     pp oc "@ @[<v 2>let decode ";
     emit_columns_value oc ti.ti_cts;
@@ -1002,12 +1010,10 @@ let emit_impl oc ti =
     pp oc "@ @[<v 1>(match o.state with";
     pp oc "@ | @[<v 1>Inserting _ ->";
     pp oc "@ Lwt.fail (Caqti_persist.Error.Conflict \
-                {conflict_type = `Update_insert; conflict_table = \"%s\"})@]"
-       (Episql.string_of_qname ti.ti_tqn);
+              {conflict_type = `Update_insert; conflict_table = table_name})@]";
     pp oc "@ | @[<v 1>Deleting _ ->";
     pp oc "@ Lwt.fail (Caqti_persist.Error.Conflict \
-                {conflict_type = `Update_delete; conflict_table = \"%s\"})@]"
-       (Episql.string_of_qname ti.ti_tqn);
+              {conflict_type = `Update_delete; conflict_table = table_name})@]";
     pp oc "@ | @[<v 1>Absent ->";
     if go.go_insert_upserts then begin
       List.iter
@@ -1069,8 +1075,7 @@ let emit_impl oc ti =
           pp oc "@ Ub.where ub \"%s\" (Type.%s, o.key.%s%s);"
              cn (convname_of_coltype ct) go.go_pk_prefix cn)
         ti.ti_pk_cts;
-    pp oc "@ @[<v 1>(match Ub.finish ~table_name:%S ub with"
-      (Episql.string_of_qname ti.ti_tqn);
+    pp oc "@ @[<v 1>(match Ub.finish ~table_name ub with";
     pp oc "@ | None -> %s ()" return_ok;
     pp oc "@ @[<v 3>| Some (Request (req, params)) ->";
     pp oc "@ C.exec req params %s fun () ->" fail_or_map_result_op;
@@ -1240,11 +1245,7 @@ let generate emit stmts oc =
 let common_header = "\
   (* Generated by episql. *)\n\n\
   [@@@ocaml.warning \"-27\"]\n\n\
-  open Caqti_persist\n\
-  module type P = sig\n\
- \  module Beacon : Prime_beacon.S\n\
- \  val use_db : ((module Caqti_lwt.CONNECTION) -> 'a Lwt.t) -> 'a Lwt.t\n\
-  end\n\n"
+  open Caqti_persist\n\n"
 
 let generate_intf stmts oc =
   pp oc "@[<v 0>";
@@ -1253,7 +1254,7 @@ let generate_intf stmts oc =
   pp oc "@[<v 2>module type S = sig";
   generate emit_intf stmts oc;
   pp oc "@]@ end@\n";
-  pp oc "@ module Make (P : P) : S@\n@]@."
+  pp oc "@ module Make (P : CONNECTION_SPEC) : S@\n@]@."
 
 let generate_impl stmts oc =
   pp oc "@[<v 0>";
@@ -1267,7 +1268,7 @@ let generate_impl stmts oc =
   if go.go_raise_on_absent then
     Option.iter (pp oc "@ let section = Lwt_log.Section.make \"%s\"")
                 go.go_log_debug;
-  pp oc "@ @[<v 2>module Make (P : P) = struct";
+  pp oc "@ @[<v 2>module Make (P : CONNECTION_SPEC) = struct";
   pp oc "@ module Cache = Pk_cache.Make (P.Beacon)";
   pp oc "@ @[<v 2>module Type = struct";
   pp oc "@ include Caqti_type";

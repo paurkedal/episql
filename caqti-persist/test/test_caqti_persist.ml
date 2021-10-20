@@ -44,10 +44,12 @@ module P = struct
   module Beacon = Prime_beacon.Make (Cm)
 
   let () = Dynlink.allow_unsafe_modules true
+
   let pool =
     (match Caqti_lwt.connect_pool (Uri.of_string "postgresql://") with
      | Ok pool -> pool
      | Error err -> raise (Caqti_error.Exn err))
+
   let use_db f =
     let aux c =
       Lwt.catch
@@ -57,6 +59,8 @@ module P = struct
      | Ok y -> Lwt.return y
      | Error (`Exn exn) -> Lwt.fail exn
      | Error (#Caqti_error.t as err) -> Lwt.fail (Caqti_error.Exn err)
+
+  let rename_schema = Fun.id
 end
 
 module M = Schema_one_persist.Make (P)

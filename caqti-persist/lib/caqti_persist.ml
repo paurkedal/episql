@@ -25,4 +25,9 @@ module Caqti_persist_internal = struct
   module Ib = Insert_builder
   module Ub = Update_builder
   module Sb = Select_builder
+
+  let qualify ns name =
+    (match ns with
+     | None -> name
+     | Some ns -> ns ^ "." ^ name)
 end
