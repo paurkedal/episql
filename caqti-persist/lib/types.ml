@@ -44,7 +44,9 @@ module type CONNECTION_SPEC = sig
       shall return the schema used to quelify the same tables in actual database
       requests.  [None] means that the table name is unqualified. *)
 
-  val use_db : ((module Caqti_lwt.CONNECTION) -> 'a Lwt.t) -> 'a Lwt.t
+  val use_db :
+    ((module Caqti_lwt.CONNECTION) -> ('a, 'e) result Lwt.t) ->
+    ('a, [> Caqti_error.connect] as 'e) result Lwt.t
   (** [use_db f] shall call [f] with a database connection. *)
 
   module Beacon : Prime_beacon.S

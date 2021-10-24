@@ -30,18 +30,11 @@ module type CACHABLE = sig
   type state
   type value
   type change
-  module Result_lwt : sig
-    type (+'a, +'e) t
-    val return_ok : 'a -> ('a, 'e) t
-    val conflict : Error.conflict -> ('a, [> `Conflict of Error.conflict]) t
-    val map : ('a -> 'b) -> ('a, 'e) t -> ('b, 'e) t
-    val bind_lwt : ('a -> ('b, 'e) t) -> 'a Lwt.t -> ('b, 'e) t
-  end
   val key_size : int
   val state_size : int
   val fetch :
     Caqti_lwt.connection ->
-    key -> (state option, [> Caqti_error.t]) Result_lwt.t
+    key -> (state option, [> Caqti_error.t]) result Lwt.t
   val table_name : string
 end
 
@@ -76,5 +69,5 @@ module Make :
   functor (P : CACHABLE) ->
   S with type key := P.key and type state := P.state
      and type value := P.value and type change := P.change
-     and type (+'a, +'e) result_lwt := ('a, 'e) P.Result_lwt.t
+     and type (+'a, +'e) result_lwt := ('a, 'e) result Lwt.t
      and type beacon := Beacon.t

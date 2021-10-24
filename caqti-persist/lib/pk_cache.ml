@@ -14,7 +14,11 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
+open Lwt.Infix
+
 open Types
+
+let (>|=?) = Lwt_result.(>|=)
 
 let cache_hertz = Int64.to_float ExtUnix.Specific.(sysconf CLK_TCK)
 let cache_second = 1.0 /. cache_hertz
@@ -36,18 +40,11 @@ module type CACHABLE = sig
   type state
   type value
   type change
-  module Result_lwt : sig
-    type (+'a, +'e) t
-    val return_ok : 'a -> ('a, 'e) t
-    val conflict : Error.conflict -> ('a, [> `Conflict of Error.conflict]) t
-    val map : ('a -> 'b) -> ('a, 'e) t -> ('b, 'e) t
-    val bind_lwt : ('a -> ('b, 'e) t) -> 'a Lwt.t -> ('b, 'e) t
-  end
   val key_size : int
   val state_size : int
   val fetch :
     Caqti_lwt.connection ->
-    key -> (state option, [> Caqti_error.t]) Result_lwt.t
+    key -> (state option, [> Caqti_error.t]) result Lwt.t
   val table_name : string
 end
 
@@ -119,13 +116,13 @@ module Make (Beacon : Prime_beacon.S) (P : CACHABLE) = struct
 
   let fetch c key =
     try
-      P.Result_lwt.return_ok (W.find cache (mk_key key))
+      Lwt.return_ok (W.find cache (mk_key key))
     with Not_found ->
       let aux state =
         let state = match state with None -> Absent | Some x -> Present x in
         merge (key, state)
       in
-      P.fetch c key |> P.Result_lwt.map aux
+      P.fetch c key >|=? aux
 
   let merge_created (key, state) =
     try
@@ -133,18 +130,18 @@ module Make (Beacon : Prime_beacon.S) (P : CACHABLE) = struct
       let rec retry () =
         (match o.state with
          | Deleting c ->
-            P.Result_lwt.bind_lwt retry (Lwt_condition.wait c)
+            Lwt_condition.wait c >>= retry
          | Absent ->
             o.state <- Present state;
-            P.Result_lwt.return_ok ()
+            Lwt.return_ok ()
          | Inserting _ | Present _ ->
             let error = {Error.
               conflict_type = `Insert_insert;
               conflict_table = P.table_name;
             } in
-            P.Result_lwt.conflict error)
+            Lwt.return_error (`Conflict error))
       in
-      P.Result_lwt.map (fun () -> o) (retry ())
+      retry () >|=? fun () -> o
     with Not_found ->
       let o =
         let patches, notify = React.E.create () in
@@ -153,7 +150,7 @@ module Make (Beacon : Prime_beacon.S) (P : CACHABLE) = struct
         end
       in
       W.add cache o;
-      P.Result_lwt.return_ok o
+      Lwt.return_ok o
 end
 
 let () =
