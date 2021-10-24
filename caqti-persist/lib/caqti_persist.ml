@@ -26,6 +26,9 @@ module Caqti_persist_internal = struct
   module Ub = Update_builder
   module Sb = Select_builder
 
+  let (>>=?) = Lwt_result.(>>=)
+  let (>|=?) = Lwt_result.(>|=)
+
   let qualify ns name =
     (match ns with
      | None -> name
