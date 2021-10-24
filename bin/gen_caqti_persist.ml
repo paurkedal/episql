@@ -757,11 +757,11 @@ let emit_impl oc ti =
     open_query_let "insert"
       Fmt.(list ~sep:nop (sp ++ pp_insert_column_arg) ++ sp ++ const string "o")
       ti.ti_nonpk_cts;
+    emit_use_C oc;
     pp oc "@ @[<v 1>let rec retry () = match o.state with";
     pp oc "@ @[<v 3>| Absent ->";
     pp oc "@ let epi'cond = Lwt_condition.create () in";
     pp oc "@ o.state <- Inserting epi'cond;";
-    emit_use_C oc;
 
     pp oc "@ @[<v 1>(match Ib.(init Q.insert";
     ti.ti_cts |> List.iter begin fun (cn, ct) ->
@@ -809,9 +809,8 @@ let emit_impl oc ti =
       end
     end;
     pp oc "@]";
-    pp oc "@ | Inserting cond -> Lwt_condition.wait cond >|= fun _ -> %s"
-      (if go.go_return_result then "Ok ()" else "()");
-    pp oc "@ | Present x -> %s ()" return_ok;
+    pp oc "@ | Inserting cond -> Lwt_condition.wait cond >|= fun _ -> Ok ()";
+    pp oc "@ | Present x -> Lwt.return_ok ()";
     pp oc "@ | Deleting cond -> Lwt_condition.wait cond >>= retry";
     pp oc "@]@ in@ retry ()";
     close_query_let ()
