@@ -1,4 +1,4 @@
-(* Copyright (C) 2021--2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2021--2023  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -15,6 +15,15 @@
  * <http://www.gnu.org/licenses/> and <https://spdx.org>, respectively.
  *)
 
+type not_present = {
+  operation: string;
+  table: string;
+}
+let pp_not_present ppf err =
+  Format.fprintf ppf "Called %s on absent row of %s." err.operation err.table
+
+let show_not_present = Format.asprintf "%a" pp_not_present
+
 type conflict = {
   conflict_type: [`Insert_insert | `Update_insert | `Update_delete];
   conflict_table: string;
@@ -24,7 +33,7 @@ type conflict = {
 type t = [Caqti_error.t | `Conflict of conflict]
 [@@deriving show]
 
-exception Not_present
+exception Not_present of not_present
 exception Conflict of conflict
 
 let or_fail = function

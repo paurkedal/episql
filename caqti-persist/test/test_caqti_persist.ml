@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2023  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -31,8 +31,6 @@ module Result_list_lwt = struct
    | m :: ms -> m >>=? fun () -> join ms
 
 end
-
-let section = Lwt_log.Section.make "Test_caqti_persist"
 
 module P = struct
   module Cm = struct
@@ -138,13 +136,10 @@ let test_serial () =
 let test_parallel_inner a j =
   if Tensor1.is_present a then
     if Random.bool () then
-      Lwt_log.debug ~section "Tensor1.update" >>= fun () ->
       Tensor1.update ~x:(float_of_int j) a
     else
-      Lwt_log.debug ~section "Tensor1.delete" >>= fun () ->
       Tensor1.delete a
   else
-    Lwt_log.debug ~section "Tensor1.insert" >>= fun () ->
     Tensor1.insert ~x:(float_of_int j) a
 
 let test_parallel i =

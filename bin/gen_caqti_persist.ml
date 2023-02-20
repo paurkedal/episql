@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2023  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -83,7 +83,6 @@ type genopts = {
   mutable go_type_timestamp : string;
   mutable go_raise_on_absent : bool;
   mutable go_return_result : bool;
-  mutable go_log_debug : string option;
   mutable go_connection_arg : string option;
   mutable go_public_state : bool;
 }
@@ -116,7 +115,6 @@ let go = {
   go_type_timestamp = "CalendarLib.Calendar.t";
   go_raise_on_absent = false;
   go_return_result = false;
-  go_log_debug = Some "caqti-persist";
   go_connection_arg = None;
   go_public_state = false;
 }
@@ -687,12 +685,9 @@ let emit_impl oc ti =
 
   (* let absent = ... *)
   if go.go_raise_on_absent then begin
-    pp oc "@ @[<v 2>let absent op o =";
-    if go.go_log_debug <> None then
-      pp oc "@ Lwt_log.ign_debug_f ~section \
-                \"Called %%s on absent row of %s.\" op;"
-         (snd ti.ti_tqn);
-    pp oc "@ raise Caqti_persist.Error.Not_present@]"
+    pp oc "@ @[<v 2>let absent operation o =";
+    pp oc "@ raise (Caqti_persist.Error.Not_present {operation; table = %S})@]"
+       (snd ti.ti_tqn);
   end;
 
   (* let is_present = ... *)
@@ -1108,7 +1103,7 @@ let emit_impl oc ti =
     end;
     pp oc "@]";
     if go.go_raise_on_absent then
-      pp oc "@ | _ -> raise Caqti_persist.Error.Not_present"
+      pp oc "@ | _ -> absent \"value\" o"
     else
       pp oc "@ | _ -> None";
     pp oc ")@]@]"
@@ -1188,9 +1183,6 @@ let generate_impl stmts oc =
   pp oc "@ @[<v 2>module type S = sig";
   generate emit_intf stmts oc;
   pp oc "@]@ end@\n";
-  if go.go_raise_on_absent then
-    Option.iter (pp oc "@ let section = Lwt_log.Section.make \"%s\"")
-                go.go_log_debug;
   pp oc "@ @[<v 2>module Make (P : CONNECTION_SPEC) = struct";
   pp oc "@ module Cache = Pk_cache.Make (P.Beacon)";
   pp oc "@ @[<v 2>module Type = struct";
