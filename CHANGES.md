@@ -1,3 +1,8 @@
+## v0.14.0 - 2023-03-27
+
+  - Eliminate dependency of `lwt_log` for generated code.
+  - Add information to the `Not_present` exception.
+
 ## v0.13.0 - 2021-10-26
 
 This is a backwards incompatible release dune to items marked (\*) and
