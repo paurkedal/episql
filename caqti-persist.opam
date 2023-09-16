@@ -8,10 +8,10 @@ bug-reports: "https://github.com/paurkedal/episql/issues"
 depends: [
   "ocaml"
   "dune" {>= "1.9"}
-  "caqti" {>= "0.8.1"}
+  "caqti" {>= "2.0.1"}
   "caqti-dynload" {with-test}
-  "caqti-lwt" {>= "0.8.1"}
-  "caqti-type-calendar" {>= "0.8.1"}
+  "caqti-lwt" {>= "2.0.1"}
+  "caqti-type-calendar" {>= "2.0.1"}
   "extunix"
   "lwt"
   "ppx_deriving"

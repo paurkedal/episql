@@ -535,7 +535,7 @@ let emit_columns_type ?(filter = fun _ -> true) oc cts =
   fprint oc "Type.";
   List.iter
     (fun (_, ct) ->
-      if filter ct then fprintf oc "(tup2 %s " (convname_of_coltype ct))
+      if filter ct then fprintf oc "(t2 %s " (convname_of_coltype ct))
     cts;
   fprint oc "unit";
   List.iter (fun (_, ct) -> if filter ct then fprint oc ")") cts

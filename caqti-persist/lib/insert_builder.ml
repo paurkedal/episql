@@ -1,4 +1,4 @@
-(* Copyright (C) 2021--2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2021--2023  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -43,7 +43,7 @@ module Request = struct
     | Done :
         ('p, unit, Caqti_mult.zero) Caqti_request.t -> (unit, 'p, unit) t
     | Done_default :
-        ('p, 'a * 'r, Caqti_mult.one) Caqti_request.t -> (unit, 'p, 'a * 'r) t
+        ('p, 'r, Caqti_mult.one) Caqti_request.t -> (unit, 'p, 'r) t
     | Field : {
         set: ('q, 'p * 'a, 'r) t;
       } -> (('a * wod) * 'q, 'p, 'r) t
@@ -60,7 +60,7 @@ module Request = struct
      | Spec.Done tn ->
         let pcns = List.rev pcns in
         let rcns = List.rev rcns in
-        let query =
+        let query' =
           let open Caqti_query in
           let values =
             if pcns = [] then
@@ -73,27 +73,26 @@ module Request = struct
           in
           S[L"INSERT INTO "; L tn; values]
         in
-        (match rt with
-         | Caqti_type.Unit ->
-            Done (Caqti_request.create pt rt Caqti_mult.zero (Fun.const query))
-         | Caqti_type.Tup2 (_, _) ->
-            let query =
+        (match Caqti_type.unify rt Caqti_type.unit with
+         | Some Caqti_type.Equal ->
+            Done (Caqti_request.create pt rt Caqti_mult.zero (Fun.const query'))
+         | None ->
+            let query' =
               let open Caqti_query in
-              S(query :: L" RETURNING " ::
+              S(query' :: L" RETURNING " ::
                 List.interfix (L", ") (List.map (fun cn -> L cn) rcns))
             in
             Done_default
-              (Caqti_request.create pt rt Caqti_mult.one (Fun.const query))
-         | _ -> assert false)
+              (Caqti_request.create pt rt Caqti_mult.one (Fun.const query')))
      | Spec.Field {cn; ct; next} ->
         let set =
-          (create' (Caqti_type.(tup2 pt ct), cn :: pcns, rt, rcns) next) in
+          (create' (Caqti_type.(t2 pt ct), cn :: pcns, rt, rcns) next) in
         Field {set}
      | Spec.Field_default {cn; ct; next} ->
         let set = lazy
-          (create' (Caqti_type.(tup2 pt ct), cn :: pcns, rt, rcns) next) in
+          (create' (Caqti_type.(t2 pt ct), cn :: pcns, rt, rcns) next) in
         let ret = lazy
-          (create' (pt, pcns, Caqti_type.(tup2 rt ct), cn :: rcns) next) in
+          (create' (pt, pcns, Caqti_type.(t2 rt ct), cn :: rcns) next) in
         Field_default {set; ret})
 
   let create spec = create' (Caqti_type.unit, [], Caqti_type.unit, []) spec

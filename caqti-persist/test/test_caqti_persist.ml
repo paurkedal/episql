@@ -45,7 +45,7 @@ module P = struct
   let () = Dynlink.allow_unsafe_modules true
 
   let pool =
-    (match Caqti_lwt.connect_pool (Uri.of_string "postgresql://") with
+    (match Caqti_lwt_unix.connect_pool (Uri.of_string "postgresql://") with
      | Ok pool -> pool
      | Error err -> raise (Caqti_error.Exn err))
 
@@ -54,7 +54,7 @@ module P = struct
       Lwt.catch
         (fun () -> f c >|= fun y -> Ok y)
         (fun exn -> Lwt.return_error (`Exn exn)) in
-    Caqti_lwt.Pool.use aux pool >>= function
+    Caqti_lwt_unix.Pool.use aux pool >>= function
      | Ok y -> Lwt.return y
      | Error (`Exn exn) -> Lwt.fail exn
      | Error (#Caqti_error.t as err) -> Lwt.fail (Caqti_error.Exn err)

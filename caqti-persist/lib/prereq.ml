@@ -1,4 +1,4 @@
-(* Copyright (C) 2021--2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2021--2023  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -18,7 +18,7 @@
 module Params = struct
   type t = V : 'a Caqti_type.t * 'a -> t
   let empty = V (Caqti_type.unit, ())
-  let add pt pv (V (pt', pv')) = V (Caqti_type.tup2 pt' pt, (pv', pv))
+  let add pt pv (V (pt', pv')) = V (Caqti_type.t2 pt' pt, (pv', pv))
 end
 
 let quote_column column =
