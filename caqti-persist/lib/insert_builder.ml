@@ -43,7 +43,7 @@ module Request = struct
     | Done :
         ('p, unit, Caqti_mult.zero) Caqti_request.t -> (unit, 'p, unit) t
     | Done_default :
-        ('p, 'r, Caqti_mult.one) Caqti_request.t -> (unit, 'p, 'r) t
+        ('p, 'a * 'r, Caqti_mult.one) Caqti_request.t -> (unit, 'p, 'a * 'r) t
     | Field : {
         set: ('q, 'p * 'a, 'r) t;
       } -> (('a * wod) * 'q, 'p, 'r) t
@@ -52,50 +52,63 @@ module Request = struct
         ret: ('q, 'p, 'r * 'a) t Lazy.t;
       } -> (('a * wd) * 'q, 'p, 'r) t
 
-  let rec create'
-    : type q pt rt. (pt Caqti_type.t * _ * rt Caqti_type.t * _) -> q Spec.t ->
-      (q, pt, rt) t =
-    fun (pt, pcns, rt, rcns) ->
+  let build_values =
+    let open Caqti_query in
+    (function
+     | [] -> L" DEFAULT VALUES"
+     | pcns ->
+        let cols = List.map quote_column pcns in
+        let vals = List.mapi (fun i _ -> P i) pcns in
+        S[L" ("; concat ", " cols; L") VALUES (";
+          S (List.interfix (L", ") vals); L")"])
+
+  type 'a columns = 'a Caqti_type.t * string list
+
+  let rec create''
+    : type q p a r.
+      p columns -> (a * r) columns -> q Spec.t -> (q, p, (a * r)) t =
+    fun (pt, pcns) (rt, rcns) ->
     (function
      | Spec.Done tn ->
         let pcns = List.rev pcns in
         let rcns = List.rev rcns in
-        let query' =
+        let q =
           let open Caqti_query in
-          let values =
-            if pcns = [] then
-              L" DEFAULT VALUES"
-            else
-              let cols = List.map quote_column pcns in
-              let vals = List.mapi (fun i _ -> P i) pcns in
-              S[L" ("; S (List.interfix (L", ") cols); L") VALUES (";
-                S (List.interfix (L", ") vals); L")"]
-          in
-          S[L"INSERT INTO "; L tn; values]
+          S[L"INSERT INTO "; L tn; build_values pcns;
+            L" RETURNING "; concat ", " (List.map (fun cn -> L cn) rcns)]
         in
-        (match Caqti_type.unify rt Caqti_type.unit with
-         | Some Caqti_type.Equal ->
-            Done (Caqti_request.create pt rt Caqti_mult.zero (Fun.const query'))
-         | None ->
-            let query' =
-              let open Caqti_query in
-              S(query' :: L" RETURNING " ::
-                List.interfix (L", ") (List.map (fun cn -> L cn) rcns))
-            in
-            Done_default
-              (Caqti_request.create pt rt Caqti_mult.one (Fun.const query')))
+        let q _ = q in
+        Done_default (Caqti_request.create pt rt Caqti_mult.one q)
      | Spec.Field {cn; ct; next} ->
         let set =
-          (create' (Caqti_type.(t2 pt ct), cn :: pcns, rt, rcns) next) in
+          (create'' (Caqti_type.(t2 pt ct), cn :: pcns) (rt, rcns) next) in
         Field {set}
      | Spec.Field_default {cn; ct; next} ->
         let set = lazy
-          (create' (Caqti_type.(t2 pt ct), cn :: pcns, rt, rcns) next) in
+          (create'' (Caqti_type.(t2 pt ct), cn :: pcns) (rt, rcns) next) in
         let ret = lazy
-          (create' (pt, pcns, Caqti_type.(t2 rt ct), cn :: rcns) next) in
+          (create'' (pt, pcns) (Caqti_type.(t2 rt ct), cn :: rcns) next) in
         Field_default {set; ret})
 
-  let create spec = create' (Caqti_type.unit, [], Caqti_type.unit, []) spec
+  let rec create' : type q p. p columns -> q Spec.t -> (q, p, unit) t =
+    fun (pt, pcns) ->
+    (function
+     | Spec.Done tn ->
+        let pcns = List.rev pcns in
+        let q = Caqti_query.(S[L"INSERT INTO "; L tn; build_values pcns]) in
+        let q _ = q in
+        Done (Caqti_request.create pt Caqti_type.unit Caqti_mult.zero q)
+     | Spec.Field {cn; ct; next} ->
+        let set = create' (Caqti_type.(t2 pt ct), cn :: pcns) next in
+        Field {set}
+     | Spec.Field_default {cn; ct; next} ->
+        let set = lazy
+          (create' (Caqti_type.(t2 pt ct), cn :: pcns) next) in
+        let ret = lazy
+          (create'' (pt, pcns) (Caqti_type.(t2 unit ct), [cn]) next) in
+        Field_default {set; ret})
+
+  let create spec = create' (Caqti_type.unit, []) spec
 end
 
 type (_, _) app =

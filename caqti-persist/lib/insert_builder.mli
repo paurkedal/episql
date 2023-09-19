@@ -38,7 +38,7 @@ module Request : sig
     | Done :
         ('p, unit, Caqti_mult.zero) Caqti_request.t -> (unit, 'p, unit) t
     | Done_default :
-        ('p, 'r, Caqti_mult.one) Caqti_request.t -> (unit, 'p, 'r) t
+        ('p, 'a * 'r, Caqti_mult.one) Caqti_request.t -> (unit, 'p, 'a * 'r) t
     | Field : {
         set: ('q, 'p * 'a, 'r) t;
       } -> (('a * wod) * 'q, 'p, 'r) t
