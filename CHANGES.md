@@ -1,3 +1,7 @@
+## v0.15.0 - 2023-09-19
+
+  - Upgrade to Caqti 2.0.
+
 ## v0.14.0 - 2023-03-27
 
   - Eliminate dependency of `lwt_log` for generated code.
