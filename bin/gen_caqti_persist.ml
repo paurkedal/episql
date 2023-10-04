@@ -18,8 +18,6 @@
 open Episql.Types
 open Format
 open Unprime
-open Unprime_list
-open Unprime_option
 open Unprime_string
 
 module Filter = struct
@@ -48,10 +46,10 @@ module Filter = struct
 
   let test_qname ?(default = true) flt = function
    | (None, s) ->
-      test flt s |> Option.get_or default
+      test flt s |> Option.value ~default
    | (Some ns, s) ->
-      test flt (ns ^ "." ^ s) |> Option.get_else @@ fun () ->
-      test flt s |> Option.get_or default
+      test flt (ns ^ "." ^ s) |> Prime_option.get_else @@ fun () ->
+      test flt s |> Option.value ~default
 end
 
 type genopts = {

@@ -1,4 +1,4 @@
-(* Copyright (C) 2015--2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2015--2023  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -17,12 +17,10 @@
 
 open Episql
 open Episql.Types
-open Unprime
-open Unprime_option
-open Unprime_list
 
 let use_compact_lists = ref false
 let tag name = ("", name)
+let (%) f g x = f (g x)
 
 module Attr = struct
   let string name x = (("", name), x)
@@ -53,7 +51,7 @@ let string_of_action = function
  | `Cascade -> "cascade"
  | `Restrict -> "restrict"
 
-let opt_cons f = Option.fold (List.cons % f)
+let opt_cons f = Option.fold ~some:(List.cons % f) ~none:Fun.id
 
 let xmlattrs_of_column_reference {table; columns; on_delete; on_update} =
   List.cons (Attr.string "ref-table" (string_of_qname table)) @@
@@ -128,7 +126,7 @@ let write_item o = function
     let ctn, ct_attrs = xmlattrs_of_coltype ct in
     let attrs =
       ct_attrs @ List.flatten (List.map xmlattrs_of_column_constraint constrs)
-      |> Option.fold (List.cons % Attr.string "collate") cc
+      |> Option.fold ~some:(List.cons % Attr.string "collate") ~none:Fun.id cc
       |> List.cons (Attr.string "type" ctn)
       |> List.cons (Attr.string "name" cn) in
     Xmlm.output o (`El_start (tag "column", attrs));
@@ -141,7 +139,7 @@ let write_item o = function
  | Constraint (name, `Check check_constraint) ->
      write_check_constraint o (name, check_constraint)
  | Constraint (name, `Unique cols) ->
-    let attrs = List.of_option (Option.map (Attr.string "name") name) in
+    let attrs = Prime_list.of_option (Option.map (Attr.string "name") name) in
     if !use_compact_lists then
       output_leaf o "unique" (Attr.string_list "columns" cols :: attrs)
     else begin
@@ -150,7 +148,7 @@ let write_item o = function
       Xmlm.output o `El_end
     end
  | Constraint (name, `Primary_key cols) ->
-    let attrs = List.of_option (Option.map (Attr.string "name") name) in
+    let attrs = Prime_list.of_option (Option.map (Attr.string "name") name) in
     if !use_compact_lists then
       output_leaf o "primary-key" (Attr.string_list "columns" cols :: attrs)
     else begin
@@ -159,7 +157,7 @@ let write_item o = function
       Xmlm.output o `El_end
     end
  | Constraint (name, `Foreign_key (cols, refspec)) ->
-    let attrs = List.of_option (Option.map (Attr.string "name") name) in
+    let attrs = Prime_list.of_option (Option.map (Attr.string "name") name) in
     if !use_compact_lists then
       let attrs =
         Attr.string_list "columns" cols ::

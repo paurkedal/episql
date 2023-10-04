@@ -1,4 +1,4 @@
-(* Copyright (C) 2021--2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2021--2023  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -16,7 +16,6 @@
  *)
 
 open Prereq
-open Unprime_list
 
 type request =
   Request : ('a, unit, Caqti_mult.zero) Caqti_request.t * 'a -> request
@@ -57,8 +56,8 @@ let finish ~table_name ub =
     let settings = List.rev_map mk ub.rev_settings in
     let conditions = List.rev_map mk ub.rev_conditions in
     S[L"UPDATE "; L table_name;
-      L" SET "; S (List.interfix (L", ") settings);
-      L" WHERE "; S (List.interfix (L" AND ") conditions)]
+      L" SET "; concat ", " settings;
+      L" WHERE "; concat " AND " conditions]
   in
   let Params.V (pt, pv) = ub.params in
   let request =

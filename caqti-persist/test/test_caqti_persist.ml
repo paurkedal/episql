@@ -16,7 +16,6 @@
  *)
 
 open Lwt.Infix
-open Unprime_list
 
 let (>>=?) m f = m >>= function Ok x -> f x | Error _ as r -> Lwt.return r
 
@@ -144,13 +143,13 @@ let test_parallel_inner a j =
 
 let test_parallel i =
   Tensor1.create ~i:(Int32.of_int i) ~x:0.0 () >>=? fun a ->
-  Result_list_lwt.join (List.sample (test_parallel_inner a) 100) >>=? fun () ->
+  Result_list_lwt.join (List.init 100 (test_parallel_inner a)) >>=? fun () ->
   Tensor1.delete a
 
 let main =
   begin
     test_serial () >>=? fun () ->
-    Result_list_lwt.join (List.sample test_parallel 100)
+    Result_list_lwt.join (List.init 100 test_parallel)
   end >>= Caqti_persist.Error.or_fail
 
 let () = Lwt_main.run main

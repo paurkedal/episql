@@ -1,4 +1,4 @@
-(* Copyright (C) 2021--2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2021--2023  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -16,9 +16,6 @@
  *)
 
 open Prereq
-open Unprime
-open Unprime_list
-
 open Types
 
 type query_fragment =
@@ -84,11 +81,11 @@ let finish
     let open Caqti_query in
     let select_clause =
       let select_list = List.map (fun cn -> L cn) select_list in
-      S(L"SELECT " :: List.interfix (L", ") select_list);
+      S[L"SELECT "; concat ", " select_list];
     in
     let where_clause =
       if sb.rev_where_list = [] then S[] else
-      S(L" WHERE " :: List.interfix (L" AND ") (List.rev sb.rev_where_list))
+      S[L" WHERE "; concat " AND " (List.rev sb.rev_where_list)]
     in
     let order_by_clause =
       if order_by = [] then S[] else
@@ -99,7 +96,7 @@ let finish
        | Desc_sql sql -> S[L sql; L" DESC"]
       in
       let order_list = List.rev_map to_sql order_by in
-      S(L" ORDER BY " :: List.interfix (L", ") order_list)
+      S[L" ORDER BY "; concat ", " order_list]
     in
     let limit_clause =
       (match limit with
@@ -117,6 +114,6 @@ let finish
   let Params.V (pt, pv) = sb.params in
   let request =
     Caqti_request.create ~oneshot:true pt select_type Caqti_mult.zero_or_more
-      (konst query)
+      (Fun.const query)
   in
   Request (request, pv)

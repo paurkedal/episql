@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2023  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -16,15 +16,15 @@
  *)
 
 open Printf
-open Unprime_list
-open Unprime
 
 let disable_keyword kw =
   let kw = String.uppercase_ascii kw in
   if not (Hashtbl.mem Episql.Lexer.keywords kw)
   then eprintf "warning: %s is not a keyword.\n" kw
   else Hashtbl.remove Episql.Lexer.keywords kw
-let disable_keywords = List.iter disable_keyword % Prime_string.chop_affix ","
+
+let disable_keywords kws =
+  kws |> String.split_on_char ',' |> List.iter disable_keyword
 
 let () =
   let arg_inputs = ref [] in
@@ -54,7 +54,9 @@ let () =
     | Some g -> g in
   flush stderr;
   let stmts =
-    List.fold (fun fp acc -> Episql.parse_file fp @ acc) !arg_inputs [] in
+    let add_rev acc fp = List.rev_append (Episql.parse_file fp) acc in
+    List.fold_left add_rev [] !arg_inputs |> List.rev
+  in
   match !arg_output with
   | "-" -> generator stmts stdout
   | fp -> Prime_io.with_file_out (generator stmts) fp

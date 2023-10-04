@@ -15,9 +15,6 @@
  * <http://www.gnu.org/licenses/> and <https://spdx.org>, respectively.
  *)
 
-open Unprime
-open Unprime_list
-
 open Prereq
 
 type wd = Wd
@@ -59,8 +56,7 @@ module Request = struct
      | pcns ->
         let cols = List.map quote_column pcns in
         let vals = List.mapi (fun i _ -> P i) pcns in
-        S[L" ("; concat ", " cols; L") VALUES (";
-          S (List.interfix (L", ") vals); L")"])
+        S[L" ("; concat ", " cols; L") VALUES ("; concat ", " vals; L")"])
 
   type 'a columns = 'a Caqti_type.t * string list
 
@@ -118,7 +114,7 @@ type (_, _) app =
       default: 'r -> 'd;
     } -> ('q, 'd) app
 
-let init request = App {request; param = (); default = ident}
+let init request = App {request; param = (); default = Fun.id}
 
 let ($) : type a ad q d. ((a * ad) * q, d) app -> a -> (q, d) app =
   fun request arg ->
