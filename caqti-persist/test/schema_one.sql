@@ -64,7 +64,7 @@ CREATE TABLE episql_tests.mysts (
   myst_id integer NOT NULL,
   ent1_id integer NOT NULL,
   ent2_id integer NOT NULL,
-  PRIMARY KEY (myst_id, ent_id),
+  PRIMARY KEY (myst_id, ent1_id, ent2_id),
   FOREIGN KEY (ent1_id) REFERENCES episql_tests.ents (ent_id)
     ON UPDATE CASCADE ON DELETE CASCADE,
   FOREIGN KEY (ent2_id) REFERENCES episql_tests.ents
