@@ -69,6 +69,9 @@ let where
    | `Ge x -> where' sb [L cn; L" >= "; P (t, x)]
    | `Between (x, y) -> where' sb [L cn; L" BETWEEN "; P (t, x); L" AND "; P (t, y)]
    | `Not_between (x, y) -> where' sb [L cn; L" NOT BETWEEN "; P (t, x); L" AND "; P (t, y)]
+   | `In xs ->
+      let xs' = List.map (fun x -> P (t, x)) xs in
+      where' sb ([L cn; L" IN ("] @ Prime_list.interfix (L", ") xs' @ [L")"])
    | `Like x -> where' sb [L cn; L" LIKE "; P (t, x)]
    | `Ilike x -> where' sb [L cn; L" ILIKE "; P (t, x)])
 

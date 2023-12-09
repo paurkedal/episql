@@ -18,6 +18,8 @@
 open Lwt.Infix
 
 let (>>=?) m f = m >>= function Ok x -> f x | Error _ as r -> Lwt.return r
+let ( let*? ) = Lwt_result.Syntax.( let* )
+let ( let+? ) = Lwt_result.Syntax.( let+ )
 
 module Result_list_lwt = struct
 
@@ -120,17 +122,30 @@ let test_serial () =
   end >>=? fun () ->
   Cp_1d_1o1r1d.delete e >>=? fun () ->
 
-  Tensor2.create ~i:1l ~j:2l ~x:33.5 () >>=? fun t2' ->
-  Tensor2.select ~i:(`Eq 1l) ~j:(`Eq 2l) () >>=? fun t2s ->
-  begin
-    assert (List.length t2s = 1);
-    let t2 = List.hd t2s in
-    assert (Tensor2.is_present t2);
-    assert (Tensor2.get_i t2 = 1l);
-    assert (Tensor2.get_j t2 = 2l);
-    assert (Tensor2.get_x t2 = 33.5);
-    Tensor2.delete t2'
-  end
+  let rec populate_tensor2 k acc =
+    if k = 256l then Lwt.return_ok (Array.of_list (List.rev acc)) else
+    let x = Int32.to_float k in
+    let*? t = Tensor2.create ~i:(Int32.div k 16l) ~j:(Int32.rem k 16l) ~x () in
+    populate_tensor2 (Int32.succ k) (t :: acc)
+  in
+  let check_element t =
+    let ( + ), ( * ) = Int32.(add, mul) in
+    assert (Tensor2.is_present t);
+    assert (Int32.to_float Tensor2.(get_i t * 16l + get_j t) = Tensor2.get_x t)
+  in
+  let check_select ?i ?j ?x ijs =
+    let+? ts = Tensor2.select ~order_by:[Asc `x] ?i ?j ?x () in
+    assert (List.map (fun t -> Tensor2.(get_i t, get_j t)) ts = ijs)
+  in
+  let*? ts = populate_tensor2 0l [] in
+  let () = Array.iter check_element ts in
+  let*? () =
+    check_select ~i:(`Eq 1l) ~j:(`Eq 2l) [(1l, 2l)] in
+  let*? () =
+    check_select ~x:(`Between (14.5, 17.5)) [0l, 15l; 1l, 0l; 1l, 1l] in
+  let*? () =
+    check_select ~i:(`Eq 2l) ~j:(`In [2l; 5l; 11l]) [2l, 2l; 2l, 5l; 2l, 11l] in
+  Result_list_lwt.iter_s Tensor2.delete (Array.to_list ts)
 
 let test_parallel_inner a j =
   if Tensor1.is_present a then

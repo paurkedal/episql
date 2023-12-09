@@ -1,4 +1,4 @@
-(* Copyright (C) 2021--2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2021--2023  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -17,7 +17,7 @@
 
 type 'a order_predicate = [
   | `Eq of 'a | `Ne of 'a | `Lt of 'a | `Le of 'a | `Ge of 'a | `Gt of 'a
-  | `Between of 'a * 'a | `Not_between of 'a * 'a
+  | `Between of 'a * 'a | `Not_between of 'a * 'a | `In of 'a list
 ]
 
 type 'a order_item =
