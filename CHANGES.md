@@ -1,3 +1,7 @@
+## v0.15.1 - 2023-12-13
+
+  - Support IN (...) for caqti-persist select.
+
 ## v0.15.0 - 2023-09-19
 
   - Upgrade to Caqti 2.0.
