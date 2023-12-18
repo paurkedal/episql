@@ -1,3 +1,7 @@
+## v0.15.2 - 2023-12-18
+
+  - Fix reversal of ORDER BY list in caqti-perist.
+
 ## v0.15.1 - 2023-12-13
 
   - Support IN (...) for caqti-persist select.
