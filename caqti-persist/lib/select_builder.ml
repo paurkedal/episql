@@ -98,7 +98,7 @@ let finish
        | Asc_sql sql -> L sql
        | Desc_sql sql -> S[L sql; L" DESC"]
       in
-      let order_list = List.rev_map to_sql order_by in
+      let order_list = List.map to_sql order_by in
       S[L" ORDER BY "; concat ", " order_list]
     in
     let limit_clause =
