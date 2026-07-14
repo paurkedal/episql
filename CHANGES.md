@@ -1,3 +1,7 @@
+## v0.15.3 - 2026-07-14
+
+  - Update to work with Caqti 3 (using caqti.classic).
+
 ## v0.15.2 - 2023-12-18
 
   - Fix reversal of ORDER BY list in caqti-perist.
